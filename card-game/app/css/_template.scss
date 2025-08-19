@@ -1,0 +1,94 @@
+
+
+//オートレイアウト
+@mixin wrap($width, $max: null) {
+  width: $width;
+  @if $max != null {
+    max-width: $max;
+  }
+  margin-inline: auto;
+}
+
+//フォントサイズ
+@mixin f-size($pc, $sp: null) {
+  // SPサイズが未指定ならPCサイズを使う
+  @if $sp == null {
+    $sp: $pc;
+  }
+
+  @media screen and (max-width: 768px) {
+    @if $sp == 40 {
+      font-size: clamp(20px, 5vw, 28px);
+    } @else if $sp == 35 {
+      font-size: clamp(18px, 4.5vw, 24px);
+    } @else if $sp == 30 {
+      font-size: clamp(16px, 4vw, 22px);
+    } @else if $sp == 25 {
+      font-size: clamp(15px, 3.5vw, 20px);
+    } @else if $sp == 20 {
+      font-size: clamp(14px, 3vw, 18px);
+    } @else if $sp == 18 {
+      font-size: clamp(13px, 2.5vw, 16px);
+    } @else if $sp == 16 {
+      font-size: clamp(12px, 2vw, 14px);
+    } @else {
+      @warn "未定義のSPサイズ #{$sp}";
+    }
+  }
+
+  @media screen and (min-width: 769px) {
+    @if $pc == 40 {
+      font-size: clamp(28px, 3.5vw, 40px);
+    } @else if $pc == 35 {
+      font-size: clamp(24px, 3vw, 35px);
+    } @else if $pc == 30 {
+      font-size: clamp(22px, 2.6vw, 30px);
+    } @else if $pc == 25 {
+      font-size: clamp(20px, 2vw, 25px);
+    } @else if $pc == 20 {
+      font-size: clamp(16px, 1.4vw, 20px);
+    } @else if $pc == 18 {
+      font-size: clamp(15px, 1.2vw, 18px);
+    } @else if $pc == 16 {
+      font-size: clamp(14px, 1vw, 16px);
+    } @else {
+      @warn "未定義のPCサイズ #{$pc}";
+    }
+  }
+}
+
+
+//flex
+//2カラム専用
+@mixin flex($left, $right, $gap) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: $gap;
+
+  &_left {
+    flex: 0 0 $left;
+  }
+
+  &_right {
+    flex: 0 0 $right;
+  }
+}
+//3カラム以降用
+@mixin flex-($count, $gap) { 
+  display: flex; 
+  flex-wrap: wrap; 
+  gap: $gap;
+
+  &_item {
+    width: calc((100% - (#{$gap} * (#{$count} - 1)) ) / #{$count}); 
+  } 
+}
+
+
+
+//grid
+@mixin grid($min, $gap, $max: 1fr) {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax($min, $max));
+  gap: $gap;
+}

@@ -1,0 +1,262 @@
+.field {
+  width: 1000px;
+  height: 600px;
+  margin-inline: auto;
+  margin-block: 15vh;
+  background-color: #000;
+  position: relative;
+  z-index: 1;
+}
+.field_enemy {
+  width: 100%;
+  height: 50%;
+  background-color: #f00;
+  position: relative;
+  z-index: 2;
+}
+.field_enemy_hero {
+  position: absolute;
+  top: 0%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+.field_enemy_hero_wrap {
+  position: relative;
+  width: 150px;
+  height: 150px;
+  background-color: #000;
+}
+.field_enemy_hero_hp {
+  position: absolute;
+  bottom: -30px;
+  right: -25px;
+}
+.field_enemy_hero_hp p {
+  color: #fff;
+  font-size: 60px;
+}
+.field_enemy_mana {
+  position: absolute;
+  bottom: 0%;
+  left: 0%;
+  z-index: 5;
+  display: flex;
+  gap: 8px;
+  padding: 10px;
+}
+.field_enemy_mana span {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background-color: #ccc;
+  transition: background-color 0.3s ease;
+}
+.field_enemy_battle {
+  background-color: #c9c9c9;
+  padding: 20px;
+  position: absolute;
+  bottom: -10%;
+  right: 50%;
+  transform: translate(50%, -50%);
+  max-width: 80%;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 20px;
+}
+.field_enemy_hand {
+  position: absolute;
+  top: -50%;
+  left: -5%;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(5, 1fr);
+  padding: 20px;
+  background-color: #d38787;
+}
+.field_enemy_timer {
+  position: absolute;
+  top: 60%;
+  right: 5%;
+  background-color: green;
+  border-radius: 50%;
+  width: 70px;
+  height: 70px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.field_enemy_timer p {
+  color: #fff;
+  font-size: 40px;
+}
+.field_enemy_status {
+  position: absolute;
+  right: 0%;
+  top: 0%;
+  background-color: #6e6e6e;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+  padding: 10px;
+}
+.field_enemy_status p {
+  color: #fff;
+  font-size: 20px;
+}
+.field_player {
+  width: 100%;
+  height: 50%;
+  background-color: #00f;
+  position: relative;
+  z-index: 2;
+}
+.field_player_hero {
+  width: 150px;
+  height: 150px;
+  background-color: #000;
+  position: absolute;
+  bottom: 0%;
+  left: 50%;
+  transform: translate(-50%, 50%);
+}
+.field_player_hero_wrap {
+  position: relative;
+  width: 150px;
+  height: 150px;
+  background-color: #000;
+}
+.field_player_hero_hp {
+  position: absolute;
+  top: -30px;
+  left: -25px;
+}
+.field_player_hero_hp p {
+  color: #fff;
+  font-size: 60px;
+}
+.field_player_mana {
+  position: absolute;
+  top: 0%;
+  left: 0%;
+  z-index: 5;
+  display: flex;
+  gap: 8px;
+  padding: 10px;
+}
+.field_player_mana span {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background-color: #ccc;
+  transition: background-color 0.3s ease;
+}
+.field_player_battle {
+  background-color: #c9c9c9;
+  padding: 20px;
+  position: absolute;
+  top: 35%;
+  right: 50%;
+  transform: translate(50%, -50%);
+  max-width: 80%;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 20px;
+}
+.field_player_hand {
+  position: absolute;
+  bottom: -50%;
+  right: -5%;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(5, 1fr);
+  padding: 20px;
+  background-color: #d38787;
+}
+.field_player_timer {
+  position: absolute;
+  bottom: 60%;
+  right: 5%;
+  background-color: green;
+  border-radius: 50%;
+  width: 70px;
+  height: 70px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.field_player_timer p {
+  color: #fff;
+  font-size: 40px;
+}
+.field_player_status {
+  position: absolute;
+  left: 0%;
+  bottom: 0%;
+  background-color: #6e6e6e;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+  padding: 10px;
+}
+.field_player_status p {
+  color: #fff;
+  font-size: 20px;
+}
+.field_turn {
+  position: absolute;
+  top: 50%;
+  right: 0%;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+}
+.field_turn button {
+  width: 150px;
+  height: 50px;
+  background-color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 1.5rem;
+  cursor: pointer;
+  transition: background-color 0.3s;
+}
+.field_turn button:hover {
+  background-color: #ccc;
+}
+
+span.mana-slot.available {
+  background-color: #0f0;
+}
+
+span.mana-slot.used {
+  background-color: #555;
+}
+
+.card {
+  width: 70px;
+  height: 100px;
+  background-color: aquamarine;
+  border: solid 1px #000;
+  position: relative;
+}
+.card_hp {
+  background-color: green;
+  color: #fff;
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 20px;
+  height: 20px;
+  text-align: center;
+}
+.card_attack {
+  background-color: red;
+  color: #fff;
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 20px;
+  height: 20px;
+  text-align: center;
+}/*# sourceMappingURL=Game.module.css.map */
