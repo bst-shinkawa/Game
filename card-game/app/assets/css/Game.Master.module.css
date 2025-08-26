@@ -63,6 +63,8 @@
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 20px;
+  width: 500px;
+  height: 140px;
 }
 .field_enemy_hand {
   position: absolute;
@@ -73,6 +75,8 @@
   grid-template-columns: repeat(5, 1fr);
   padding: 20px;
   background-color: #d38787;
+  width: 450px;
+  height: 250px;
 }
 .field_enemy_timer {
   position: absolute;
@@ -163,6 +167,8 @@
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 20px;
+  width: 500px;
+  height: 140px;
 }
 .field_player_hand {
   position: absolute;
@@ -173,6 +179,8 @@
   grid-template-columns: repeat(5, 1fr);
   padding: 20px;
   background-color: #d38787;
+  width: 450px;
+  height: 250px;
 }
 .field_player_timer {
   position: absolute;
@@ -259,4 +267,4 @@ span.mana-slot.used {
   width: 20px;
   height: 20px;
   text-align: center;
-}/*# sourceMappingURL=Game.module.css.map */
+}/*# sourceMappingURL=Game.Master.module.css.map */

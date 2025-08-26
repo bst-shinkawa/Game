@@ -71,6 +71,8 @@
             display: grid;
             grid-template-columns: repeat(5, 1fr);
             gap: 20px;
+            width: 500px;
+            height: 140px;
         }
 
         &_hand{
@@ -82,6 +84,8 @@
             grid-template-columns: repeat(5, 1fr);
             padding: 20px;
             background-color: #d38787;
+            width: 450px;
+            height: 250px;
         }
 
         &_timer{
@@ -183,6 +187,8 @@
             display: grid;
             grid-template-columns: repeat(5, 1fr);
             gap: 20px;
+            width: 500px;
+            height: 140px;
         }
 
         &_hand{
@@ -194,6 +200,8 @@
             grid-template-columns: repeat(5, 1fr);
             padding: 20px;
             background-color: #d38787;
+            width: 450px;
+            height: 250px;
         }
 
         &_timer{
