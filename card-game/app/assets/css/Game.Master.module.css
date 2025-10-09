@@ -236,6 +236,46 @@
   background-color: #ccc;
 }
 
+/* 中央に短時間表示されるターンモーダル */
+.turnModal {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1000;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 320px;
+  height: 120px;
+  border-radius: 12px;
+  background: rgba(0,0,0,0.75);
+  color: #fff;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  animation: turnModalFade 1.2s ease forwards;
+}
+
+/* AI がカードを出すときの視覚的アニメ */
+.cardPlayAnim {
+  animation: cardPlayMove 0.6s ease forwards;
+}
+
+@keyframes cardPlayMove {
+  0% { transform: translateY(-40px) scale(0.95); opacity: 0; }
+  50% { transform: translateY(8px) scale(1.03); opacity: 1; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
+@keyframes turnModalFade {
+  0% { opacity: 0; transform: translate(-50%, -60%) scale(0.95); }
+  10% { opacity: 1; transform: translate(-50%, -50%) scale(1.02); }
+  80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(0.98); }
+}
+
 .card {
   width: 70px;
   height: 100px;
