@@ -1,0 +1,12 @@
+{
+"liveSassCompile.settings.showOutputWindowOn": "Error",
+"liveSassCompile.settings.formats": [
+
+    {
+        "format": "expanded",
+        "extensionName": ".css",
+        "savePath": "card-game/app/assets/css",
+        "savePathReplacementPairs": null
+    }
+]
+}

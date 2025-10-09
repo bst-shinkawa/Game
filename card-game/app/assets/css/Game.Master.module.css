@@ -1,3 +1,4 @@
+@charset "UTF-8";
 .field {
   width: 1000px;
   height: 600px;
@@ -32,7 +33,6 @@
   right: -25px;
 }
 .field_enemy_hero_hp p {
-  color: #fff;
   font-size: 60px;
 }
 .field_enemy_mana {
@@ -103,6 +103,8 @@
   grid-template-columns: repeat(3, 1fr);
   gap: 15px;
   padding: 10px;
+  width: 200px;
+  text-align: center;
 }
 .field_enemy_status p {
   color: #fff;
@@ -136,7 +138,6 @@
   left: -25px;
 }
 .field_player_hero_hp p {
-  color: #fff;
   font-size: 60px;
 }
 .field_player_mana {
@@ -207,6 +208,8 @@
   grid-template-columns: repeat(3, 1fr);
   gap: 15px;
   padding: 10px;
+  width: 200px;
+  text-align: center;
 }
 .field_player_status p {
   color: #fff;
@@ -233,20 +236,15 @@
   background-color: #ccc;
 }
 
-span.mana-slot.available {
-  background-color: #0f0;
-}
-
-span.mana-slot.used {
-  background-color: #555;
-}
-
 .card {
   width: 70px;
   height: 100px;
   background-color: aquamarine;
   border: solid 1px #000;
   position: relative;
+}
+.card:hover {
+  cursor: pointer;
 }
 .card_hp {
   background-color: green;
@@ -267,4 +265,50 @@ span.mana-slot.used {
   width: 20px;
   height: 20px;
   text-align: center;
+}
+.card_cost {
+  background-color: blue;
+  color: #fff;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  text-align: center;
+}
+
+.mana-bar {
+  display: flex;
+  gap: 8px;
+}
+
+.mana-slot {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background-color: #ccc;
+  transition: background-color 0.3s ease;
+}
+
+.mana-slot.available {
+  background-color: #0f0;
+}
+
+.card_hp {
+  font-weight: bold;
+  font-size: 16px;
+}
+
+/* HP 色 */
+.hpWhite {
+  color: white;
+}
+
+.hpYellow {
+  color: yellow;
+}
+
+.hpRed {
+  color: rgb(135, 3, 3);
 }/*# sourceMappingURL=Game.Master.module.css.map */

@@ -15,3 +15,4 @@ export function drawInitialHand(deck: Card[], count: number): Card[] {
   return hand;
 }
 
+export const MAX_MANA = 10;

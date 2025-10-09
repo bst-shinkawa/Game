@@ -34,7 +34,6 @@
                 bottom: -30px;
                 right: -25px;
                 p{
-                    color: #fff;
                     font-size: 60px;
                 }
             }
@@ -114,6 +113,8 @@
             grid-template-columns: repeat(3, 1fr);
             gap: 15px;
             padding: 10px;
+            width: 200px;
+            text-align: center;
 
             p{
                 color: #fff;
@@ -150,7 +151,6 @@
                 top: -30px;
                 left: -25px;
                 p{
-                    color: #fff;
                     font-size: 60px;
                 }
             }
@@ -230,7 +230,8 @@
             grid-template-columns: repeat(3, 1fr);
             gap: 15px;
             padding: 10px;
-
+            width: 200px;
+            text-align: center;
             p{
                 color: #fff;
                 font-size: 20px;
@@ -264,16 +265,16 @@
     
 }
 
-span.mana-slot.available { background-color: #0f0; }
-span.mana-slot.used { background-color: #555; }
-
-
 .card{
     width: 70px;
     height: 100px;
     background-color: aquamarine;
     border: solid 1px #000;
     position: relative;
+
+    &:hover{
+        cursor: pointer;
+    }
 
     &_hp{
         background-color: green;
@@ -295,4 +296,43 @@ span.mana-slot.used { background-color: #555; }
         height: 20px;
         text-align: center;
     }
+    &_cost{
+        background-color: blue;
+        color: #fff;
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        text-align: center;
+    }
 }
+
+.mana-bar {
+  display: flex;
+  gap: 8px;
+}
+
+.mana-slot {
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background-color: #ccc;
+  transition: background-color 0.3s ease;
+}
+
+.mana-slot.available {
+  background-color: #0f0;
+}
+
+
+.card_hp {
+  font-weight: bold;
+  font-size: 16px;
+}
+
+/* HP 色 */
+.hpWhite { color: white; }
+.hpYellow { color: yellow; }
+.hpRed { color: rgb(135, 3, 3); }
