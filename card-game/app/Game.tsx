@@ -103,25 +103,27 @@ export function useGame() {
 
   // --- 手札 → フィールド ---
   const playCardToField = (card: Card) => {
+    // スペルはフィールドに出せない（ターゲットへドラッグして使用する仕様）
+    if (card.type === "spell") {
+      console.log("スペルはフィールドに出せません。ターゲットにドロップして使用してください。");
+      return;
+    }
+
     if (card.cost > currentMana) {
       console.log("マナが足りません！");
       return;
     }
     setCurrentMana((m) => m - card.cost);
 
-    if (card.type === "spell") {
-      setPlayerGraveyard((g) => [...g, { ...card, uniqueId: uuidv4() }]);
-    } else {
-      const canAttack = !!card.rush;
-      setPlayerFieldCards((f) => [
-        ...f,
-        {
-          ...card,
-          maxHp: card.hp ?? 0,
-          canAttack,
-        },
-      ]);
-    }
+    const canAttack = !!card.rush;
+    setPlayerFieldCards((f) => [
+      ...f,
+      {
+        ...card,
+        maxHp: card.hp ?? 0,
+        canAttack,
+      },
+    ]);
 
     setPlayerHandCards((h) => h.filter((c) => c.uniqueId !== card.uniqueId));
   };
@@ -192,6 +194,54 @@ export function useGame() {
     );
   };
 
+  // --- スペルの発動（シンプル実装） ---
+  const castSpell = (cardUniqueId: string, targetId: string | "hero", isPlayer: boolean = true) => {
+    // プレイヤーか敵かの手札からカードを探す
+    const card = playerHandCards.find((c) => c.uniqueId === cardUniqueId) || enemyHandCards.find((c) => c.uniqueId === cardUniqueId);
+    if (!card || card.type !== "spell") return;
+
+    // マナチェック（プレイヤーが使う想定）
+    if (card.cost > currentMana) {
+      console.log("マナが足りません（spell）");
+      return;
+    }
+    setCurrentMana((m) => m - card.cost);
+
+    const name = card.name || "";
+    const isHeal = name.includes("回復") || name.toLowerCase().includes("heal");
+
+    if (isHeal) {
+      // 回復：味方（プレイヤー側）対象に適用
+      if (targetId === "hero") heal("hero", 2, true);
+      else heal(targetId, 2, true);
+    } else if (name.includes("全体") || name.includes("火球") || name.includes("fireball")) {
+      // 敵全体と敵ヒーローにダメージ
+      setEnemyFieldCards((list) => {
+        const updated = list.map((c) => ({ ...c, hp: (c.hp ?? 0) - 2 }));
+        const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
+        if (dead.length) setEnemyGraveyard((g) => [...g, ...dead]);
+        return updated.filter((c) => (c.hp ?? 0) > 0);
+      });
+      setEnemyHeroHp((h) => Math.max(h - 2, 0));
+    } else {
+      // 単体ダメージは敵側対象へ
+      if (targetId === "hero") {
+        setEnemyHeroHp((h) => Math.max(h - 3, 0));
+      } else {
+        setEnemyFieldCards((list) => {
+          const updated = list.map((c) => (c.uniqueId === targetId ? { ...c, hp: (c.hp ?? 0) - 3 } : c));
+          const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
+          if (dead.length) setEnemyGraveyard((g) => [...g, ...dead]);
+          return updated.filter((c) => (c.hp ?? 0) > 0);
+        });
+      }
+    }
+
+    // 手札から除去して墓地へ（カードがプレイヤー手札にあればそちらを変更）
+    setPlayerHandCards((h) => h.filter((c) => c.uniqueId !== cardUniqueId));
+    setPlayerGraveyard((g) => [...g, { ...card, uniqueId: uuidv4() }]);
+  };
+
   return {
     deck,
     playerHandCards,
@@ -217,6 +267,7 @@ export function useGame() {
     endTurn,
     attack,
     heal,
+    castSpell,
   };
 }
 

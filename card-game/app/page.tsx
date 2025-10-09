@@ -24,11 +24,14 @@ const Game: React.FC = () => {
     playCardToField,
     endTurn,
     attack,
+    castSpell,
   } = useGame();
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const enemyHeroRef = useRef<HTMLDivElement>(null);
   const enemyFieldRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+  const playerHeroRef = useRef<HTMLDivElement>(null);
+  const playerFieldRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   const [arrowStartPos, setArrowStartPos] = useState<{ x: number; y: number } | null>(null);
 
@@ -51,28 +54,51 @@ const Game: React.FC = () => {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (!draggingCard || !arrowStartPos) return;
 
-    // 手札カードなら矢印を描画しない
+    // 手札カードでもスペルなら矢印を描画する
     const isHandCard = playerHandCards.some(c => c.uniqueId === draggingCard);
-    if (isHandCard) return;
+    const draggingCardObj = playerHandCards.find(c => c.uniqueId === draggingCard) || playerFieldCards.find(c => c.uniqueId === draggingCard);
+    const isHandSpell = isHandCard && draggingCardObj?.type === "spell";
+    const isHealSpell = isHandSpell && (draggingCardObj?.name?.includes("回復") || draggingCardObj?.name?.toLowerCase().includes("heal"));
+    const isDamageSpell = isHandSpell && !isHealSpell;
+    if (isHandCard && !isHandSpell) return;
 
     let endPos = { x: dragPosition.x, y: dragPosition.y };
 
     const attackingCard = playerFieldCards.find(c => c.uniqueId === draggingCard && c.canAttack);
-    if (attackingCard) {
+    // フィールドからの攻撃、またはスペルのドラッグ時はターゲット候補を算出して最接近ターゲットへスナップする
+    if (attackingCard || isHandSpell) {
       const targets: { x: number; y: number }[] = [];
 
       // 敵ヒーロー
-      if (enemyHeroRef.current) {
-        const rect = enemyHeroRef.current.getBoundingClientRect();
-        targets.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height });
+      // ダメージ系スペル／攻撃は敵側をターゲットにできる
+      if (isDamageSpell || attackingCard) {
+        if (enemyHeroRef.current) {
+          const rect = enemyHeroRef.current.getBoundingClientRect();
+          targets.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height });
+        }
+
+        // 敵フィールドカード
+        for (const c of enemyFieldCards) {
+          const ref = enemyFieldRefs.current[c.uniqueId];
+          if (ref) {
+            const rect = ref.getBoundingClientRect();
+            targets.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
+          }
+        }
       }
 
-      // 敵フィールドカード
-      for (const c of enemyFieldCards) {
-        const ref = enemyFieldRefs.current[c.uniqueId];
-        if (ref) {
-          const rect = ref.getBoundingClientRect();
-          targets.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
+      // 回復系スペルは味方側をターゲットにできる
+      if (isHealSpell) {
+        if (playerHeroRef.current) {
+          const rect = playerHeroRef.current.getBoundingClientRect();
+          targets.push({ x: rect.left + rect.width / 0.6, y: rect.top + rect.height / 0.9 });
+        }
+        for (const c of playerFieldCards) {
+          const ref = playerFieldRefs.current[c.uniqueId];
+          if (ref) {
+            const rect = ref.getBoundingClientRect();
+            targets.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
+          }
         }
       }
 
@@ -142,10 +168,26 @@ const Game: React.FC = () => {
         <div
           ref={enemyHeroRef}
           className={styles.field_enemy_hero}
-          onDragOver={(e) => draggingCard && e.preventDefault()}
+          onDragOver={(e) => {
+            // 敵ヒーローはダメージ系スペルまたはフィールドからの攻撃のみ許可
+            const handCard = playerHandCards.find((c) => c.uniqueId === draggingCard);
+            const isHeal = handCard && (handCard.name?.includes("回復") || handCard.name?.toLowerCase().includes("heal"));
+            if (draggingCard && (!isHeal || !handCard)) e.preventDefault();
+          }}
           onDrop={() => {
             if (!draggingCard) return;
-            attack(draggingCard, "hero", true);
+            const handCard = playerHandCards.find((c) => c.uniqueId === draggingCard);
+            const isHeal = handCard && (handCard.name?.includes("回復") || handCard.name?.toLowerCase().includes("heal"));
+            if (handCard && handCard.type === "spell") {
+              // 回復系は味方ヒーローには使えない（ここでは回復は味方向けなので player 側処理で扱う）
+              if (isHeal) {
+                // ユーザーが敵ヒーローにドロップした回復スペルは無視
+              } else {
+                castSpell(draggingCard, "hero", true);
+              }
+            } else {
+              attack(draggingCard, "hero", true);
+            }
             setDraggingCard(null);
             setArrowStartPos(null);
           }}
@@ -165,10 +207,25 @@ const Game: React.FC = () => {
               hp={card.hp ?? 0}
               maxHp={card.maxHp ?? 0}
               attack={card.attack ?? 0}
-              onDragOver={(e) => draggingCard && e.preventDefault()}
+              onDragOver={(e) => {
+                // 敵フィールドはダメージ系スペルまたはフィールド攻撃からのドロップを受け付ける
+                const handCard = playerHandCards.find((c) => c.uniqueId === draggingCard);
+                const isHeal = handCard && (handCard.name?.includes("回復") || handCard.name?.toLowerCase().includes("heal"));
+                if (draggingCard && (!isHeal || !handCard)) e.preventDefault();
+              }}
               onDrop={() => {
                 if (!draggingCard) return;
-                attack(draggingCard, card.uniqueId, true);
+                const handCard = playerHandCards.find((c) => c.uniqueId === draggingCard);
+                const isHeal = handCard && (handCard.name?.includes("回復") || handCard.name?.toLowerCase().includes("heal"));
+                if (handCard && handCard.type === "spell") {
+                  if (isHeal) {
+                    // 回復スペルを敵フォロワーに使うのは無効にする
+                  } else {
+                    castSpell(draggingCard, card.uniqueId, true);
+                  }
+                } else {
+                  attack(draggingCard, card.uniqueId, true);
+                }
                 setDraggingCard(null);
                 setArrowStartPos(null);
               }}
@@ -214,7 +271,26 @@ const Game: React.FC = () => {
       <div className={styles.field_player}>
         <div className={styles.field_player_hero}>
           <div className={styles.field_player_hero_wrap}>
-            <div className={styles.field_player_hero_hp}>
+            <div
+              ref={playerHeroRef}
+              className={styles.field_player_hero_hp}
+              onDragOver={(e) => {
+                // プレイヤーヒーローは回復スペルのみ受け付ける
+                const handCard = playerHandCards.find((c) => c.uniqueId === draggingCard);
+                const isHeal = handCard && (handCard.name?.includes("回復") || handCard.name?.toLowerCase().includes("heal"));
+                if (draggingCard && isHeal) e.preventDefault();
+              }}
+              onDrop={() => {
+                if (!draggingCard) return;
+                const handCard = playerHandCards.find((c) => c.uniqueId === draggingCard);
+                const isHeal = handCard && (handCard.name?.includes("回復") || handCard.name?.toLowerCase().includes("heal"));
+                if (handCard && handCard.type === "spell" && isHeal) {
+                  castSpell(draggingCard, "hero", true);
+                }
+                setDraggingCard(null);
+                setArrowStartPos(null);
+              }}
+            >
               <p className={getHpClass(playerHeroHp)}>{playerHeroHp}</p>
             </div>
           </div>
@@ -230,7 +306,10 @@ const Game: React.FC = () => {
           onDrop={() => {
             const card = playerHandCards.find((c) => c.uniqueId === draggingCard);
             if (draggingCard && card) {
-              playCardToField(card);
+              // スペルはフィールドに出せないのでスキップ
+              if (card.type !== "spell") {
+                playCardToField(card);
+              }
               setDraggingCard(null);
               setArrowStartPos(null);
             }
@@ -255,6 +334,23 @@ const Game: React.FC = () => {
                 setDraggingCard(null);
                 setArrowStartPos(null);
               }}
+              // プレイヤーフィールドの各カードも回復スペルのドロップ対象にする
+              onDragOver={(e) => {
+                const handCard = playerHandCards.find((c) => c.uniqueId === draggingCard);
+                const isHeal = handCard && (handCard.name?.includes("回復") || handCard.name?.toLowerCase().includes("heal"));
+                if (draggingCard && isHeal) e.preventDefault();
+              }}
+              onDrop={() => {
+                if (!draggingCard) return;
+                const handCard = playerHandCards.find((c) => c.uniqueId === draggingCard);
+                const isHeal = handCard && (handCard.name?.includes("回復") || handCard.name?.toLowerCase().includes("heal"));
+                if (handCard && handCard.type === "spell" && isHeal) {
+                  castSpell(draggingCard, card.uniqueId, true);
+                }
+                setDraggingCard(null);
+                setArrowStartPos(null);
+              }}
+              ref={(el: HTMLDivElement | null) => { playerFieldRefs.current[card.uniqueId] = el; }}
             />
           ))}
         </div>
