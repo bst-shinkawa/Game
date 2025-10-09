@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { Card } from "./data/cards";
 import { deck as initialDeck, drawInitialHand } from "./data/game";
+import { createDeck } from "./data/deck";
 
 const MAX_HAND = 10;
 const MAX_MANA = 10;
@@ -39,6 +40,11 @@ export function useGame() {
   const [turnSecondsRemaining, setTurnSecondsRemaining] = useState<number>(60);
   const turnTimeoutRef = useRef<number | null>(null);
   const remainingRef = useRef<number>(60);
+  // プレゲーム（先攻決め＋マリガン）フラグとコイン結果
+  const [preGame, setPreGame] = useState<boolean>(false);
+  const [coinResult, setCoinResult] = useState<"deciding" | "player" | "enemy">("deciding");
+  // ゲーム終了フラグと勝者
+  const [gameOver, setGameOver] = useState<{ over: boolean; winner: null | "player" | "enemy" }>({ over: false, winner: null });
   // 敵AI実行中フラグ（再入防止）
   const [aiRunning, setAiRunning] = useState<boolean>(false);
   // 視覚用：AIが攻撃を行うときの移動表示を通知する
@@ -56,6 +62,8 @@ export function useGame() {
 
   // --- ターン開始 ---
   useEffect(() => {
+    // プリゲーム中はターン開始処理を走らせない
+    if (preGame) return;
     if (turn > 1) {
       // ターン番号の奇遇でプレイヤー／敵のターンを判定（1: player, 2: enemy, 3: player ...）
       if (turn % 2 === 1) {
@@ -85,6 +93,9 @@ export function useGame() {
   // ターンタイマー（60秒）
   const isPlayerTurn = turn % 2 === 1;
   useEffect(() => {
+    // プレゲーム中はタイマーを動かさない（プリゲーム終了で再開）
+    if (preGame) return;
+
     // ターン開始ごとに残り時間をリセット
     remainingRef.current = 60;
     setTurnSecondsRemaining(60);
@@ -112,10 +123,12 @@ export function useGame() {
         turnTimeoutRef.current = null;
       }
     };
-  }, [turn]);
+  }, [turn, preGame]);
 
   // --- 敵AI: 簡易ターン処理 ---
   useEffect(() => {
+    // プリゲーム中は AI を動かさない
+    if (preGame) return;
     if (turn > 1 && turn % 2 === 0 && !aiRunning) {
       // 敵ターンになったらAIを走らせる（再入防止）
       const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
@@ -129,6 +142,8 @@ export function useGame() {
           // 1) プレイフェイズ: フォロワーを出せるだけ出す（簡易）
           for (const card of [...enemyHandCards]) {
             if (card.type === "follower" && card.cost <= enemyCurrentMana) {
+                // 敵フィールドが満杯なら出せない
+                if (enemyFieldCards.length >= 5) continue;
                 // 消費マナを即座に反映
                 setEnemyCurrentMana((m) => m - card.cost);
                 // 一旦アニメ用フラグ付きで追加し、sleep 後にフラグを外す
@@ -167,8 +182,8 @@ export function useGame() {
             setMovingAttack(null);
           }
 
-          // 3) ターン終了
-          await sleep(800);
+          // 3) ターン終了（行動完了後、少し待つことで演出を見せる）
+          await sleep(2000);
           endTurn();
         } finally {
           setAiRunning(false);
@@ -177,7 +192,7 @@ export function useGame() {
 
       runEnemyTurn();
     }
-  }, [turn, enemyHandCards, enemyFieldCards, enemyCurrentMana, playerFieldCards, aiRunning]);
+  }, [turn, enemyHandCards, enemyFieldCards, enemyCurrentMana, playerFieldCards, aiRunning, preGame]);
 
   // --- ドロー ---
   const addCardToHand = (
@@ -215,11 +230,93 @@ export function useGame() {
     setTurn((t) => t + 1);
   };
 
+  // --- ゲームリセット（新しい対戦を開始） ---
+  const resetGame = (mode: "cpu" | "pvp" = "cpu") => {
+    // 既存のタイマーをクリア
+    if (turnTimeoutRef.current !== null) {
+      clearTimeout(turnTimeoutRef.current as number);
+      turnTimeoutRef.current = null;
+    }
+    setAiRunning(false);
+    setMovingAttack(null);
+
+    // 新しいデッキを作成して初期手札を配る
+    const newDeck = createDeck();
+    const newEnemyDeck = createDeck();
+    const initialPlayerHand = drawInitialHand(newDeck, 5).map((c) => ({ ...c, uniqueId: uuidv4() }));
+    const initialEnemyHand = drawInitialHand(newEnemyDeck, 5).map((c) => ({ ...c, uniqueId: uuidv4() }));
+
+    setDeck([...newDeck.slice(5)]);
+    setEnemyDeck([...newEnemyDeck.slice(5)]);
+    setPlayerHandCards(initialPlayerHand);
+    setEnemyHandCards(initialEnemyHand);
+    setPlayerFieldCards([]);
+    setEnemyFieldCards([]);
+    setPlayerGraveyard([]);
+    setEnemyGraveyard([]);
+    setPlayerHeroHp(MAX_HERO_HP);
+    setEnemyHeroHp(MAX_HERO_HP);
+    setTurn(1);
+    setMaxMana(1);
+    setCurrentMana(1);
+    setEnemyMaxMana(1);
+    setEnemyCurrentMana(1);
+    setTurnSecondsRemaining(60);
+    remainingRef.current = 60;
+    setGameOver({ over: false, winner: null });
+    // プリゲーム（先攻/後攻決めとマリガン）を開始
+    setPreGame(true);
+    setCoinResult("deciding");
+  };
+
+  // コイントスの結果確定（'player' が先攻、'enemy' が後攻）
+  const finalizeCoin = (winner: "player" | "enemy") => {
+    setCoinResult(winner);
+    // 先攻が player の場合 turn を 1 にして player が先行、敵が先攻なら turn を 2 にして敵先行
+    if (winner === "player") setTurn(1);
+    else setTurn(2);
+  };
+
+  // マリガン: 指定したユニークIDのカード群をデッキに戻してドローし直す
+  const doMulligan = (keepIds: string[]) => {
+    // 手札を kept と replacement に分ける
+    const kept = playerHandCards.filter(c => keepIds.includes(c.uniqueId));
+    const toReturn = playerHandCards.filter(c => !keepIds.includes(c.uniqueId));
+    // 返却したカードをデッキに戻してシャッフル（単純に末尾に追加してシャッフル）
+    let newDeck = [...deck, ...toReturn.map(c => ({ ...c, uniqueId: uuidv4() }))];
+    // ランダムシャッフル
+    for (let i = newDeck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [newDeck[i], newDeck[j]] = [newDeck[j], newDeck[i]];
+    }
+    // 新しい手札を補充して最終手札を set
+    const drawCount = 5 - kept.length;
+    const newHand = [...kept];
+    for (let i = 0; i < drawCount && newDeck.length > 0; i++) {
+      const card = { ...newDeck[0], uniqueId: uuidv4() };
+      newHand.push(card);
+      newDeck = newDeck.slice(1);
+    }
+    setDeck(newDeck);
+    setPlayerHandCards(newHand);
+  };
+
+  // プリゲームを終了して実際のマッチを始める
+  const startMatch = () => {
+    setPreGame(false);
+  };
+
   // --- 手札 → フィールド ---
   const playCardToField = (card: Card) => {
     // スペルはフィールドに出せない（ターゲットへドラッグして使用する仕様）
     if (card.type === "spell") {
       console.log("スペルはフィールドに出せません。ターゲットにドロップして使用してください。");
+      return;
+    }
+
+    // フィールドには最大5体まで
+    if (playerFieldCards.length >= 5) {
+      console.log("フィールドは最大5体までです。");
       return;
     }
 
@@ -273,7 +370,18 @@ export function useGame() {
     if (!attacker || !attacker.canAttack) return;
 
     if (targetId === "hero") {
-      setTargetHeroHp((hp) => Math.max(hp - (attacker.attack ?? 0), 0));
+      setTargetHeroHp((hp) => {
+        const next = Math.max(hp - (attacker.attack ?? 0), 0);
+        if (next <= 0) {
+          setGameOver({ over: true, winner: isPlayerAttacker ? "player" : "enemy" });
+          if (turnTimeoutRef.current !== null) {
+            clearTimeout(turnTimeoutRef.current as number);
+            turnTimeoutRef.current = null;
+          }
+          setAiRunning(false);
+        }
+        return next;
+      });
     } else {
       const target = targetList.find((c) => c.uniqueId === targetId);
       if (!target) return;
@@ -290,14 +398,14 @@ export function useGame() {
       setAttackerList(newAttackerList);
 
       // HP0以下のカードを墓地へ
-      const deadTargets = newTargetList.filter((c) => (c.hp ?? 0) <= 0);
-      if (deadTargets.length) setGraveyard((g) => [...g, ...deadTargets]);
+  const deadTargets = newTargetList.filter((c) => (c.hp ?? 0) <= 0);
+  if (deadTargets.length) setGraveyard((g) => [...g, ...deadTargets.filter(d => !g.some(x => x.uniqueId === d.uniqueId))]);
       setTargetList((list) => list.filter((c) => (c.hp ?? 0) > 0));
 
       const deadAttackers = newAttackerList.filter((c) => (c.hp ?? 0) <= 0);
       if (deadAttackers.length) {
         const setAttackerGrave = isPlayerAttacker ? setPlayerGraveyard : setEnemyGraveyard;
-        setAttackerGrave((g) => [...g, ...deadAttackers]);
+        setAttackerGrave((g) => [...g, ...deadAttackers.filter(d => !g.some(x => x.uniqueId === d.uniqueId))]);
         setAttackerList((list) => list.filter((c) => (c.hp ?? 0) > 0));
       }
     }
@@ -332,20 +440,42 @@ export function useGame() {
       // 敵全体と敵ヒーローにダメージ
       setEnemyFieldCards((list) => {
         const updated = list.map((c) => ({ ...c, hp: (c.hp ?? 0) - 2 }));
-        const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
-        if (dead.length) setEnemyGraveyard((g) => [...g, ...dead]);
+  const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
+  if (dead.length) setEnemyGraveyard((g) => [...g, ...dead.filter(d => !g.some(x => x.uniqueId === d.uniqueId))]);
         return updated.filter((c) => (c.hp ?? 0) > 0);
       });
-      setEnemyHeroHp((h) => Math.max(h - 2, 0));
+      setEnemyHeroHp((h) => {
+        const next = Math.max(h - 2, 0);
+        if (next <= 0) {
+          setGameOver({ over: true, winner: "player" });
+          if (turnTimeoutRef.current !== null) {
+            clearTimeout(turnTimeoutRef.current as number);
+            turnTimeoutRef.current = null;
+          }
+          setAiRunning(false);
+        }
+        return next;
+      });
     } else {
       // 単体ダメージは敵側対象へ
       if (targetId === "hero") {
-        setEnemyHeroHp((h) => Math.max(h - 3, 0));
+        setEnemyHeroHp((h) => {
+          const next = Math.max(h - 3, 0);
+          if (next <= 0) {
+            setGameOver({ over: true, winner: "player" });
+            if (turnTimeoutRef.current !== null) {
+              clearTimeout(turnTimeoutRef.current as number);
+              turnTimeoutRef.current = null;
+            }
+            setAiRunning(false);
+          }
+          return next;
+        });
       } else {
         setEnemyFieldCards((list) => {
           const updated = list.map((c) => (c.uniqueId === targetId ? { ...c, hp: (c.hp ?? 0) - 3 } : c));
           const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
-          if (dead.length) setEnemyGraveyard((g) => [...g, ...dead]);
+          if (dead.length) setEnemyGraveyard((g) => [...g, ...dead.filter(d => !g.some(x => x.uniqueId === d.uniqueId))]);
           return updated.filter((c) => (c.hp ?? 0) > 0);
         });
       }
@@ -385,6 +515,14 @@ export function useGame() {
     turnSecondsRemaining,
     aiRunning,
     movingAttack,
+    gameOver,
+    resetGame,
+    // pre-game (coin/mulligan)
+    preGame,
+    coinResult,
+    finalizeCoin,
+    doMulligan,
+    startMatch,
   };
 }
 

@@ -24,11 +24,26 @@ type Props = {
   inHand?: boolean;
   currentMana?: number;
   style?: React.CSSProperties;
+  selected?: boolean;
+  noStatus?: boolean;
 };
 
+// Small helper: pick a CSS class for HP color
 const getCardHpClass = (hp: number, maxHp: number) => {
   return hp >= maxHp ? styles.hpWhite : styles.hpRed;
 };
+
+/**
+ * CardItem
+ * --------
+ * カードを表示する汎用コンポーネントです。props によっていくつかの表示モードをサポートします：
+ * - inHand/currentMana: 手札表示時にマナでハイライトする用途
+ * - selected: マリガンなどで選択中を示す緑枠表示
+ * - noStatus: プレビュー／マリガンのように手札の状態を反映したくない場合に使用
+ *
+ * このコンポーネントはゲーム状態を直接変更しない設計です。onClick や onDrag* といった
+ * コールバックを親から受け取り、それを通じて UI イベントを伝搬します。
+ */
 
 const CardItem = React.forwardRef<HTMLDivElement, Props>(({
   uniqueId,
@@ -50,14 +65,29 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
   inHand,
   currentMana,
   style,
+  selected,
+  noStatus,
 }, ref) => {
   let borderColor = "gray";
-  if (inHand && currentMana !== undefined && cost !== undefined) {
-    borderColor = currentMana >= cost ? "gold" : "gray";
-  } else if (canAttack !== undefined) {
-    borderColor = canAttack ? "green" : "red";
+  let borderWidth = 2;
+  // 選択フラグがある場合は最優先で緑枠（太線）にする
+  if (selected) {
+    borderColor = "limegreen";
+    borderWidth = 3;
+  } else if (noStatus) {
+    // マリガンやプレビュー用など、カードの手札ステータスを反映したくない場合
+    borderColor = "gray";
+  } else {
+    if (inHand && currentMana !== undefined && cost !== undefined) {
+      borderColor = currentMana >= cost ? "gold" : "gray";
+    } else if (canAttack !== undefined) {
+      borderColor = canAttack ? "green" : "red";
+    }
+    if (isTarget) {
+      borderColor = "limegreen";
+      borderWidth = 3;
+    }
   }
-  if (isTarget) borderColor = "limegreen";
 
   const hpClass = getCardHpClass(hp, maxHp);
 
@@ -75,7 +105,7 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
       onDrop={onDrop}
       style={{
         ...style,
-        border: `2px solid ${borderColor}`,
+        border: `${borderWidth}px solid ${borderColor}`,
       }}
       ref={ref} // forwardRef により渡せるようになる
     >

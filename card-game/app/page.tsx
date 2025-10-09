@@ -5,6 +5,9 @@ import CardItem from "./components/CardItem";
 import ManaBar from "./components/ManaBar";
 import useGame from "./Game";
 import styles from "./assets/css/Game.Master.module.css";
+import StartMenu from "./components/StartMenu";
+import GameOver from "./components/GameOver";
+
 
 const Game: React.FC = () => {
   const {
@@ -33,7 +36,108 @@ const Game: React.FC = () => {
     turnSecondsRemaining,
     aiRunning,
     movingAttack,
+    gameOver,
+    resetGame,
+    preGame,
+    coinResult,
+    finalizeCoin,
+    doMulligan,
+    startMatch,
   } = useGame();
+  // 画面モード: menu | game | deck
+  const [mode, setMode] = useState<"menu" | "game" | "deck">("menu");
+  // プリゲーム UI state
+  // ルーレット中フラグ / 表示ラベル
+  const [rouletteRunning, setRouletteRunning] = useState<boolean>(false);
+  const [rouletteLabel, setRouletteLabel] = useState<string>("...");
+  // コイン結果ポップアップ制御（ルーレット直後に短く表示してからマリガンへ移る）
+  const [showCoinPopup, setShowCoinPopup] = useState<boolean>(false);
+  // マリガン用: フィールドへ置かれた（交換したい）カードの uniqueId 集合
+  const [swapIds, setSwapIds] = useState<string[]>([]);
+  // マリガン残り時間（秒、最大15秒）
+  const [mulliganTimer, setMulliganTimer] = useState<number>(15);
+  const [keepIds, setKeepIds] = useState<string[]>([]);
+  // 試合開始の大きな表示を一瞬出す
+  const [showGameStart, setShowGameStart] = useState<boolean>(false);
+
+  // 見た目の演出（GameStart 表示など）を先に行ってから、内部フックの startMatch を呼ぶためのラッパー
+  const startMatchWithVisual = () => {
+    // only trigger if we're still in preGame; guard against accidental re-triggers mid-match
+    if (!preGame) return;
+    // clear any pending popup/interval from the mulligan flow so they don't re-trigger GameStart
+    if (popupTimerRef.current !== null) {
+      clearTimeout(popupTimerRef.current);
+      popupTimerRef.current = null;
+    }
+    if (mulliganIvRef.current !== null) {
+      clearInterval(mulliganIvRef.current);
+      mulliganIvRef.current = null;
+    }
+    // hide pregame modal and show GameStart overlay
+    setShowCoinPopup(false);
+    setMulliganTimer(0);
+    startMatch();
+    setShowGameStart(true);
+    setTimeout(() => setShowGameStart(false), 1400);
+  };
+
+  const popupTimerRef = useRef<number | null>(null);
+  const mulliganIvRef = useRef<number | null>(null);
+
+  // ルーレット演出：プリゲーム開始かつ先攻決定中のときに回す
+  useEffect(() => {
+    if (!preGame || coinResult !== "deciding") return;
+    // トリガーして CSS アニメを走らせる（onAnimationEnd で結果確定）
+    setRouletteRunning(true);
+    setRouletteLabel("...");
+    return () => {
+      // cleanup
+      setRouletteRunning(false);
+    };
+  }, [preGame, coinResult]);
+
+  // coinResult が決まったらマリガン用の選択を初期化、マリガンタイマーを開始
+  useEffect(() => {
+    if (coinResult !== "deciding") {
+      setKeepIds([]);
+      setSwapIds([]);
+      // ルーレット終了のポップアップを表示してからマリガンを開始する
+      setShowCoinPopup(true);
+      const popupDuration = 1400;
+      // store timer ids in refs so they can be cleared if the user starts early
+      popupTimerRef.current = window.setTimeout(() => {
+        setShowCoinPopup(false);
+        // マリガンのカウントダウン（最大15秒）。0になったらそのまま試合開始
+        setMulliganTimer(15);
+        mulliganIvRef.current = window.setInterval(() => {
+          setMulliganTimer((t) => {
+            if (t <= 1) {
+              if (mulliganIvRef.current !== null) {
+                clearInterval(mulliganIvRef.current);
+                mulliganIvRef.current = null;
+              }
+              // 時間切れなら何も交換せずにそのまま開始（視覚表示付き）
+              startMatchWithVisual();
+              return 0;
+            }
+            return t - 1;
+          });
+        }, 1000);
+      }, popupDuration) as unknown as number;
+
+      return () => {
+        if (popupTimerRef.current !== null) {
+          clearTimeout(popupTimerRef.current);
+          popupTimerRef.current = null;
+        }
+        if (mulliganIvRef.current !== null) {
+          clearInterval(mulliganIvRef.current);
+          mulliganIvRef.current = null;
+        }
+      };
+    }
+    return;
+  }, [coinResult]);
   const isPlayerTurn = (turn % 2) === 1;
   // aiRunning はフックから受け取る
 
@@ -42,11 +146,16 @@ const Game: React.FC = () => {
 
   useEffect(() => {
     // ターンが切り替わった瞬間、それぞれ短時間モーダルを表示する
+    // プリゲーム（ルーレット/マリガン）や GameStart 表示中はターンモーダルを表示しない
+    if (preGame || showGameStart) {
+      setShowTurnModal(false);
+      return;
+    }
     setShowTurnModal(true);
     const duration = isPlayerTurn ? 2000 : 1200; // プレイヤーは最初の2秒間表示、敵は1.2秒
     const t = setTimeout(() => setShowTurnModal(false), duration);
     return () => clearTimeout(t);
-  }, [isPlayerTurn, turn]);
+  }, [isPlayerTurn, turn, preGame, showGameStart]);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const enemyHeroRef = useRef<HTMLDivElement>(null);
@@ -107,6 +216,8 @@ const Game: React.FC = () => {
       setAttackClone(null);
     };
   }, [movingAttack]);
+
+  // NOTE: GameStart 表示は startMatchWithVisual のみで制御する（重複表示を避けるため）
 
   const getHpClass = (hp: number) => {
     if (hp === 20) return styles.hpWhite;
@@ -246,10 +357,121 @@ const Game: React.FC = () => {
   }, [draggingCard, dragPosition, arrowStartPos, playerFieldCards, playerHandCards, enemyFieldCards]);
 
 
+  // メニューモードは専用コンポーネントを表示
+  if (mode === "menu") {
+    return (
+      <div>
+        <StartMenu
+          onSelectMode={(m) => {
+            // CPU戦を選ぶとゲームを初期化してゲーム画面へ
+            if (m === "cpu") resetGame("cpu");
+            setMode("game");
+          }}
+          onDeck={() => setMode("deck")}
+        />
+      </div>
+    );
+  }
+
+  // デッキ作成はプレースホルダ
+  if (mode === "deck") {
+    return (
+      <div style={{ padding: 40 }}>
+        <h2>デッキ作成（準備中）</h2>
+        <p>ここにデッキ作成 UI を実装します。</p>
+        <button onClick={() => setMode("menu")}>戻る</button>
+      </div>
+    );
+  }
+
   return (
     <div className={styles.field}>
+      {/* プリゲーム：ルーレット演出 */}
+      {preGame && coinResult === "deciding" && (
+        <div style={{ position: 'fixed', left: 0, top: 0, right: 0, bottom: 0, zIndex: 1500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'rgba(0,0,0,0.85)', color: '#fff', padding: 30, borderRadius: 8, textAlign: 'center' }}>
+            <h3>先攻/後攻をルーレットで決定中...</h3>
+            <div style={{ marginTop: 12 }} className={styles.rouletteWrapper}>
+              <div
+                className={`${styles.roulette} ${rouletteRunning ? styles.spin : ''}`}
+                onAnimationEnd={() => {
+                  // アニメ終了で結果を確定
+                  const winner = Math.random() < 0.5 ? "player" : "enemy";
+                  finalizeCoin(winner as "player" | "enemy");
+                  setRouletteRunning(false);
+                }}
+                role="img"
+                aria-label="roulette"
+              >
+                <div className={styles.rouletteLabel}>{rouletteRunning ? '...' : (rouletteLabel === 'player' ? 'プレイヤー' : '敵')}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* プリゲーム：マリガン画面（ルーレット後に表示） */}
+  {/* ルーレットの結果を短くポップアップ表示 -> その後マリガンを表示 */}
+  {preGame && coinResult !== "deciding" && showCoinPopup && (
+        <div className={styles.coinPopup} role="alert" aria-live="polite">
+          <div className={styles.coinPopupInner}>
+            <div className={styles.coinPopupTitle}>先攻/後攻が決定しました</div>
+            <div className={styles.coinPopupWinner}>{coinResult === 'player' ? 'あなたは先攻' : 'あなたは後攻'}</div>
+          </div>
+        </div>
+      )}
+
+  {preGame && coinResult !== "deciding" && !showCoinPopup && (
+        <div style={{ position: 'fixed', left: 0, top: 0, right: 0, bottom: 0, zIndex: 1500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'rgba(0,0,0,0.95)', color: '#fff', padding: 20, borderRadius: 8 , textAlign: "center"}}>
+            <h3>{coinResult === 'player' ? 'あなたは先攻' : 'あなたは後攻'}</h3>
+            <p>交換したいカードを選択してください<br></br>（選択後は「交換」を押してください）。<br></br>制限時間: {mulliganTimer}s</p>
+
+            <div style={{ display: 'flex', gap: 12, marginTop: 12, alignItems: "center", justifyContent: "center" }}>
+              {playerHandCards.map((c) => {
+                const marked = swapIds.includes(c.uniqueId);
+                return (
+                  <div key={c.uniqueId} style={{ padding: 6 }}>
+                    <CardItem
+                      {...c}
+                      hp={c.hp ?? 0}
+                      maxHp={c.maxHp ?? 0}
+                      attack={c.attack ?? 0}
+                      inHand
+                      currentMana={currentMana}
+                      selected={marked}
+                      noStatus={true}
+                      onClick={() => {
+                        // click で交換候補の ON/OFF
+                        setSwapIds((ids) => ids.includes(c.uniqueId) ? ids.filter(id => id !== c.uniqueId) : [...ids, c.uniqueId]);
+                      }}
+                      style={{ width: 80, height: 110 }}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+
+            <div style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'center' }}>
+              <button onClick={() => {
+                const keep = playerHandCards.filter(c => !swapIds.includes(c.uniqueId)).map(c => c.uniqueId);
+                doMulligan(keep);
+                startMatchWithVisual();
+              }}>交換</button>
+              <button onClick={() => { startMatchWithVisual(); }}>交換せず開始</button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* キャンバス（矢印描画用オーバーレイ） */}
       <canvas ref={canvasRef} style={{ position: "fixed", left: 0, top: 0, pointerEvents: "none", zIndex: 900 }} />
+
+      {/* 右上メニュー: リスタート / リタイア(メニューへ) */}
+      <div style={{ position: 'fixed', top: 12, right: 12, zIndex: 1200, display: 'flex', gap: 8 }}>
+        <button onClick={() => { resetGame('cpu'); setMode('game'); }}>リスタート</button>
+        <button onClick={() => { resetGame('cpu'); setMode('menu'); }}>リタイア</button>
+      </div>
+
 
       {/* AIの攻撃移動をクローン要素で滑らかに表示 */}
       {/** movingAttack が通知されたらクローンを作り transform で移動させる */}
@@ -281,7 +503,7 @@ const Game: React.FC = () => {
         );
       })()}
       {showTurnModal && (
-        <div className={styles.turnModal}>{isPlayerTurn ? "Your Turn" : "Enemy Turn..."}</div>
+        <div className={styles.turnModal}>{isPlayerTurn ? "Your Turn" : "Enemy Turn"}</div>
       )}
 
       {/* 敵エリア */}
@@ -425,15 +647,22 @@ const Game: React.FC = () => {
             if (draggingCard && isHandCard) e.preventDefault();
           }}
           onDrop={() => {
+            if (!draggingCard) return;
             const card = playerHandCards.find((c) => c.uniqueId === draggingCard);
-            if (draggingCard && card) {
-              // スペルはフィールドに出せないのでスキップ
-              if (card.type !== "spell") {
-                playCardToField(card);
-              }
+            if (!card) return;
+            // プリゲーム（マリガン）中はフィールドへの配置は"交換候補の登録"として扱う
+            if (preGame && coinResult !== 'deciding') {
+              setSwapIds((ids) => ids.includes(card.uniqueId) ? ids.filter(id => id !== card.uniqueId) : [...ids, card.uniqueId]);
               setDraggingCard(null);
               setArrowStartPos(null);
+              return;
             }
+            // 通常時はカードを場に出す
+            if (card.type !== "spell") {
+              playCardToField(card);
+            }
+            setDraggingCard(null);
+            setArrowStartPos(null);
           }}
         >
           {playerFieldCards.map((card) => (
@@ -500,6 +729,7 @@ const Game: React.FC = () => {
                 setDraggingCard(null);
                 setArrowStartPos(null);
               }}
+              style={swapIds.includes(card.uniqueId) ? { border: '3px solid limegreen' } : undefined}
             />
           ))}
         </div>
@@ -523,10 +753,41 @@ const Game: React.FC = () => {
       </div>
 
       <div className={styles.field_turn}>
-        <button onClick={endTurn} disabled={!isPlayerTurn || aiRunning}>
-          TurnEnd
+        <button
+          onClick={() => {
+            if (preGame && coinResult !== 'deciding') {
+              // プリゲーム中の TurnEnd は交換確定操作
+              const keep = playerHandCards.filter(c => !swapIds.includes(c.uniqueId)).map(c => c.uniqueId);
+              doMulligan(keep);
+              startMatchWithVisual();
+              return;
+            }
+            endTurn();
+          }}
+          disabled={!isPlayerTurn || aiRunning}
+        >
+          {preGame && coinResult !== 'deciding' ? '交換' : 'TurnEnd'}
         </button>
       </div>
+      {/* 試合開始時の大きな表示 */}
+      {showGameStart && (
+        <div style={{ position: 'fixed', left: 0, top: 0, right: 0, bottom: 0, zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'rgba(0,0,0,0.85)', color: '#fff', padding: 40, borderRadius: 12 }}>
+            <h1 style={{ fontSize: 72, margin: 0 }}>GameStart</h1>
+          </div>
+        </div>
+      )}
+      {/* 勝敗表示 */}
+      {gameOver.over && (
+        <GameOver
+          winner={gameOver.winner}
+          onRestart={() => {
+            resetGame("cpu");
+            setMode("game");
+          }}
+          onMenu={() => setMode("menu")}
+        />
+      )}
     </div>
   );
 };

@@ -258,6 +258,40 @@
   animation: turnModalFade 1.2s ease forwards;
 }
 
+/* ルーレット演出 */
+.rouletteWrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.roulette {
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: conic-gradient(#ffcc00 0 50%, #999 0 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.6);
+}
+.roulette.spin {
+  animation: rouletteSpin 3s cubic-bezier(.2,.9,.2,1) forwards;
+}
+.rouletteLabel {
+  color: #111;
+  font-weight: 800;
+  font-size: 18px;
+  background: rgba(255,255,255,0.9);
+  padding: 8px 12px;
+  border-radius: 8px;
+}
+
+@keyframes rouletteSpin {
+  0% { transform: rotate(0deg); }
+  80% { transform: rotate(1440deg); }
+  100% { transform: rotate(1500deg); }
+}
+
 /* AI がカードを出すときの視覚的アニメ */
 .cardPlayAnim {
   animation: cardPlayMove 0.6s ease forwards;
@@ -274,6 +308,34 @@
   10% { opacity: 1; transform: translate(-50%, -50%) scale(1.02); }
   80% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
   100% { opacity: 0; transform: translate(-50%, -50%) scale(0.98); }
+}
+
+/* コイン結果ポップアップ */
+.coinPopup {
+  position: fixed;
+  left: 50%;
+  top: 30%;
+  transform: translateX(-50%);
+  z-index: 2000;
+  pointer-events: none;
+}
+.coinPopupInner {
+  background: rgba(0,0,0,0.9);
+  color: #fff;
+  padding: 18px 26px;
+  border-radius: 10px;
+  text-align: center;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+  animation: coinPopupFade 1.2s ease forwards;
+}
+.coinPopupTitle { font-size: 14px; opacity: 0.9; }
+.coinPopupWinner { font-size: 20px; font-weight: 800; margin-top: 6px; }
+
+@keyframes coinPopupFade {
+  0% { transform: translateY(-8px); opacity: 0; }
+  10% { transform: translateY(0px); opacity: 1; }
+  85% { opacity: 1; }
+  100% { transform: translateY(-8px); opacity: 0; }
 }
 
 .card {
