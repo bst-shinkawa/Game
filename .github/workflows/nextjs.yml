@@ -26,36 +26,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Detect package manager
-        id: detect-package-manager
-        run: |
-          if [ -f "package-lock.json" ]; then
-            echo "manager=npm" >> $GITHUB_OUTPUT
-            echo "command=ci" >> $GITHUB_OUTPUT
-            echo "runner=npx --no-install" >> $GITHUB_OUTPUT
-            exit 0
-          else
-            echo "Unable to determine package manager"
-            exit 1
-          fi
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'none'   # サブディレクトリに lock ファイルがあるのでキャッシュ無効
+          # cache は使わない（サブディレクトリの lock ファイルは setup-node で自動認識されない）
 
-      - name: Setup GitHub Pages
-        uses: actions/configure-pages@v5
-        with:
-          node-version: 20
-          cache: 'none'
-          static_site_generator: next
-
-      - name: Restore Next.js cache
+      - name: Cache npm dependencies
         uses: actions/cache@v4
         with:
-          path: .next/cache  # working-directory 内のキャッシュ
+          path: node_modules
+          key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-
+
+      - name: Cache Next.js build
+        uses: actions/cache@v4
+        with:
+          path: .next/cache
           key: ${{ runner.os }}-nextjs-${{ hashFiles('package-lock.json') }}-${{ hashFiles('**/*.[jt]s', '**/*.[jt]sx') }}
           restore-keys: |
             ${{ runner.os }}-nextjs-
