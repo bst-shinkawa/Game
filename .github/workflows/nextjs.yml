@@ -20,7 +20,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: ./Game/card-game  # ✅ ここで全ステップの作業ディレクトリを統一
+        working-directory: ./card-game  
 
     steps:
       - name: Checkout repository
@@ -77,7 +77,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./Game/card-game/out  # ✅ export先のパスを指定（明示）
+          path: ./card-game/out 
 
   deploy:
     environment:
