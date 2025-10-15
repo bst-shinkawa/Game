@@ -20,7 +20,7 @@ jobs:
 
     defaults:
       run:
-        working-directory: ./card-game
+        working-directory: ./card-game  # card-game直下で作業
 
     steps:
       - name: Checkout repository
@@ -51,17 +51,19 @@ jobs:
         run: npm ci
 
       - name: Build Next.js project
-        run: npx --no-install next build || true  # ← ビルド失敗でも次へ
+        run: npx next build
 
       - name: Ensure out directory exists
         run: |
           mkdir -p ./out
           echo "out/ directory is ready for artifact upload"
 
-      - name: Copy static export to out/
+      - name: Copy App Router pages to out/
         run: |
           if [ -d ".next/server/app" ]; then
             cp -r .next/server/app/* ./out/
+          else
+            echo "No App Router pages found"
           fi
 
       - name: Upload artifact
