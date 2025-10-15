@@ -1,4 +1,4 @@
-name: Deploy Next.js site to Pages
+name: Deploy Next.js site to GitHub Pages
 
 on:
   push:
@@ -18,19 +18,23 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    defaults:
+      run:
+        working-directory: ./Game/card-game  # ✅ ここで全ステップの作業ディレクトリを統一
+
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Detect package manager
         id: detect-package-manager
         run: |
-          if [ -f "${{ github.workspace }}/card-game/yarn.lock" ]; then
+          if [ -f "yarn.lock" ]; then
             echo "manager=yarn" >> $GITHUB_OUTPUT
             echo "command=install" >> $GITHUB_OUTPUT
             echo "runner=yarn" >> $GITHUB_OUTPUT
             exit 0
-          elif [ -f "${{ github.workspace }}/card-game/package-lock.json" ]; then
+          elif [ -f "package-lock.json" ]; then
             echo "manager=npm" >> $GITHUB_OUTPUT
             echo "command=ci" >> $GITHUB_OUTPUT
             echo "runner=npx --no-install" >> $GITHUB_OUTPUT
@@ -40,40 +44,40 @@ jobs:
             exit 1
           fi
 
-      - name: Setup Node
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: 20
           cache: ${{ steps.detect-package-manager.outputs.manager }}
 
-      - name: Setup Pages
+      - name: Setup GitHub Pages
         uses: actions/configure-pages@v5
         with:
-          node-version: "20"
+          node-version: 20
           cache: ${{ steps.detect-package-manager.outputs.manager }}
           static_site_generator: next
 
-      - name: Restore cache
+      - name: Restore Next.js cache
         uses: actions/cache@v4
         with:
-          path: |
-            card-game/.next/cache
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('card-game/**/package-lock.json', 'card-game/**/yarn.lock') }}-${{ hashFiles('card-game/**/*.[jt]s', 'card-game/**/*.[jt]sx') }}
+          path: .next/cache
+          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/yarn.lock', '**/package-lock.json') }}-${{ hashFiles('**/*.[jt]s', '**/*.[jt]sx') }}
           restore-keys: |
-            ${{ runner.os }}-nextjs-${{ hashFiles('card-game/**/package-lock.json', 'card-game/**/yarn.lock') }}-
+            ${{ runner.os }}-nextjs-
 
       - name: Install dependencies
         run: ${{ steps.detect-package-manager.outputs.manager }} ${{ steps.detect-package-manager.outputs.command }}
-        working-directory: card-game
 
-      - name: Build with Next.js
+      - name: Build Next.js project
         run: ${{ steps.detect-package-manager.outputs.runner }} next build
-        working-directory: card-game
+
+      - name: Export static files
+        run: ${{ steps.detect-package-manager.outputs.runner }} next export
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: card-game/out
+          path: ./Game/card-game/out  # ✅ export先のパスを指定（明示）
 
   deploy:
     environment:
@@ -81,6 +85,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     needs: build
+
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
