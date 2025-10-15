@@ -55,9 +55,10 @@ jobs:
 
       - name: Ensure out directory exists
         run: |
-          mkdir -p ./out
-          # Next.js の output: 'export' により out/ が生成されるはず
-          # もし存在しなければ空でも artifact としてアップロード可能にする
+          if [ ! -d "./out" ]; then
+            mkdir -p ./out
+          fi
+          echo "out/ directory is ready for artifact upload"
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
