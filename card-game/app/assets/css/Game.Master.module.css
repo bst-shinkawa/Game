@@ -397,6 +397,16 @@
   background-color: #0f0;
 }
 
+/* 敵手札の裏面表示（仮） */
+.card_back {
+  width: 70px;
+  height: 100px;
+  background: linear-gradient(135deg, #8a8a8a, #bdbdbd);
+  border-radius: 6px;
+  border: 1px solid #666;
+  box-shadow: inset 0 0 6px rgba(0,0,0,0.25);
+}
+
 .card_hp {
   font-weight: bold;
   font-size: 16px;

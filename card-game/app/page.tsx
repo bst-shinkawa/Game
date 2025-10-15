@@ -580,13 +580,9 @@ const Game: React.FC = () => {
 
         <div className={styles.field_enemy_hand}>
           {enemyHandCards.map((card) => (
-            <CardItem
-              key={card.uniqueId}
-              {...card}
-              hp={card.hp ?? 0}
-              maxHp={card.maxHp ?? 0}
-              attack={card.attack ?? 0}
-            />
+            // 敵の手札は裏向きで表示（画像は後で差し替え予定）。
+            // ここでは情報を見せないため CardItem は使わず、灰色の裏面を描画します。
+            <div key={card.uniqueId} className={styles.card_back} aria-hidden={true} />
           ))}
         </div>
 

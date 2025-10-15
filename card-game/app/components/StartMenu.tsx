@@ -15,7 +15,7 @@ const StartMenu: React.FC<Props> = ({ onSelectMode, onDeck }) => {
         <button onClick={() => onSelectMode("pvp")}>プレイヤー対戦</button>
         <button onClick={onDeck}>デッキ作成</button>
       </div>
-      <p style={{ color: "#ddd", maxWidth: 600, textAlign: "center" }}>
+      <p style={{ color: "#d0d0d0", maxWidth: 600, textAlign: "center" }}>
         デッキ作成は後で実装します。今は CPU 対戦でゲームを開始してください。
       </p>
     </div>

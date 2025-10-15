@@ -40,6 +40,8 @@ export function useGame() {
   const [turnSecondsRemaining, setTurnSecondsRemaining] = useState<number>(60);
   const turnTimeoutRef = useRef<number | null>(null);
   const remainingRef = useRef<number>(60);
+  // 初回ターンかどうか（プリゲーム後の最初の turn を特別扱いするためのフラグ）
+  const initialTurnRef = useRef<boolean>(false);
   // プレゲーム（先攻決め＋マリガン）フラグとコイン結果
   const [preGame, setPreGame] = useState<boolean>(false);
   const [coinResult, setCoinResult] = useState<"deciding" | "player" | "enemy">("deciding");
@@ -64,6 +66,13 @@ export function useGame() {
   useEffect(() => {
     // プリゲーム中はターン開始処理を走らせない
     if (preGame) return;
+    // プリゲーム後の "最初のターン" は mana 増加などを行わない（どちらが先攻でも最初のマナは1固定）
+    if (initialTurnRef.current) {
+      // このブロックは一度だけ通過させ、次回以降は通常のターン開始処理を行う
+      initialTurnRef.current = false;
+      return;
+    }
+
     if (turn > 1) {
       // ターン番号の奇遇でプレイヤー／敵のターンを判定（1: player, 2: enemy, 3: player ...）
       if (turn % 2 === 1) {
@@ -139,29 +148,73 @@ export function useGame() {
           // 少し待ってから行動開始（見た目の余裕）
           await sleep(800);
 
-          // 1) プレイフェイズ: フォロワーを出せるだけ出す（簡易）
-          for (const card of [...enemyHandCards]) {
-            if (card.type === "follower" && card.cost <= enemyCurrentMana) {
-                // 敵フィールドが満杯なら出せない
-                if (enemyFieldCards.length >= 5) continue;
-                // 消費マナを即座に反映
-                setEnemyCurrentMana((m) => m - card.cost);
-                // 一旦アニメ用フラグ付きで追加し、sleep 後にフラグを外す
-                const animId = uuidv4();
-                setEnemyFieldCards((f) => [
-                  ...f,
-                  { ...card, maxHp: card.hp ?? 0, canAttack: !!card.rush, uniqueId: animId, isAnimating: true },
-                ]);
-                // 手札から削除
-                setEnemyHandCards((h) => h.filter((c) => c.uniqueId !== card.uniqueId));
-                // アニメを見せるため少し待ってからフラグを切る
-                (async () => {
-                  await sleep(600);
-                  setEnemyFieldCards((list) => list.map((c) => (c.uniqueId === animId ? { ...c, isAnimating: false } : c)));
-                })();
-              // 手札から削除
-              await sleep(800);
-            }
+          // 1) プレイフェイズ: コスト効率ベースでフォロワーを出す
+          // 各フォロワーに簡易スコアを与え（attack + hp/2）、それを cost で割った効率でソートして高効率順に出す
+          // ターン開始直後に enemyCurrentMana が古い値を捕捉してしまう可能性があるため、
+          // 現在のマナ/最大マナのうち大きい方を初期残マナとする（見た目で全消費しているように
+          // 見える誤判定を防ぐため）。通常は enemyCurrentMana === enemyMaxMana のはずです。
+          let remainingMana = Math.max(enemyCurrentMana, enemyMaxMana);
+          let fieldCount = enemyFieldCards.length;
+
+          // フォロワー候補を抽出し、効率でソート
+          const followerCandidates = enemyHandCards
+            .filter((c) => c.type === "follower")
+            .map((c) => ({
+              card: c,
+              score: (c.attack ?? 0) + ((c.hp ?? 0) / 2),
+              efficiency: ((c.attack ?? 0) + ((c.hp ?? 0) / 2)) / Math.max(1, c.cost),
+            }))
+            .sort((a, b) => b.efficiency - a.efficiency);
+
+          for (const entry of followerCandidates) {
+            const card = entry.card;
+            if (card.cost > remainingMana) continue;
+            if (fieldCount >= 5) break; // フィールド上限に達したら終了
+
+            // play
+            remainingMana -= card.cost;
+            fieldCount += 1;
+            const animId = uuidv4();
+            setEnemyFieldCards((f) => [
+              ...f,
+              { ...card, maxHp: card.hp ?? 0, canAttack: !!card.rush, uniqueId: animId, isAnimating: true },
+            ]);
+            setEnemyHandCards((h) => h.filter((c) => c.uniqueId !== card.uniqueId));
+            (async () => {
+              await sleep(600);
+              setEnemyFieldCards((list) => list.map((c) => (c.uniqueId === animId ? { ...c, isAnimating: false } : c)));
+            })();
+            await sleep(600);
+          }
+
+          // 残ったマナで簡易スペル処理：ダメージ系スペルがあればヒーローに使用する
+          const damageSpell = enemyHandCards.find((c) => c.type === "spell" && (c.name?.includes("火球") || c.name?.includes("炎") || c.name?.includes("雷") || c.name?.includes("火") || c.name?.toLowerCase().includes("fire") || c.name?.toLowerCase().includes("lightning")) && c.cost <= remainingMana);
+          if (damageSpell && remainingMana >= damageSpell.cost) {
+            // カードは手札から除去し、ヒーローにダメージを与える（castSpell はプレイヤー側の関数なのでフラグを false に）
+            setEnemyHandCards((h) => h.filter((c) => c.uniqueId !== damageSpell.uniqueId));
+            remainingMana -= damageSpell.cost;
+            // 単純に敵のspellをプレイヤーに当てるロジックを再利用
+            // castSpell はプレイヤー向けに currentMana を操作するため、ここでは直接実行する代わりに setPlayerHeroHp を使う
+            setPlayerHeroHp((hp) => Math.max(hp - 3, 0));
+            // 勝利判定
+            setPlayerHeroHp((hp) => {
+              if (hp - 3 <= 0) {
+                setGameOver({ over: true, winner: "enemy" });
+                if (turnTimeoutRef.current !== null) {
+                  clearTimeout(turnTimeoutRef.current as number);
+                  turnTimeoutRef.current = null;
+                }
+                setAiRunning(false);
+                return 0;
+              }
+              return hp - 3;
+            });
+            await sleep(600);
+          }
+
+          // 一括で敵の現在マナを更新（実際に残量が変化した場合のみ）
+          if (remainingMana !== enemyCurrentMana) {
+            setEnemyCurrentMana(remainingMana);
           }
 
           // 2) 攻撃フェイズ: 出せるフォロワーは攻撃（単純に順番に攻撃）
@@ -267,6 +320,8 @@ export function useGame() {
     // プリゲーム（先攻/後攻決めとマリガン）を開始
     setPreGame(true);
     setCoinResult("deciding");
+    // 初回ターンは特別扱い（プリゲーム直後の最初のターンはマナ増加を行わない）
+    initialTurnRef.current = true;
   };
 
   // コイントスの結果確定（'player' が先攻、'enemy' が後攻）
