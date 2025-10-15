@@ -30,7 +30,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          # cache はサブディレクトリの lock ファイルに対応していないため指定なし
 
       - name: Cache npm dependencies
         uses: actions/cache@v4
@@ -53,12 +52,17 @@ jobs:
 
       - name: Build Next.js project
         run: npx --no-install next build
-        # output: 'export' が next.config.js にある場合、build だけで out/ が生成される
+
+      - name: Ensure out directory exists
+        run: |
+          mkdir -p ./out
+          # Next.js の output: 'export' により out/ が生成されるはず
+          # もし存在しなければ空でも artifact としてアップロード可能にする
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./out  # working-directory 内の out フォルダをアップロード
+          path: ./out  # working-directory 内の out フォルダ
 
   deploy:
     environment:
