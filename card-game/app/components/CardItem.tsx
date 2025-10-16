@@ -121,7 +121,7 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
       <div className={styles.card_attack}>
         <p>{attack ?? 0}</p>
       </div>
-      <div>{name}</div>
+      {/* <div>{name}</div> */}
     </div>
   );
 });
