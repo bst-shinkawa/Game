@@ -445,7 +445,7 @@ const Game: React.FC = () => {
                         // click で交換候補の ON/OFF
                         setSwapIds((ids) => ids.includes(c.uniqueId) ? ids.filter(id => id !== c.uniqueId) : [...ids, c.uniqueId]);
                       }}
-                      style={{ width: 80, height: 110 }}
+                      style={{ width: 70, height: 100 }}
                     />
                   </div>
                 );
