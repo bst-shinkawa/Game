@@ -262,6 +262,18 @@
 
     }
 
+    &_card{
+        &_description{
+            position: absolute;
+            top: 20%;
+            left: 2.5%;
+            width: 200px;
+            height: 150px;
+            background-color: #fff;
+            padding: 1em;
+        }
+    }
+
     
 }
 
@@ -336,3 +348,138 @@
 .hpWhite { color: white; }
 .hpYellow { color: yellow; }
 .hpRed { color: rgb(135, 3, 3); }
+
+/* 追加: CSS 側にあり SCSS に無かったルール */
+.card_back {
+    width: 70px;
+    height: 100px;
+    background: repeating-linear-gradient(135deg, #444 0 10px, #888 10px 20px);
+    border: 2.5px solid #222;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+.card_back::after {
+    content: "?";
+    color: #fff;
+    font-size: 2.2rem;
+    font-weight: bold;
+    text-shadow: 0 2px 8px #000, 0 0 2px #fff;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+}
+
+/* ルーレット / コインポップアップ / モーダル系 */
+.rouletteWrapper {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+}
+
+.roulette {
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    background: conic-gradient(#ffcc00 0deg, #ff6666 90deg, #66ccff 180deg, #66ff99 270deg, #ffcc00 360deg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: #222;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+}
+
+/* spin クラスが付与された時に回転アニメーションを 1 回再生する */
+.spin {
+    animation: roulette-spin 1400ms cubic-bezier(.17,.67,.83,.67) 1;
+}
+
+@keyframes roulette-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(1080deg); }
+}
+
+.rouletteLabel {
+    position: absolute;
+    pointer-events: none;
+    color: #fff;
+    font-size: 1rem;
+    text-shadow: 0 2px 6px rgba(0,0,0,0.6);
+}
+
+.coinPopup {
+    position: fixed;
+    left: 50%;
+    top: 22%;
+    transform: translate(-50%, 0);
+    /* Apply a very large z-index so it won't be hidden by stacking contexts */
+    z-index: 99999 !important;
+    background: rgba(0,0,0,0.9);
+    color: #fff;
+    padding: 18px 28px;
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+    min-width: 320px;
+    text-align: center;
+}
+
+.coinPopupInner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.coinPopupTitle {
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.coinPopupWinner {
+    font-size: 1.6rem;
+    font-weight: 800;
+    color: #ffd700;
+}
+
+/* 簡易フェードクラス */
+.coinPopupFade {
+    animation: coinfade 400ms ease-out;
+}
+
+@keyframes coinfade {
+    from { opacity: 0; transform: translateY(-8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ターン切り替えモーダル */
+.turnModal {
+    position: fixed;
+    left: 50%;
+    top: 40%;
+    transform: translate(-50%, -50%);
+    z-index: 99998;
+    background: rgba(0,0,0,0.0);
+    color: #fff;
+    font-size: 48px;
+    font-weight: 800;
+    padding: 12px 28px;
+    text-align: center;
+    pointer-events: none;
+    text-shadow: 0 6px 18px rgba(0,0,0,0.7);
+}
+
+.turnModalFade {
+    animation: turn-fade 900ms ease-out;
+}
+
+@keyframes turn-fade {
+    from { opacity: 0; transform: translate(-50%, -56%); }
+    to { opacity: 1; transform: translate(-50%, -50%); }
+}
+

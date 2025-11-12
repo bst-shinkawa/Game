@@ -13,13 +13,22 @@ type Props = {
   attack?: number;
   cost?: number;
   image?: string;
+  poison?: number;
+  frozen?: number;
+  haste?: boolean;
+  rush?: boolean;
+  superHaste?: boolean;
+  stealth?: boolean;
   canAttack?: boolean;
+  rushInitialTurn?: boolean;
   draggable?: boolean;
   onClick?: () => void;
   onDragStart?: (e: React.DragEvent<HTMLDivElement>) => void;
   onDragEnd?: (e: React.DragEvent<HTMLDivElement>) => void;
   onDragOver?: (e: React.DragEvent<HTMLDivElement>) => void;
   onDrop?: (e: React.DragEvent<HTMLDivElement>) => void;
+  onMouseEnter?: (e: React.MouseEvent<HTMLDivElement>) => void;
+  onMouseLeave?: (e: React.MouseEvent<HTMLDivElement>) => void;
   isTarget?: boolean;
   inHand?: boolean;
   currentMana?: number;
@@ -54,7 +63,14 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
   attack,
   cost,
   image,
+  poison,
+  frozen,
+  haste,
+  rush,
+  superHaste,
+  stealth,
   canAttack,
+  rushInitialTurn,
   draggable,
   onClick,
   onDragStart,
@@ -67,6 +83,8 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
   style,
   selected,
   noStatus,
+  onMouseEnter,
+  onMouseLeave,
 }, ref) => {
   let borderColor = "gray";
   let borderWidth = 2;
@@ -81,7 +99,18 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
     if (inHand && currentMana !== undefined && cost !== undefined) {
       borderColor = currentMana >= cost ? "gold" : "gray";
     } else if (canAttack !== undefined) {
-      borderColor = canAttack ? "green" : "red";
+      // superHaste は常に緑枠（出したターンから攻撃可能）
+      if (superHaste && canAttack) {
+        borderColor = "green";
+      }
+      // 突進（rush）で出したばかり（rushInitialTurn = true）なら黄色枠
+      else if (rush && rushInitialTurn && canAttack) {
+        borderColor = "yellow";
+      }
+      // それ以外の攻撃可能状態は通常の緑枠
+      else {
+        borderColor = canAttack ? "green" : "red";
+      }
     }
     if (isTarget) {
       borderColor = "limegreen";
@@ -101,8 +130,10 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
       draggable={draggable}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-      onDragOver={onDragOver}
-      onDrop={onDrop}
+  onDragOver={onDragOver}
+  onDrop={onDrop}
+  onMouseEnter={onMouseEnter}
+  onMouseLeave={onMouseLeave}
       style={{
         ...style,
         border: `${borderWidth}px solid ${borderColor}`,
@@ -110,6 +141,31 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
       ref={ref} // forwardRef により渡せるようになる
     >
       {image && <img src={image} alt={name} />}
+      {/* 状態バッジ */}
+      {!noStatus && (
+        <div style={{ position: "absolute", left: 8, top: 8, display: "flex", gap: 6, zIndex: 20 }} aria-hidden={false}>
+          {typeof frozen === "number" && frozen > 0 && (
+            <div title={`凍結: ${frozen}ターン`} aria-label={`凍結 ${frozen}ターン`} style={{ background: "#4fc3f7", color: "#003", padding: "2px 6px", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>
+              冻{frozen}
+            </div>
+          )}
+          {typeof poison === "number" && poison > 0 && (
+            <div title={`毒: ${poison}ターン`} aria-label={`毒 ${poison}ターン`} style={{ background: "#e57373", color: "#300", padding: "2px 6px", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>
+              毒{poison}
+            </div>
+          )}
+          {haste && (
+            <div title={`加速`} aria-label={`加速`} style={{ background: "#ffd54f", color: "#663c00", padding: "2px 6px", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>
+              速
+            </div>
+          )}
+          {stealth && (
+            <div title={`隠密`} aria-label={`隠密`} style={{ background: "#9e9e9e", color: "#fff", padding: "2px 6px", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>
+              隠
+            </div>
+          )}
+        </div>
+      )}
       {cost !== undefined && (
         <div className={styles.card_cost}>
           <p>{cost}</p>

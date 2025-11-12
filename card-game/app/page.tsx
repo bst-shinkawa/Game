@@ -2,6 +2,7 @@
 "use client";
 import React, { useRef, useEffect, useState } from "react";
 import CardItem from "./components/CardItem";
+import { DamageFloater, DamageFloat } from "./components/DamageFloater";
 import ManaBar from "./components/ManaBar";
 import useGame from "./Game";
 import styles from "./assets/css/Game.Master.module.css";
@@ -45,6 +46,80 @@ const Game: React.FC = () => {
     startMatch,
   } = useGame();
   // 画面モード: menu | game | deck
+  // ダメージフロート用状態
+  const [damageFloats, setDamageFloats] = useState<DamageFloat[]>([]);
+  // ダメージフロート追加関数
+  const showDamage = (target: string, amount: number) => {
+    let x = window.innerWidth / 2, y = window.innerHeight / 2;
+    if (target === "playerHero" && playerHeroRef.current) {
+      const rect = playerHeroRef.current.getBoundingClientRect();
+      x = rect.left + rect.width / 2;
+      y = rect.top;
+    } else if (target === "enemyHero" && enemyHeroRef.current) {
+      const rect = enemyHeroRef.current.getBoundingClientRect();
+      x = rect.left + rect.width / 2;
+      y = rect.bottom;
+    } else if (playerFieldRefs.current[target]) {
+      const rect = playerFieldRefs.current[target]?.getBoundingClientRect();
+      if (rect) { x = rect.left + rect.width / 2; y = rect.top; }
+    } else if (enemyFieldRefs.current[target]) {
+      const rect = enemyFieldRefs.current[target]?.getBoundingClientRect();
+      if (rect) { x = rect.left + rect.width / 2; y = rect.top; }
+    }
+    setDamageFloats((prev) => [
+      ...prev,
+      { id: `${target}-${Date.now()}`, target, amount, x, y }
+    ]);
+  };
+  // ダメージフロート自動消去
+  useEffect(() => {
+    if (damageFloats.length === 0) return;
+    const timer = setTimeout(() => {
+      setDamageFloats((prev) => prev.slice(1));
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [damageFloats]);
+  // 攻撃・ダメージ・回復時のHP変化を監視してフロート表示
+  // プレイヤー・敵ヒーロー
+  const prevPlayerHeroHp = useRef(playerHeroHp);
+  const prevEnemyHeroHp = useRef(enemyHeroHp);
+  useEffect(() => {
+    if (playerHeroHp < prevPlayerHeroHp.current) {
+      showDamage("playerHero", prevPlayerHeroHp.current - playerHeroHp);
+    }
+    if (enemyHeroHp < prevEnemyHeroHp.current) {
+      showDamage("enemyHero", prevEnemyHeroHp.current - enemyHeroHp);
+    }
+    prevPlayerHeroHp.current = playerHeroHp;
+    prevEnemyHeroHp.current = enemyHeroHp;
+  }, [playerHeroHp, enemyHeroHp]);
+
+  // フィールドカードのHP変化
+  const prevFieldHp = useRef<{ [id: string]: number }>({});
+  useEffect(() => {
+    // プレイヤー
+    playerFieldCards.forEach((c) => {
+      const prev = prevFieldHp.current[c.uniqueId];
+      if (prev !== undefined && c.hp !== undefined && c.hp < prev) {
+        showDamage(c.uniqueId, prev - c.hp);
+      }
+      prevFieldHp.current[c.uniqueId] = c.hp ?? 0;
+    });
+    // 敵
+    enemyFieldCards.forEach((c) => {
+      const prev = prevFieldHp.current[c.uniqueId];
+      if (prev !== undefined && c.hp !== undefined && c.hp < prev) {
+        showDamage(c.uniqueId, prev - c.hp);
+      }
+      prevFieldHp.current[c.uniqueId] = c.hp ?? 0;
+    });
+    // 死亡したカードは記録から削除
+    Object.keys(prevFieldHp.current).forEach((id) => {
+      if (!playerFieldCards.some((c) => c.uniqueId === id) && !enemyFieldCards.some((c) => c.uniqueId === id)) {
+        delete prevFieldHp.current[id];
+      }
+    });
+  }, [playerFieldCards, enemyFieldCards]);
   const [mode, setMode] = useState<"menu" | "game" | "deck">("menu");
   // プリゲーム UI state
   // ルーレット中フラグ / 表示ラベル
@@ -60,10 +135,16 @@ const Game: React.FC = () => {
   // 試合開始の大きな表示を一瞬出す
   const [showGameStart, setShowGameStart] = useState<boolean>(false);
 
+  // startMatchWithVisual の多重実行を防ぐためのフラグ
+  const startingMatchRef = useRef<boolean>(false);
+
   // 見た目の演出（GameStart 表示など）を先に行ってから、内部フックの startMatch を呼ぶためのラッパー
   const startMatchWithVisual = () => {
     // only trigger if we're still in preGame; guard against accidental re-triggers mid-match
     if (!preGame) return;
+    // prevent re-entry
+    if (startingMatchRef.current) return;
+    startingMatchRef.current = true;
     // clear any pending popup/interval from the mulligan flow so they don't re-trigger GameStart
     if (popupTimerRef.current !== null) {
       clearTimeout(popupTimerRef.current);
@@ -73,12 +154,17 @@ const Game: React.FC = () => {
       clearInterval(mulliganIvRef.current);
       mulliganIvRef.current = null;
     }
-    // hide pregame modal and show GameStart overlay
-    setShowCoinPopup(false);
-    setMulliganTimer(0);
-    startMatch();
+  // hide pregame modal and show GameStart overlay
+  setShowCoinPopup(false);
+  setMulliganTimer(0);
+  // clear any open card description so it doesn't persist into the new match
+  setDescCardId(null);
+  startMatch();
     setShowGameStart(true);
-    setTimeout(() => setShowGameStart(false), 1400);
+    setTimeout(() => {
+      setShowGameStart(false);
+      startingMatchRef.current = false;
+    }, 1400);
   };
 
   const popupTimerRef = useRef<number | null>(null);
@@ -143,6 +229,8 @@ const Game: React.FC = () => {
 
   // 敵ターン開始時に中央モーダルを短時間表示するための state
   const [showTurnModal, setShowTurnModal] = useState<boolean>(false);
+  // カード説明パネル表示中のカード uniqueId（クリック/タップでトグル表示）
+  const [descCardId, setDescCardId] = useState<string | null>(null);
 
   useEffect(() => {
     // ターンが切り替わった瞬間、それぞれ短時間モーダルを表示する
@@ -242,8 +330,9 @@ const Game: React.FC = () => {
     const isHandCard = playerHandCards.some(c => c.uniqueId === draggingCard);
     const draggingCardObj = playerHandCards.find(c => c.uniqueId === draggingCard) || playerFieldCards.find(c => c.uniqueId === draggingCard);
     const isHandSpell = isHandCard && draggingCardObj?.type === "spell";
-    const isHealSpell = isHandSpell && (draggingCardObj?.name?.includes("回復") || draggingCardObj?.name?.toLowerCase().includes("heal"));
-    const isDamageSpell = isHandSpell && !isHealSpell;
+  const isHealSpell = isHandSpell && (draggingCardObj?.effect === "heal_single");
+    const isHasteSpell = isHandSpell && (draggingCardObj?.effect === "haste");
+    const isDamageSpell = isHandSpell && !isHealSpell && !isHasteSpell;
     if (isHandCard && !isHandSpell) return;
 
     const attackingCard = playerFieldCards.find(c => c.uniqueId === draggingCard && c.canAttack);
@@ -253,13 +342,22 @@ const Game: React.FC = () => {
 
       // 敵ヒーロー／敵フォロワー：ダメージ系スペル／攻撃は敵側をターゲットにできる
       if (isDamageSpell || attackingCard) {
-        if (enemyHeroRef.current) {
+        // rush持ちが出したターン（rushInitialTurn === true）の場合、敵ヒーローへの矢印を除外
+        const canTargetHero = !((attackingCard as any)?.rushInitialTurn);
+        
+        // 敵フィールドに鉄壁持ちがいるかチェック
+        const hasWallGuardOnEnemy = enemyFieldCards.some((c) => (c as any).wallGuard);
+        
+        if (canTargetHero && !hasWallGuardOnEnemy && enemyHeroRef.current) {
           const rect = enemyHeroRef.current.getBoundingClientRect();
           targets.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height, kind: "damage" });
         }
+        
         for (const c of enemyFieldCards) {
           const ref = enemyFieldRefs.current[c.uniqueId];
           if (ref) {
+            // 隠密状態のカードはターゲット矢印を表示しない
+            if ((c as any).stealth) continue;
             const rect = ref.getBoundingClientRect();
             targets.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, kind: "damage" });
           }
@@ -277,6 +375,20 @@ const Game: React.FC = () => {
           if (ref) {
             const rect = ref.getBoundingClientRect();
             targets.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, kind: "heal" });
+          }
+        }
+      }
+
+      // 加速系スペルは味方の攻撃可能なフォロワーのみをターゲットにできる
+      if (isHasteSpell) {
+        for (const c of playerFieldCards) {
+          // 攻撃可能なフォロワーのみ
+          if (c.canAttack) {
+            const ref = playerFieldRefs.current[c.uniqueId];
+            if (ref) {
+              const rect = ref.getBoundingClientRect();
+              targets.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, kind: "heal" });
+            }
           }
         }
       }
@@ -364,7 +476,11 @@ const Game: React.FC = () => {
         <StartMenu
           onSelectMode={(m) => {
             // CPU戦を選ぶとゲームを初期化してゲーム画面へ
-            if (m === "cpu") resetGame("cpu");
+            if (m === "cpu") {
+              resetGame("cpu");
+              // clear any open card description when resetting
+              setDescCardId(null);
+            }
             setMode("game");
           }}
           onDeck={() => setMode("deck")}
@@ -386,6 +502,8 @@ const Game: React.FC = () => {
 
   return (
     <div className={styles.field}>
+      {/* ダメージフロート表示 */}
+      <DamageFloater floats={damageFloats} />
       {/* プリゲーム：ルーレット演出 */}
       {preGame && coinResult === "deciding" && (
         <div style={{ position: 'fixed', left: 0, top: 0, right: 0, bottom: 0, zIndex: 1500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -467,9 +585,9 @@ const Game: React.FC = () => {
       <canvas ref={canvasRef} style={{ position: "fixed", left: 0, top: 0, pointerEvents: "none", zIndex: 900 }} />
 
       {/* 右上メニュー: リスタート / リタイア(メニューへ) */}
-      <div style={{ position: 'fixed', top: 12, right: 12, zIndex: 1200, display: 'flex', gap: 8 }}>
-        <button onClick={() => { resetGame('cpu'); setMode('game'); }}>リスタート</button>
-        <button onClick={() => { resetGame('cpu'); setMode('menu'); }}>リタイア</button>
+        <div style={{ position: 'fixed', top: 12, right: 12, zIndex: 1200, display: 'flex', gap: 8 }}>
+        <button onClick={() => { resetGame('cpu'); setDescCardId(null); setMode('game'); }}>リスタート</button>
+        <button onClick={() => { resetGame('cpu'); setDescCardId(null); setMode('menu'); }}>リタイア</button>
       </div>
 
 
@@ -503,7 +621,11 @@ const Game: React.FC = () => {
         );
       })()}
       {showTurnModal && (
-        <div className={styles.turnModal}>{isPlayerTurn ? "Your Turn" : "Enemy Turn"}</div>
+        <div style={{ position: 'fixed', left: 0, top: 0, right: 0, bottom: 0, zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'rgba(0,0,0,0.85)', color: '#fff', padding: 20, borderRadius: 12 }}>
+            <h1 style={{ fontSize: 45, margin: 0 }}>{isPlayerTurn ? "Your Turn" : "Enemy Turn"}</h1>
+          </div>
+        </div>
       )}
 
       {/* 敵エリア */}
@@ -513,7 +635,7 @@ const Game: React.FC = () => {
           className={styles.field_enemy_hero}
           onDragOver={(e) => {
             const handCard = playerHandCards.find((c) => c.uniqueId === draggingCard);
-            const isHeal = handCard && (handCard.name?.includes("回復") || handCard.name?.toLowerCase().includes("heal"));
+            const isHeal = handCard && handCard.effect === "heal_single";
             if (draggingCard && (!isHeal || !handCard)) e.preventDefault();
           }}
           onDrop={() => {
@@ -551,13 +673,13 @@ const Game: React.FC = () => {
               style={(card as any).isAnimating ? { transform: "translateY(-40px)", opacity: 0 } : undefined}
               onDragOver={(e) => {
                 const handCard = playerHandCards.find((c) => c.uniqueId === draggingCard);
-                const isHeal = handCard && (handCard.name?.includes("回復") || handCard.name?.toLowerCase().includes("heal"));
+                const isHeal = handCard && handCard.effect === "heal_single";
                 if (draggingCard && (!isHeal || !handCard)) e.preventDefault();
               }}
               onDrop={() => {
                 if (!draggingCard) return;
                 const handCard = playerHandCards.find((c) => c.uniqueId === draggingCard);
-                const isHeal = handCard && (handCard.name?.includes("回復") || handCard.name?.toLowerCase().includes("heal"));
+                const isHeal = handCard && handCard.effect === "heal_single";
                 if (handCard && handCard.type === "spell") {
                   if (isHeal) {
                     // 回復スペルを敵フォロワーに使うのは無効にする
@@ -574,6 +696,7 @@ const Game: React.FC = () => {
               ref={(el: HTMLDivElement | null) => {
                 enemyFieldRefs.current[card.uniqueId] = el;
               }}
+              onClick={() => setDescCardId((prev) => prev === card.uniqueId ? null : card.uniqueId)}
             />
           ))}
         </div>
@@ -616,13 +739,13 @@ const Game: React.FC = () => {
               onDragOver={(e) => {
                 // プレイヤーヒーローは回復スペルのみ受け付ける
                 const handCard = playerHandCards.find((c) => c.uniqueId === draggingCard);
-                const isHeal = handCard && (handCard.name?.includes("回復") || handCard.name?.toLowerCase().includes("heal"));
+                const isHeal = handCard && handCard.effect === "heal_single";
                 if (draggingCard && isHeal) e.preventDefault();
               }}
               onDrop={() => {
                 if (!draggingCard) return;
                 const handCard = playerHandCards.find((c) => c.uniqueId === draggingCard);
-                const isHeal = handCard && (handCard.name?.includes("回復") || handCard.name?.toLowerCase().includes("heal"));
+                const isHeal = handCard && handCard.effect === "heal_single";
                 if (handCard && handCard.type === "spell" && isHeal) {
                   castSpell(draggingCard, "hero", true);
                 }
@@ -698,6 +821,7 @@ const Game: React.FC = () => {
                 setArrowStartPos(null);
               }}
               ref={(el: HTMLDivElement | null) => { playerFieldRefs.current[card.uniqueId] = el; }}
+              onClick={() => setDescCardId((prev) => prev === card.uniqueId ? null : card.uniqueId)}
             />
           ))}
         </div>
@@ -725,6 +849,7 @@ const Game: React.FC = () => {
                 setDraggingCard(null);
                 setArrowStartPos(null);
               }}
+              onClick={() => setDescCardId((prev) => prev === card.uniqueId ? null : card.uniqueId)}
               style={swapIds.includes(card.uniqueId) ? { border: '3px solid limegreen' } : undefined}
             />
           ))}
@@ -746,6 +871,21 @@ const Game: React.FC = () => {
           <p className={styles.field_player_status_death}>{playerGraveyard.length}</p>
         </div>
 
+        {/* カードディスクリプション（カードをクリック/タップで表示） */}
+        {descCardId && (() => {
+          // descCardId の uniqueId からカード情報を探す
+          const card = playerHandCards.find(c => c.uniqueId === descCardId)
+            || enemyHandCards.find(c => c.uniqueId === descCardId)
+            || playerFieldCards.find(c => c.uniqueId === descCardId)
+            || enemyFieldCards.find(c => c.uniqueId === descCardId);
+          return (
+            <div className={styles.field_card_description} aria-hidden={false}>
+              <h4 style={{ marginTop: 0 }}>{card?.name ?? ""}</h4>
+              <p>{card?.description ?? ""}</p>
+            </div>
+          );
+        })()}
+
       </div>
 
       <div className={styles.field_turn}>
@@ -762,7 +902,7 @@ const Game: React.FC = () => {
           }}
           disabled={!isPlayerTurn || aiRunning}
         >
-          {preGame && coinResult !== 'deciding' ? '交換' : 'TurnEnd'}
+          TurnEnd
         </button>
       </div>
       {/* 試合開始時の大きな表示 */}
@@ -779,6 +919,7 @@ const Game: React.FC = () => {
           winner={gameOver.winner}
           onRestart={() => {
             resetGame("cpu");
+            setDescCardId(null);
             setMode("game");
           }}
           onMenu={() => setMode("menu")}
