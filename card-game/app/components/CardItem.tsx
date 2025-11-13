@@ -130,10 +130,10 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
       draggable={draggable}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
-  onDragOver={onDragOver}
-  onDrop={onDrop}
-  onMouseEnter={onMouseEnter}
-  onMouseLeave={onMouseLeave}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
       style={{
         ...style,
         border: `${borderWidth}px solid ${borderColor}`,
@@ -146,7 +146,7 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
         <div style={{ position: "absolute", left: 8, top: 8, display: "flex", gap: 6, zIndex: 20 }} aria-hidden={false}>
           {typeof frozen === "number" && frozen > 0 && (
             <div title={`凍結: ${frozen}ターン`} aria-label={`凍結 ${frozen}ターン`} style={{ background: "#4fc3f7", color: "#003", padding: "2px 6px", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>
-              冻{frozen}
+              凍{frozen}
             </div>
           )}
           {typeof poison === "number" && poison > 0 && (

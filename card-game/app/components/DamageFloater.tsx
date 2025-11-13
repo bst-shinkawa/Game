@@ -22,7 +22,7 @@ export const DamageFloater: React.FC<{
             top: f.y,
             color: f.amount > 0 ? "#e53935" : "#43a047",
             fontWeight: 900,
-            fontSize: 28,
+            fontSize: 40,
             pointerEvents: "none",
             textShadow: "0 2px 8px #000, 0 0 2px #fff",
             zIndex: 3000,

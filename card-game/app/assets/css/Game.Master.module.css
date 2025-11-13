@@ -103,12 +103,19 @@
   grid-template-columns: repeat(3, 1fr);
   gap: 15px;
   padding: 10px;
-  width: 200px;
+  width: 300px;
   text-align: center;
 }
 .field_enemy_status p {
   color: #fff;
-  font-size: 20px;
+  font-size: 25px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10%;
+}
+.field_enemy_status p img {
+  max-width: 45px;
 }
 .field_player {
   width: 100%;
@@ -208,12 +215,19 @@
   grid-template-columns: repeat(3, 1fr);
   gap: 15px;
   padding: 10px;
-  width: 200px;
+  width: 300px;
   text-align: center;
 }
 .field_player_status p {
   color: #fff;
-  font-size: 20px;
+  display: flex;
+  font-size: 25px;
+  justify-content: center;
+  align-items: center;
+  gap: 10%;
+}
+.field_player_status p img {
+  max-width: 45px;
 }
 .field_turn {
   position: absolute;
@@ -326,27 +340,12 @@
 .card_back {
   width: 70px;
   height: 100px;
-  background: repeating-linear-gradient(135deg, #444 0 10px, #888 10px 20px);
-  border: 2.5px solid #222;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  background-image: url(/img/field/card-back.png);
   display: flex;
   align-items: center;
   justify-content: center;
   position: relative;
-}
-
-.card_back::after {
-  content: "?";
-  color: #fff;
-  font-size: 2.2rem;
-  font-weight: bold;
-  text-shadow: 0 2px 8px #000, 0 0 2px #fff;
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
+  border-radius: 10px;
 }
 
 /* ルーレット / コインポップアップ / モーダル系 */
@@ -411,6 +410,7 @@
   display: flex;
   align-items: center;
   gap: 12px;
+  justify-content: center;
 }
 
 .coinPopupTitle {

@@ -9,6 +9,11 @@ import styles from "./assets/css/Game.Master.module.css";
 import StartMenu from "./components/StartMenu";
 import GameOver from "./components/GameOver";
 
+import Image from "next/image"
+import handIcon from "@/public/img/field/hand-card.png"
+import deckIcon from "@/public/img/field/deck.png"
+import deathIcon from "@/public/img/field/death-icon.png"
+
 
 const Game: React.FC = () => {
   const {
@@ -533,7 +538,6 @@ const Game: React.FC = () => {
   {preGame && coinResult !== "deciding" && showCoinPopup && (
         <div className={styles.coinPopup} role="alert" aria-live="polite">
           <div className={styles.coinPopupInner}>
-            <div className={styles.coinPopupTitle}>先攻/後攻が決定しました</div>
             <div className={styles.coinPopupWinner}>{coinResult === 'player' ? 'あなたは先攻' : 'あなたは後攻'}</div>
           </div>
         </div>
@@ -720,9 +724,9 @@ const Game: React.FC = () => {
 
         {/* エネミーステータス */}
         <div className={styles.field_enemy_status}>
-          <p className={styles.field_enemy_status_hand}>{enemyHandCards.length}</p>
-          <p className={styles.field_enemy_status_deck}>{enemyDeck.length}</p>
-          <p className={styles.field_player_status_death}>{enemyGraveyard.length}</p>
+          <p className={styles.field_enemy_status_hand}><Image src={handIcon} alt="エネミー手札" />{enemyHandCards.length}</p>
+          <p className={styles.field_enemy_status_deck}><Image src={deckIcon} alt="エネミーデッキ" />{enemyDeck.length}</p>
+          <p className={styles.field_player_status_death}><Image src={deathIcon} alt="エネミー墓地" />{enemyGraveyard.length}</p>
         </div>
 
       </div>
@@ -866,9 +870,9 @@ const Game: React.FC = () => {
 
         {/* プレイヤーステータス */}
         <div className={styles.field_player_status}>
-          <p className={styles.field_player_status_hand}>{playerHandCards.length}</p>
-          <p className={styles.field_player_status_deck}>{deck.length}</p>
-          <p className={styles.field_player_status_death}>{playerGraveyard.length}</p>
+          <p className={styles.field_player_status_hand}><Image src={handIcon} alt="プレイヤー手札" />{playerHandCards.length}</p>
+          <p className={styles.field_player_status_deck}><Image src={deckIcon} alt="プレイヤーデッキ" />{deck.length}</p>
+          <p className={styles.field_player_status_death}><Image src={deathIcon} alt="墓地" />{playerGraveyard.length}</p>
         </div>
 
         {/* カードディスクリプション（カードをクリック/タップで表示） */}
