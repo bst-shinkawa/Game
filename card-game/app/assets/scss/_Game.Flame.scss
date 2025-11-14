@@ -1,5 +1,7 @@
 @use 'template' as t;
 
+$img-path: "/img/field";
+
 .field{
     width: 1000px;
     height: 600px;
@@ -209,7 +211,7 @@
             padding: 20px;
             background-color: #d38787;
             width: 450px;
-            height: 250px;
+            height: auto;
         }
 
         &_timer{
@@ -248,7 +250,7 @@
                 align-items: center;
                 gap: 10%;
                 img{
-                    max-width: 45px;
+                    max-width: 40px;
                 }
             }
         }
@@ -293,10 +295,9 @@
 }
 
 .card{
-    width: 70px;
-    height: 100px;
-    background-color: aquamarine;
-    border: solid 1px #000;
+    width: 100%;
+    height: auto;
+    background-color: rgb(15, 36, 85);
     position: relative;
 
     &:hover{
@@ -368,7 +369,7 @@
 .card_back {
     width: 70px;
     height: 100px;
-    background-image: url(/img/field/card-back.png);
+    background-image: var(--card-back);
     display: flex;
     align-items: center;
     justify-content: center;

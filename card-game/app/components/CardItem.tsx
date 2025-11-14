@@ -91,7 +91,7 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
   // 選択フラグがある場合は最優先で緑枠（太線）にする
   if (selected) {
     borderColor = "limegreen";
-    borderWidth = 3;
+    borderWidth = 2;
   } else if (noStatus) {
     // マリガンやプレビュー用など、カードの手札ステータスを反映したくない場合
     borderColor = "gray";
@@ -114,7 +114,7 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
     }
     if (isTarget) {
       borderColor = "limegreen";
-      borderWidth = 3;
+      borderWidth = 2;
     }
   }
 
@@ -171,12 +171,20 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
           <p>{cost}</p>
         </div>
       )}
-      <div className={`${styles.card_hp} ${hpClass}`}>
-        <p>{Math.min(hp, maxHp)}</p>
-      </div>
-      <div className={styles.card_attack}>
-        <p>{attack ?? 0}</p>
-      </div>
+
+       {/* follower のときだけ stats を表示 */}
+      {type === "follower" && (
+          <>
+            <div className={`${styles.card_hp} ${hpClass}`}>
+              <p>{Math.min(hp, maxHp)}</p>
+            </div>
+
+            <div className={styles.card_attack}>
+              <p>{attack ?? 0}</p>
+            </div>
+          </>
+        )}
+        
       {/* <div>{name}</div> */}
     </div>
   );

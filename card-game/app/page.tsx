@@ -13,6 +13,7 @@ import Image from "next/image"
 import handIcon from "@/public/img/field/hand-card.png"
 import deckIcon from "@/public/img/field/deck.png"
 import deathIcon from "@/public/img/field/death-icon.png"
+import cardBack from '@/public/img/field/card-back.png';
 
 
 const Game: React.FC = () => {
@@ -534,8 +535,8 @@ const Game: React.FC = () => {
       )}
 
       {/* プリゲーム：マリガン画面（ルーレット後に表示） */}
-  {/* ルーレットの結果を短くポップアップ表示 -> その後マリガンを表示 */}
-  {preGame && coinResult !== "deciding" && showCoinPopup && (
+      {/* ルーレットの結果を短くポップアップ表示 -> その後マリガンを表示 */}
+      {preGame && coinResult !== "deciding" && showCoinPopup && (
         <div className={styles.coinPopup} role="alert" aria-live="polite">
           <div className={styles.coinPopupInner}>
             <div className={styles.coinPopupWinner}>{coinResult === 'player' ? 'あなたは先攻' : 'あなたは後攻'}</div>
@@ -543,11 +544,11 @@ const Game: React.FC = () => {
         </div>
       )}
 
-  {preGame && coinResult !== "deciding" && !showCoinPopup && (
+      {preGame && coinResult !== "deciding" && !showCoinPopup && (
         <div style={{ position: 'fixed', left: 0, top: 0, right: 0, bottom: 0, zIndex: 1500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div style={{ background: 'rgba(0,0,0,0.95)', color: '#fff', padding: 20, borderRadius: 8 , textAlign: "center"}}>
             <h3>{coinResult === 'player' ? 'あなたは先攻' : 'あなたは後攻'}</h3>
-            <p>交換したいカードを選択してください<br></br>（選択後は「交換」を押してください）。<br></br>制限時間: {mulliganTimer}s</p>
+            <p>交換したいカードを選択してください<br></br>（選択後は「交換」を押してください）<br></br>制限時間: {mulliganTimer}s</p>
 
             <div style={{ display: 'flex', gap: 12, marginTop: 12, alignItems: "center", justifyContent: "center" }}>
               {playerHandCards.map((c) => {
@@ -567,7 +568,6 @@ const Game: React.FC = () => {
                         // click で交換候補の ON/OFF
                         setSwapIds((ids) => ids.includes(c.uniqueId) ? ids.filter(id => id !== c.uniqueId) : [...ids, c.uniqueId]);
                       }}
-                      style={{ width: 70, height: 100 }}
                     />
                   </div>
                 );
@@ -585,6 +585,7 @@ const Game: React.FC = () => {
           </div>
         </div>
       )}
+      
       {/* キャンバス（矢印描画用オーバーレイ） */}
       <canvas ref={canvasRef} style={{ position: "fixed", left: 0, top: 0, pointerEvents: "none", zIndex: 900 }} />
 
@@ -709,7 +710,7 @@ const Game: React.FC = () => {
           {enemyHandCards.map((card) => (
             // 敵の手札は裏向きで表示（画像は後で差し替え予定）。
             // ここでは情報を見せないため CardItem は使わず、灰色の裏面を描画します。
-            <div key={card.uniqueId} className={styles.card_back} aria-hidden={true} />
+            <div key={card.uniqueId} className={styles.card_back} aria-hidden={true} style={{ backgroundImage: `url(${cardBack.src})` }} />
           ))}
         </div>
 
@@ -854,7 +855,7 @@ const Game: React.FC = () => {
                 setArrowStartPos(null);
               }}
               onClick={() => setDescCardId((prev) => prev === card.uniqueId ? null : card.uniqueId)}
-              style={swapIds.includes(card.uniqueId) ? { border: '3px solid limegreen' } : undefined}
+              style={swapIds.includes(card.uniqueId) ? { border: '2px solid limegreen' } : undefined}
             />
           ))}
         </div>
