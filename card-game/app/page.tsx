@@ -144,6 +144,77 @@ const Game: React.FC = () => {
   // startMatchWithVisual の多重実行を防ぐためのフラグ
   const startingMatchRef = useRef<boolean>(false);
 
+
+  // 手札管理用
+  const [isHandExpanded, setIsHandExpanded] = useState<boolean>(false);
+  const [activeHandCardId, setActiveHandCardId] = useState<string | null>(null);
+
+  const handAreaRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    // 拡大されていない場合のみ扇形レイアウトを適用
+    if (isHandExpanded || !handAreaRef.current) return;
+
+    const cards = handAreaRef.current.querySelectorAll(`.${styles.hand_card}`);
+    const count = cards.length;
+    const maxAngle = 25;
+    // カードが1枚もない場合はステップを計算しない
+    const angleStep = (count > 1) ? (maxAngle * 2) / (count - 1) : 0;
+
+    cards.forEach((card, i) => {
+      const cardEl = card as HTMLDivElement;
+      const angle = -maxAngle + angleStep * i;
+      const offsetX = (i - (count - 1) / 2) * 32;
+      const edgeOffsetY = Math.abs(i - (count - 1) / 2) * 5;
+
+      // CSS変数とtransformの適用
+      cardEl.style.setProperty('--rotate', `${angle}deg`);
+      cardEl.style.transform = `translateX(${offsetX}px) translateY(${edgeOffsetY}px) rotate(${angle}deg)`;
+    });
+  }, [playerHandCards.length, isHandExpanded]); // カード枚数や拡大状態が変わったら再計算
+
+  // 手札エリアの縮小
+  const collapseHand = () => {
+    setIsHandExpanded(false);
+    setActiveHandCardId(null);
+  };
+
+  // 手札エリア外クリックによる縮小を処理するための useEffect
+  useEffect(() => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      // 拡大中で、かつクリック位置が手札エリア外であれば縮小
+      if (isHandExpanded && handAreaRef.current && !handAreaRef.current.contains(event.target as Node)) {
+        collapseHand();
+      }
+    };
+    
+    // イベントリスナーを追加
+    document.addEventListener('click', handleOutsideClick);
+    
+    // クリーンアップ
+    return () => {
+        document.removeEventListener('click', handleOutsideClick);
+      };
+    }, [isHandExpanded]); // 拡大状態が変わるたびにリスナーを更新
+
+    // カードクリックハンドラ
+    const handleCardClick = (cardId: string) => {
+      if (!isHandExpanded) {
+        // 拡大されていない場合は、まず拡大する
+        setIsHandExpanded(true);
+        return;
+      }
+
+      // 拡大されている場合は、アクティブ状態をトグル
+      if (activeHandCardId === cardId) {
+        setActiveHandCardId(null);
+        setDescCardId(null); // アクティブ解除と同時に説明を非表示
+      } else {
+        // アクティブを切り替え
+        setActiveHandCardId(cardId);
+        setDescCardId(cardId); // アクティブ化と同時に説明を表示
+      }
+    };
+
   // 見た目の演出（GameStart 表示など）を先に行ってから、内部フックの startMatch を呼ぶためのラッパー
   const startMatchWithVisual = () => {
     // only trigger if we're still in preGame; guard against accidental re-triggers mid-match
@@ -336,7 +407,7 @@ const Game: React.FC = () => {
     const isHandCard = playerHandCards.some(c => c.uniqueId === draggingCard);
     const draggingCardObj = playerHandCards.find(c => c.uniqueId === draggingCard) || playerFieldCards.find(c => c.uniqueId === draggingCard);
     const isHandSpell = isHandCard && draggingCardObj?.type === "spell";
-  const isHealSpell = isHandSpell && (draggingCardObj?.effect === "heal_single");
+    const isHealSpell = isHandSpell && (draggingCardObj?.effect === "heal_single");
     const isHasteSpell = isHandSpell && (draggingCardObj?.effect === "haste");
     const isDamageSpell = isHandSpell && !isHealSpell && !isHasteSpell;
     if (isHandCard && !isHandSpell) return;
@@ -784,6 +855,7 @@ const Game: React.FC = () => {
             // 通常時はカードを場に出す
             if (card.type !== "spell") {
               playCardToField(card);
+              collapseHand();
             }
             setDraggingCard(null);
             setArrowStartPos(null);
@@ -831,33 +903,69 @@ const Game: React.FC = () => {
           ))}
         </div>
 
-        <div className={styles.field_player_hand}>
-          {playerHandCards.map((card) => (
-            <CardItem
-              key={card.uniqueId}
-              {...card}
-              hp={card.hp ?? 0}
-              maxHp={card.maxHp ?? 0}
-              attack={card.attack ?? 0}
-              draggable
-              inHand
-              currentMana={currentMana}
-              onDragStart={(e) => {
-                if (!isPlayerTurn) return;
-                setDraggingCard(card.uniqueId);
-                const rect = e.currentTarget.getBoundingClientRect();
-                const startPos = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-                setArrowStartPos(startPos);
-                setDragPosition(startPos);
-              }}
-              onDragEnd={() => {
-                setDraggingCard(null);
-                setArrowStartPos(null);
-              }}
-              onClick={() => setDescCardId((prev) => prev === card.uniqueId ? null : card.uniqueId)}
-              style={swapIds.includes(card.uniqueId) ? { border: '2px solid limegreen' } : undefined}
-            />
-          ))}
+        {/* プレイヤー手札 */}
+        <div
+          ref={handAreaRef}
+          className={`${styles.hand_area} ${isHandExpanded ? styles.expanded : ''}`}
+          onClick={() => {
+            // プリゲーム中は無効化
+            if (preGame) return;
+
+            if (!isHandExpanded) {
+              setIsHandExpanded(true);
+            }
+          }}
+        >
+          {playerHandCards.map((card) => {
+            const isActive = activeHandCardId === card.uniqueId;
+            const isDragging = draggingCard === card.uniqueId;
+            return (
+              <div
+                key={card.uniqueId}
+                // isDragging中は z-index を高く保ちます
+                className={`${styles.hand_card} ${isActive ? styles.active : ''}`}
+                onClick={(e) => {
+                  // ドラッグ中はクリック処理を無効化
+                  if (isDragging) return;
+                  
+                  e.stopPropagation(); // hand_area のクリックイベントを阻止
+                  handleCardClick(card.uniqueId);
+                }}
+                // カードのドラッグ・ドロップのロジックは CardItem 側で保持
+                style={{ zIndex: isActive ? 4000 : (isDragging ? 950 : 10), transition: 'all 0.25s ease' }}
+              >
+                <CardItem
+                  {...card}
+                  hp={card.hp ?? 0}
+                  maxHp={card.maxHp ?? 0}
+                  attack={card.attack ?? 0}
+                  draggable
+                  inHand
+                  currentMana={currentMana}
+                  onDragStart={(e) => {
+                    if (!isPlayerTurn) return;
+                    setDraggingCard(card.uniqueId);
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const startPos = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+                    setArrowStartPos(startPos);
+                    setDragPosition(startPos);
+                    
+                    // 拡大中であれば、ドラッグ開始時に縮小を強制
+                    // if (isHandExpanded) {
+                    //   e.stopPropagation(); // handAreaの拡大クリックと誤動作を防ぐため
+                    //   collapseHand(); 
+                    // }
+                  }}
+                  onDragEnd={() => {
+                    setDraggingCard(null);
+                    setArrowStartPos(null);
+                  }}
+                  // ... (onClick: 次の修正で追加)
+                  style={swapIds.includes(card.uniqueId) ? { border: '2px solid limegreen' } : undefined}
+                />
+              </div>
+            );
+          })}
         </div>
 
         <div className={styles.field_player_mana}>
