@@ -937,14 +937,6 @@ const Game: React.FC = () => {
         <div
           ref={handAreaRef}
           className={`${styles.field_player_hand_area} ${isHandExpanded ? styles.expanded : ''}`}
-          onClick={() => {
-            // プリゲーム中は無効化
-            if (preGame) return;
-
-            if (!isHandExpanded) {
-              setIsHandExpanded(true);
-            }
-          }}
         >
           {playerHandCards.map((card) => {
             const isActive = activeHandCardId === card.uniqueId;
