@@ -154,7 +154,7 @@ const Game: React.FC = () => {
     // 拡大されていない場合のみ扇形レイアウトを適用
     if (isHandExpanded || !handAreaRef.current) return;
 
-    const cards = handAreaRef.current.querySelectorAll(`.${styles.hand_card}`);
+    const cards = handAreaRef.current.querySelectorAll(`.${styles.field_player_hand_card}`);
     const count = cards.length;
     const maxAngle = 25;
     // カードが1枚もない場合はステップを計算しない
@@ -185,35 +185,41 @@ const Game: React.FC = () => {
       if (isHandExpanded && handAreaRef.current && !handAreaRef.current.contains(event.target as Node)) {
         collapseHand();
       }
+  };
+  
+  // イベントリスナーを追加
+  document.addEventListener('click', handleOutsideClick);
+  
+  // クリーンアップ
+  return () => {
+      document.removeEventListener('click', handleOutsideClick);
     };
-    
-    // イベントリスナーを追加
-    document.addEventListener('click', handleOutsideClick);
-    
-    // クリーンアップ
-    return () => {
-        document.removeEventListener('click', handleOutsideClick);
-      };
-    }, [isHandExpanded]); // 拡大状態が変わるたびにリスナーを更新
+  }, [isHandExpanded]); // 拡大状態が変わるたびにリスナーを更新
 
-    // カードクリックハンドラ
-    const handleCardClick = (cardId: string) => {
-      if (!isHandExpanded) {
-        // 拡大されていない場合は、まず拡大する
-        setIsHandExpanded(true);
-        return;
-      }
+  // カードクリックハンドラ
+  const handleCardClick = (cardId: string) => {
+    if (!isHandExpanded) {
+      // 拡大されていない場合は、まず拡大する
+      setIsHandExpanded(true);
+      return;
+    }
 
-      // 拡大されている場合は、アクティブ状態をトグル
-      if (activeHandCardId === cardId) {
-        setActiveHandCardId(null);
-        setDescCardId(null); // アクティブ解除と同時に説明を非表示
-      } else {
-        // アクティブを切り替え
-        setActiveHandCardId(cardId);
-        setDescCardId(cardId); // アクティブ化と同時に説明を表示
-      }
-    };
+    // 拡大されている場合は、アクティブ状態をトグル
+    if (activeHandCardId === cardId) {
+      setActiveHandCardId(null);
+      setDescCardId(null); // アクティブ解除と同時に説明を非表示
+    } else {
+      // アクティブを切り替え
+      setActiveHandCardId(cardId);
+      setDescCardId(cardId); // アクティブ化と同時に説明を表示
+    }
+  };
+
+  // 敵の手札カードの配置に必要なパラメータを計算 (ここに追加)
+  const enemyHandCount = enemyHandCards.length;
+  const enemyMaxAngle = -20;
+  // カードが1枚もない場合はステップを計算しない
+  const enemyAngleStep = (enemyHandCount > 1) ? (enemyMaxAngle * 2) / (enemyHandCount - 1) : 0;
 
   // 見た目の演出（GameStart 表示など）を先に行ってから、内部フックの startMatch を呼ぶためのラッパー
   const startMatchWithVisual = () => {
@@ -777,12 +783,37 @@ const Game: React.FC = () => {
           ))}
         </div>
 
-        <div className={styles.field_enemy_hand}>
-          {enemyHandCards.map((card) => (
-            // 敵の手札は裏向きで表示（画像は後で差し替え予定）。
-            // ここでは情報を見せないため CardItem は使わず、灰色の裏面を描画します。
-            <div key={card.uniqueId} className={styles.card_back} aria-hidden={true} style={{ backgroundImage: `url(${cardBack.src})` }} />
-          ))}
+        <div className={styles.field_enemy_hand_area}>
+          {enemyHandCards.map((card, i) => {
+            
+            // ⬇️ 修正箇所: 扇形配置のための計算とスタイル設定を追加 ⬇️
+            const angle = -enemyMaxAngle + enemyAngleStep * i;
+            const offsetX = (i - (enemyHandCount - 1) / 2) * 5;
+            
+            const style: React.CSSProperties = {
+                // CSS変数を定義
+                '--enemy-rotate': `${angle}deg`,
+                // X軸オフセットと回転を適用
+                transform: `translateX(${offsetX}px) rotate(${angle}deg)`,
+                // カード間の重なりを調整 (例: -30pxで前のカードに重ねる)
+                marginLeft: i === 0 ? '0' : '-30px', 
+                // Z軸の重なりを調整（中央のカードが手前に来るように）
+                zIndex: i,
+                transition: 'transform 0.3s ease',
+            } as React.CSSProperties; // CSS変数を適用するためにキャスト
+
+            return (
+              <div 
+                key={card.uniqueId} 
+                className={styles.card_back} 
+                aria-hidden={true} 
+                style={{ 
+                    ...style, 
+                    backgroundImage: `url(${cardBack.src})` // 画像は上書き
+                }}
+              />
+            );
+          })}
         </div>
 
         <div className={styles.field_enemy_mana}>
@@ -855,7 +886,6 @@ const Game: React.FC = () => {
             // 通常時はカードを場に出す
             if (card.type !== "spell") {
               playCardToField(card);
-              collapseHand();
             }
             setDraggingCard(null);
             setArrowStartPos(null);
@@ -906,7 +936,7 @@ const Game: React.FC = () => {
         {/* プレイヤー手札 */}
         <div
           ref={handAreaRef}
-          className={`${styles.hand_area} ${isHandExpanded ? styles.expanded : ''}`}
+          className={`${styles.field_player_hand_area} ${isHandExpanded ? styles.expanded : ''}`}
           onClick={() => {
             // プリゲーム中は無効化
             if (preGame) return;
@@ -923,7 +953,7 @@ const Game: React.FC = () => {
               <div
                 key={card.uniqueId}
                 // isDragging中は z-index を高く保ちます
-                className={`${styles.hand_card} ${isActive ? styles.active : ''}`}
+                className={`${styles.field_player_hand_card} ${isActive ? styles.active : ''}`}
                 onClick={(e) => {
                   // ドラッグ中はクリック処理を無効化
                   if (isDragging) return;
