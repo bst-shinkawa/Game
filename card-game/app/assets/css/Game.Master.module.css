@@ -1,17 +1,17 @@
 @charset "UTF-8";
 .field {
-  width: 1000px;
-  height: 600px;
+  width: 100vw;
+  height: 100vh;
   margin-inline: auto;
-  margin-block: 15vh;
-  background-color: #000;
   position: relative;
   z-index: 1;
+  background-image: url(/img/field/bg.png);
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 .field_enemy {
   width: 100%;
   height: 50%;
-  background-color: #f00;
   position: relative;
   z-index: 2;
 }
@@ -19,7 +19,7 @@
   position: absolute;
   top: 0%;
   left: 50%;
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, 0%);
 }
 .field_enemy_hero_wrap {
   position: relative;
@@ -119,8 +119,8 @@
 }
 .field_enemy_hand_area {
   position: fixed;
-  top: 10%;
-  left: 15%;
+  top: 1%;
+  left: 5%;
   width: 100%;
   max-width: 390px;
   display: flex;
@@ -142,7 +142,6 @@
 .field_player {
   width: 100%;
   height: 50%;
-  background-color: #00f;
   position: relative;
   z-index: 2;
 }
@@ -153,7 +152,7 @@
   position: absolute;
   bottom: 0%;
   left: 50%;
-  transform: translate(-50%, 50%);
+  transform: translate(-50%, 0%);
 }
 .field_player_hero_wrap {
   position: relative;
@@ -189,7 +188,7 @@
   background-color: #c9c9c9;
   padding: 20px;
   position: absolute;
-  top: 35%;
+  top: 20%;
   right: 50%;
   transform: translate(50%, -50%);
   max-width: 80%;
@@ -253,8 +252,8 @@
 }
 .field_player_hand_area {
   position: fixed;
-  bottom: 20%;
-  right: 18%;
+  bottom: 5%;
+  right: 5%;
   width: 100%;
   max-width: 390px;
   display: flex;
@@ -265,8 +264,8 @@
   z-index: 1000;
 }
 .field_player_hand_area.expanded {
-  bottom: 30%;
-  right: 30%;
+  bottom: 15%;
+  right: 20%;
   transform: translate(50%, 50%) scale(1);
   flex-wrap: wrap;
   justify-content: left;
@@ -284,7 +283,6 @@
   width: 19%;
   max-width: 70px;
   background: #eee;
-  border: 2px solid #555;
   position: absolute;
   bottom: 0;
   left: 50%;
@@ -412,7 +410,6 @@
   align-items: center;
   justify-content: center;
   position: relative;
-  border-radius: 10px;
 }
 
 /* ルーレット / コインポップアップ / モーダル系 */

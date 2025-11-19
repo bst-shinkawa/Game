@@ -653,9 +653,23 @@ const Game: React.FC = () => {
 
             <div style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'center' }}>
               <button onClick={() => {
-                const keep = playerHandCards.filter(c => !swapIds.includes(c.uniqueId)).map(c => c.uniqueId);
-                doMulligan(keep);
-                startMatchWithVisual();
+                  // 1. マリガン実行
+                  const keep = playerHandCards.filter(c => !swapIds.includes(c.uniqueId)).map(c => c.uniqueId);
+                  doMulligan(keep); 
+                  
+                  // 2. マリガンタイマーを停止 (時間切れより早く開始した場合)
+                  if (mulliganIvRef.current !== null) {
+                      clearInterval(mulliganIvRef.current);
+                      mulliganIvRef.current = null;
+                  }
+                  
+                  // 3. 試合開始を遅延させる（例：2秒）
+                  setTimeout(() => {
+                      startMatchWithVisual();
+                  }, 2000); // 2秒間、新しい手札を確認する時間を与える
+                  
+                  // 4. マリガンUIを非表示にするためのフラグを立てる（必要に応じて）
+                  // setMulliganDone(true); // マリガンUIを即座に消したい場合はこのフラグを使用
               }}>交換</button>
               <button onClick={() => { startMatchWithVisual(); }}>交換せず開始</button>
             </div>
@@ -786,7 +800,7 @@ const Game: React.FC = () => {
         <div className={styles.field_enemy_hand_area}>
           {enemyHandCards.map((card, i) => {
             
-            // ⬇️ 修正箇所: 扇形配置のための計算とスタイル設定を追加 ⬇️
+            // 扇形配置のための計算とスタイル設定を追加
             const angle = -enemyMaxAngle + enemyAngleStep * i;
             const offsetX = (i - (enemyHandCount - 1) / 2) * 5;
             
@@ -971,12 +985,6 @@ const Game: React.FC = () => {
                     const startPos = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
                     setArrowStartPos(startPos);
                     setDragPosition(startPos);
-                    
-                    // 拡大中であれば、ドラッグ開始時に縮小を強制
-                    // if (isHandExpanded) {
-                    //   e.stopPropagation(); // handAreaの拡大クリックと誤動作を防ぐため
-                    //   collapseHand(); 
-                    // }
                   }}
                   onDragEnd={() => {
                     setDraggingCard(null);
@@ -1025,12 +1033,19 @@ const Game: React.FC = () => {
 
       <div className={styles.field_turn}>
         <button
-          onClick={() => {
+          onClick={async() => {
             if (preGame && coinResult !== 'deciding') {
               // プリゲーム中の TurnEnd は交換確定操作
               const keep = playerHandCards.filter(c => !swapIds.includes(c.uniqueId)).map(c => c.uniqueId);
-              doMulligan(keep);
-              startMatchWithVisual();
+              // 1. doMulliganで手札ステートを更新する
+              await doMulligan(keep); 
+              
+              // ★ 修正: 手札更新を視覚的に反映させるために、試合開始を遅延させる (2秒)
+              // この間にReactが手札を再描画し、プレイヤーは新しい手札を確認できる
+              setTimeout(() => {
+                startMatchWithVisual();
+              }, 2000); 
+              
               return;
             }
             endTurn();

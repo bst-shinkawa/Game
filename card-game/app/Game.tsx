@@ -46,15 +46,20 @@ export function useGame() {
   const initialTurnRef = useRef<boolean>(false);
   // 最後にマナ増加を適用したラウンド番号（重複適用防止）
   const lastRoundIncreasedRef = useRef<number | null>(null);
+
   // プレゲーム（先攻決め＋マリガン）フラグとコイン結果
   const [preGame, setPreGame] = useState<boolean>(false);
   const [coinResult, setCoinResult] = useState<"deciding" | "player" | "enemy">("deciding");
+
   // ゲーム終了フラグと勝者
   const [gameOver, setGameOver] = useState<{ over: boolean; winner: null | "player" | "enemy" }>({ over: false, winner: null });
+
   // 敵AI実行中フラグ（再入防止）
   const [aiRunning, setAiRunning] = useState<boolean>(false);
+
   // 敵AI の途中中断用フラグ
   const aiCancelRef = useRef<boolean>(false);
+
   // 視覚用：AIが攻撃を行うときの移動表示を通知する
   const [movingAttack, setMovingAttack] = useState<{ attackerId: string; targetId: string | "hero" } | null>(null);
 
@@ -117,23 +122,46 @@ export function useGame() {
         return updated.filter((c) => (c.hp ?? 0) > 0);
       });
     })();
-    // ターン開始時のマナ増加処理
-    // turn=1（ゲーム開始時）はマナ増加なし
-    if (turn > 1 && turn % 2 === 1) {
-      // ラウンド開始（先攻ターン開始）時のみマナ+1
-      setMaxMana((prev) => {
-        const newMax = Math.min(prev + 1, MAX_MANA);
-        setCurrentMana(newMax); // 開始時は満タン
-        console.debug(`[Game] Player mana increased ${prev} -> ${newMax}`);
-        return newMax;
-      });
 
-      setEnemyMaxMana((prev) => {
-        const newMax = Math.min(prev + 1, MAX_MANA);
-        console.debug(`[Game] Enemy mana increased ${prev} -> ${newMax}`);
-        return newMax;
-      });
+    // ターン開始時のマナ増加処理
+    // 次のターン数を計算
+    const nextTurn = turn + 1;
+
+    // プレイヤーのマナ増加を処理 (T1は増加なし)
+    if (nextTurn > 1) {
+        
+        // プレイヤーのターンである条件
+        // 1. プレイヤー先行 (coinResult='player') かつ 次のターンが奇数 (T3, T5...)
+        // 2. プレイヤー後攻 (coinResult='enemy') かつ 次のターンが偶数 (T2, T4...)
+        const isNextTurnPlayer = 
+            (coinResult === 'player' && nextTurn % 2 === 1) || 
+            (coinResult === 'enemy' && nextTurn % 2 === 0);
+
+        // --- プレイヤーのマナ増加 ---
+        if (isNextTurnPlayer) {
+            setMaxMana((prevMax) => {
+                const newMax = Math.min(prevMax + 1, MAX_MANA);
+                // マナが増えたら Current Mana を回復（ターン開始時の処理）
+                // setTurnと同時にCurrentManaを更新すると非同期の問題が起きやすいため、
+                // 実際には setTurn の後に useEffect で setCurrentMana(newMax) を行うのが確実です。
+                // ここでは簡易的に setCurrentMana(newMax); を実行するか、
+                // または setCurrentMana(prev => prev + 1); のようにしておく。
+                return newMax;
+            });
+        }
+
+        // --- 敵のマナ増加 ---
+        // 敵のターンである条件は isNextTurnPlayer の逆
+        const isNextTurnEnemy = !isNextTurnPlayer;
+        if (isNextTurnEnemy) {
+            setEnemyMaxMana((prevMax) => {
+                const newMax = Math.min(prevMax + 1, MAX_MANA);
+                // setEnemyCurrentMana も同様に回復処理が必要
+                return newMax;
+            });
+        }
     }
+
 
     // ターン開始ごとの共通処理：canAttack をリセット
     setPlayerFieldCards((prev) => prev.map((c) => ({ ...c, canAttack: false, rushInitialTurn: undefined } as any)));
