@@ -354,6 +354,13 @@ $img-path: "/img/field";
                 background-color: #ccc;
             }
         }
+        &_text{
+            position: absolute;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            left: 50%;
+            z-index: 1500;
+        }
 
     }
 
@@ -564,4 +571,78 @@ $img-path: "/img/field";
 @keyframes turn-fade {
     from { opacity: 0; transform: translate(-50%, -56%); }
     to { opacity: 1; transform: translate(-50%, -50%); }
+}
+
+
+/* ターンエンドボタンのコンテナとボタン本体の基本的なスタイルは前回の提案のものを流用 */
+
+.field_turn button {
+    position: relative;
+    /* ... 既存の盾型ボタンのスタイル ... */
+    overflow: visible; /* 炎の光がボタンの外にはみ出すことを許可 */
+}
+
+.flame_container {
+    /* 炎のコンテナをボタンの中央に配置 */
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 150px; /* 炎のサイズ */
+    height: 50px;
+    z-index: 10;
+}
+
+/* 炎の光と揺らぎ（CSSで最も重要な部分） */
+.flame_container::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 10px; /* 炎の中心の光 */
+    background-color: #fff;
+    
+    /* 炎の色: 暖かいオレンジ */
+    box-shadow: 
+        0 0 10px rgba(255, 100, 0, 0.9), /* 強い中心光 */
+        0 0 25px rgba(255, 165, 0, 0.7), /* 広がる光 */
+        0 0 40px rgba(255, 69, 0, 0.4);  /* 周囲への光の拡散 */
+    
+    /* 炎の脈動アニメーション */
+    animation: flamePulse 2s infinite alternate;
+}
+
+@keyframes flamePulse {
+    0% { transform: scale(1); opacity: 0.9; }
+    100% { transform: scale(1.1); opacity: 1; } /* 少し大きく、明るくする */
+}
+
+/* 押下時の閃光アニメーション */
+.field_turn button:active .flame_container::before {
+    /* アニメーションを一時的に停止し、強い閃光に切り替える */
+    animation: none;
+    transition: all 0.05s ease-out; /* 瞬間的な変化 */
+    
+    /* 閃光（白に近い黄色で強烈な光） */
+    box-shadow: 
+        0 0 30px #FFFFE0, 
+        0 0 60px #FFD700, 
+        0 0 100px #FF8C00;
+    transform: scale(1.5); /* 一瞬大きく広がる */
+}
+
+
+/* 非活性時 (ターン終了後やAIターン) */
+.field_turn button:disabled .flame_container::before {
+    /* 炎のアニメーションを停止し、影をなくす */
+    animation: none;
+    box-shadow: none; 
+    /* 代わりに灰のテクスチャや冷たい光を加える（例：薄い青の光） */
+    background: transparent; /* 灰の色 */
+    border-radius: 50%;
+    
+    /* ボタン全体も冷たいトーンにする */
+    filter: grayscale(100%) brightness(0.7); 
 }

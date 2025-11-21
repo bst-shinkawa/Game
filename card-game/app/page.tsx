@@ -8,6 +8,7 @@ import useGame from "./Game";
 import styles from "./assets/css/Game.Master.module.css";
 import StartMenu from "./components/StartMenu";
 import GameOver from "./components/GameOver";
+import TimerBar from "./components/TimerBar";
 
 import Image from "next/image"
 import handIcon from "@/public/img/field/hand-card.png"
@@ -144,6 +145,7 @@ const Game: React.FC = () => {
   // startMatchWithVisual の多重実行を防ぐためのフラグ
   const startingMatchRef = useRef<boolean>(false);
 
+  const MAX_TIME = 60; // ターンの最大制限時間
 
   // 手札管理用
   const [isHandExpanded, setIsHandExpanded] = useState<boolean>(false);
@@ -1031,30 +1033,49 @@ const Game: React.FC = () => {
 
       </div>
 
-      <div className={styles.field_turn}>
-        <button
-          onClick={async() => {
-            if (preGame && coinResult !== 'deciding') {
-              // プリゲーム中の TurnEnd は交換確定操作
-              const keep = playerHandCards.filter(c => !swapIds.includes(c.uniqueId)).map(c => c.uniqueId);
-              // 1. doMulliganで手札ステートを更新する
-              await doMulligan(keep); 
-              
-              // ★ 修正: 手札更新を視覚的に反映させるために、試合開始を遅延させる (2秒)
-              // この間にReactが手札を再描画し、プレイヤーは新しい手札を確認できる
-              setTimeout(() => {
-                startMatchWithVisual();
-              }, 2000); 
-              
-              return;
-            }
-            endTurn();
-          }}
-          disabled={!isPlayerTurn || aiRunning}
-        >
-          TurnEnd
-        </button>
+      <div className={styles.field_turn_wrapper}> {/* ★ 変更: ラッパーで固定位置を管理 */}
+        
+        {/* プレイヤーのターン中のみタイマーバーを表示 */}
+        {isPlayerTurn && !aiRunning && (
+          <TimerBar
+            secondsRemaining={turnSecondsRemaining}
+            maxTime={MAX_TIME}
+          />
+        )}
+
+        {/* ボタン本体。field_turn は相対的な配置を維持 */}
+        <div className={styles.field_turn}> 
+          <button
+            onClick={async() => {
+              if (preGame && coinResult !== 'deciding') {
+                // ... 既存のマリガンロジック ...
+                const keep = playerHandCards.filter(c => !swapIds.includes(c.uniqueId)).map(c => c.uniqueId);
+                await doMulligan(keep); 
+                
+                setTimeout(() => {
+                  startMatchWithVisual();
+                }, 2000); 
+                
+                return;
+              }
+              endTurn();
+            }}
+            disabled={!isPlayerTurn || aiRunning}
+          >
+            {/* 炎の強度を残り時間と連動させるCSS変数 */}
+            <div 
+              className={styles.flame_container}
+              style={{ 
+                '--flame-intensity': Math.max(0.2, turnSecondsRemaining / MAX_TIME).toFixed(2)
+              } as React.CSSProperties}
+            >
+               {/* 炎のSVGやシンボルをここに配置するか、CSSの ::before で炎の形を作る */}
+            </div>
+            <span className={styles.field_turn_text}>TurnEnd</span>
+          </button>
+        </div>
       </div>
+
       {/* 試合開始時の大きな表示 */}
       {showGameStart && (
         <div style={{ position: 'fixed', left: 0, top: 0, right: 0, bottom: 0, zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
