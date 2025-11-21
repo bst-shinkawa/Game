@@ -8,7 +8,6 @@ import useGame from "./Game";
 import styles from "./assets/css/Game.Master.module.css";
 import StartMenu from "./components/StartMenu";
 import GameOver from "./components/GameOver";
-import TimerBar from "./components/TimerBar";
 
 import Image from "next/image"
 import handIcon from "@/public/img/field/hand-card.png"
@@ -1033,16 +1032,7 @@ const Game: React.FC = () => {
 
       </div>
 
-      <div className={styles.field_turn_wrapper}> {/* ★ 変更: ラッパーで固定位置を管理 */}
-        
-        {/* プレイヤーのターン中のみタイマーバーを表示 */}
-        {isPlayerTurn && !aiRunning && (
-          <TimerBar
-            secondsRemaining={turnSecondsRemaining}
-            maxTime={MAX_TIME}
-          />
-        )}
-
+      <div className={styles.field_turn_wrapper}> 
         {/* ボタン本体。field_turn は相対的な配置を維持 */}
         <div className={styles.field_turn}> 
           <button
