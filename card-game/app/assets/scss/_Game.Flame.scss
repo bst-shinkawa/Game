@@ -1,8 +1,7 @@
 @use 'template' as t;
 
-
-$img-path: "/img/field";
-
+$base-path: ""; // ローカル用
+$img-path: "#{$base-path}/img/field";
 
 .field{
     width: 100vw;
