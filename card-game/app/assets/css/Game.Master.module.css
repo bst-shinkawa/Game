@@ -636,7 +636,6 @@
     opacity: 0.3;
   }
 }
-
 .enemy_attack_flash {
   animation: attackFlash 0.3s ease-out forwards;
 }
@@ -652,7 +651,6 @@
     background-color: rgba(255, 100, 0, 0);
   }
 }
-
 /* 敵フォロワーの攻撃移動アニメーション */
 @keyframes enemyCardAttack {
   0% {
@@ -663,11 +661,10 @@
     opacity: 1;
   }
   100% {
-    transform: translateY(calc(100vh * 0.5 - 50px)) scale(0.7);
+    transform: translateY(calc(50vh - 50px)) scale(0.7);
     opacity: 0.3;
   }
 }
-
 /* 敵スペルフラッシュ */
 @keyframes spellFlash {
   0% {
@@ -677,7 +674,6 @@
     background-color: rgba(255, 150, 0, 0);
   }
 }
-
 /* 敵フォロワーの出場エフェクト */
 @keyframes followerSummon {
   0% {
@@ -693,7 +689,6 @@
     opacity: 1;
   }
 }
-
 .enemy_follower_summon {
   animation: followerSummon 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
   box-shadow: 0 0 20px rgba(100, 200, 255, 0.8);
@@ -711,7 +706,6 @@
     background-color: rgba(255, 150, 0, 0);
   }
 }
-
 .spell_cast_flash {
   animation: screenFlash 0.6s ease-out forwards;
 }
@@ -731,7 +725,6 @@
     box-shadow: 0 0 0px rgba(255, 150, 0, 0);
   }
 }
-
 /* 敵AI ターン中のボード暗転 */
 .ai_turn_active {
   filter: brightness(0.9);
@@ -741,4 +734,4 @@
 .player_turn_active {
   filter: brightness(1);
   transition: filter 0.3s ease;
-}
+}/*# sourceMappingURL=Game.Master.module.css.map */

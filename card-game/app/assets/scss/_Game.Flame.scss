@@ -646,3 +646,138 @@ $img-path: "/img/field";
     /* ボタン全体も冷たいトーンにする */
     filter: grayscale(100%) brightness(0.7); 
 }
+
+
+/* 敵の攻撃アニメーション */
+.enemy_attack_animation {
+  position: fixed;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.enemy_attack_projectile {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  background: radial-gradient(circle at 30% 30%, rgba(255, 200, 0, 0.9), rgba(255, 100, 0, 0.8));
+  border-radius: 50%;
+  box-shadow: 0 0 15px rgba(255, 100, 0, 0.8), 0 0 30px rgba(255, 69, 0, 0.5);
+  animation: projectileAttack 0.9s ease-in-out forwards;
+}
+
+@keyframes projectileAttack {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--end-x), var(--end-y)) scale(0.8);
+    opacity: 0.3;
+  }
+}
+
+.enemy_attack_flash {
+  animation: attackFlash 0.3s ease-out forwards;
+}
+
+@keyframes attackFlash {
+  0% {
+    background-color: rgba(255, 100, 0, 0);
+  }
+  50% {
+    background-color: rgba(255, 100, 0, 0.6);
+  }
+  100% {
+    background-color: rgba(255, 100, 0, 0);
+  }
+}
+
+/* 敵フォロワーの攻撃移動アニメーション */
+@keyframes enemyCardAttack {
+  0% {
+    transform: translateY(0) translateX(0) scale(1);
+    opacity: 1;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(calc(100vh * 0.5 - 50px)) scale(0.7);
+    opacity: 0.3;
+  }
+}
+
+/* 敵スペルフラッシュ */
+@keyframes spellFlash {
+  0% {
+    background-color: rgba(255, 150, 0, 0.6);
+  }
+  100% {
+    background-color: rgba(255, 150, 0, 0);
+  }
+}
+
+/* 敵フォロワーの出場エフェクト */
+@keyframes followerSummon {
+  0% {
+    transform: translateY(50px) scale(0.5);
+    opacity: 0;
+  }
+  50% {
+    transform: translateY(-20px) scale(1.1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.enemy_follower_summon {
+  animation: followerSummon 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  box-shadow: 0 0 20px rgba(100, 200, 255, 0.8);
+}
+
+/* スペル使用時の画面フラッシュ */
+@keyframes screenFlash {
+  0% {
+    background-color: rgba(255, 150, 0, 0);
+  }
+  50% {
+    background-color: rgba(255, 150, 0, 0.4);
+  }
+  100% {
+    background-color: rgba(255, 150, 0, 0);
+  }
+}
+
+.spell_cast_flash {
+  animation: screenFlash 0.6s ease-out forwards;
+}
+
+/* スペルターゲットのフラッシュ効果 */
+@keyframes spellTargetFlash {
+  0% {
+    background-color: rgba(255, 200, 0, 0);
+    box-shadow: 0 0 0px rgba(255, 150, 0, 0);
+  }
+  50% {
+    background-color: rgba(255, 200, 0, 0.6);
+    box-shadow: 0 0 20px rgba(255, 150, 0, 0.9);
+  }
+  100% {
+    background-color: rgba(255, 200, 0, 0);
+    box-shadow: 0 0 0px rgba(255, 150, 0, 0);
+  }
+}
+
+/* 敵AI ターン中のボード暗転 */
+.ai_turn_active {
+  filter: brightness(0.9);
+  transition: filter 0.3s ease;
+}
+
+.player_turn_active {
+  filter: brightness(1);
+  transition: filter 0.3s ease;
+}
