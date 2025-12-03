@@ -7,11 +7,11 @@
     margin-inline: auto;
     position: relative;
     z-index: 1;
-    background-image: url("/Game/img/field/bg.png");
     background-repeat: no-repeat;
     background-size: cover;
+    background-image: url("/Game/img/field/bg.png");
 
-    &_local{
+    &.field_local{
         background-image: url("/img/field/bg.png");
     }
 

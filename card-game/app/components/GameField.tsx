@@ -448,9 +448,11 @@ export const GameField: React.FC<GameFieldProps> = ({
     };
   }, [movingAttack, enemyFieldRefs, playerFieldRefs, playerHeroRef, enemyFieldCards, setAttackClone]);
 
+  const isLocal = process.env.NODE_ENV !== 'production';
+
   // ゲーム画面のメイン
   return (
-    <div className={`${styles.field} ${styles.field_local}`}>
+    <div className={`${styles.field} ${isLocal ? styles.field_local : ""}`}>
       {/* ダメージフロート */}
       <DamageFloater floats={damageFloats} />
 
