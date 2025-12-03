@@ -449,10 +449,22 @@ export const GameField: React.FC<GameFieldProps> = ({
   }, [movingAttack, enemyFieldRefs, playerFieldRefs, playerHeroRef, enemyFieldCards, setAttackClone]);
 
   const isLocal = process.env.NODE_ENV !== 'production';
+  const basePath = process.env.NODE_ENV === 'production' ? '/Game' : '';
 
   // ゲーム画面のメイン
   return (
     <div className={`${styles.field} ${isLocal ? styles.field_local : ""}`}>
+
+      <div className={styles.field_bg}>
+        <video
+          src={`${basePath}/img/field/bg.mp4`}
+          autoPlay
+          muted
+          loop
+          playsInline
+        ></video>
+      </div>
+
       {/* ダメージフロート */}
       <DamageFloater floats={damageFloats} />
 
