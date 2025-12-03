@@ -1,5 +1,14 @@
 // cards.ts
 export type CardType = "follower" | "spell";
+export type EffectType = 
+  | "damage_single" 
+  | "damage_all" 
+  | "poison" 
+  | "freeze_single" 
+  | "heal_single" 
+  | "haste";
+export type TriggerType = "add_card_hand" | "damage_single";
+export type OnAttackEffectType = "self_damage_1" | "bonus_vs_hero";
 
 export interface Card {
   id: number;
@@ -10,27 +19,32 @@ export interface Card {
   maxHp?: number;
   image?: string;
   description?: string;
-  // spell 用の効果を識別するためのフィールド（任意）。
-  // 例: 'damage_single' | 'damage_all' | 'heal_single' | 'poison' | 'haste' など
-  effect?: string;
-  // effect に付随する数値や状態持続ターン数などを持たせられるようにする
-  // 例: effectValue: ダメージ量や回復量、statusDuration: 状態の持続ターン
+  effect?: EffectType;
   effectValue?: number;
   status?: string; // 'poison' | 'freeze' | 'haste' など（補助的）
   statusDuration?: number;
-  // 召喚時効果や攻撃時効果をデータで指定できるようにする
   summonEffect?: { type: string; value?: number; status?: string; statusDuration?: number };
-  onAttackEffect?: string; // 例: 'self_damage_1', 'bonus_vs_hero'
-  stealth?: boolean; // 隠密（攻撃するまで対象にできない）
-  rush?: boolean; // 突撃（出したターン相手フォロワーのみ攻撃可能）
-  superHaste?: boolean; // 神速（出したターンからフォロワー・ヒーロー共に攻撃可能）
-  wallGuard?: boolean; // 鉄壁（このカードがいる限り、自分以外への攻撃をブロック）
-  summonTrigger?: { type: string; cardId?: number }; // 召喚時トリガー（例: 'add_card_hand'）
-  deathTrigger?: { type: string; cardId?: number }; // 死亡時トリガー（例: 'add_card_hand'）
+  onAttackEffect?: OnAttackEffectType;
+  stealth?: boolean;
+  rush?: boolean;
+  superHaste?: boolean;
+  wallGuard?: boolean;
+  summonTrigger?: { type: TriggerType; cardId?: number };
+  deathTrigger?: { type: TriggerType; cardId?: number };
   uniqueId: string;
   cost: number;
   canAttack?: boolean;
   guard?: boolean;
+}
+
+// ゲーム実行時のカードプロパティを含む拡張型
+export interface RuntimeCard extends Card {
+  maxHp: number;
+  isAnimating?: boolean;
+  poison?: number;
+  poisonDamage?: number;
+  frozen?: number;
+  rushInitialTurn?: boolean;
 }
 
 // 仮カードデータ

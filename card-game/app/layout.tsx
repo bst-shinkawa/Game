@@ -22,12 +22,15 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // GameContextのProviderを追加
+  // ...existing code...
+  const GameProvider = require('./context/GameContext').GameProvider;
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <GameProvider>
+          {children}
+        </GameProvider>
       </body>
     </html>
   );

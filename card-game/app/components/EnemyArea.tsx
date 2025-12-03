@@ -1,0 +1,166 @@
+"use client";
+
+import React, { useRef } from "react";
+import CardItem from "./CardItem";
+import ManaBar from "./ManaBar";
+import Image from "next/image";
+import type { Card } from "@/app/data/cards";
+import styles from "@/app/assets/css/Game.Master.module.css";
+import handIcon from "@/public/img/field/hand-card.png";
+import deckIcon from "@/public/img/field/deck.png";
+import deathIcon from "@/public/img/field/death-icon.png";
+import cardBack from "@/public/img/field/card-back.png";
+
+interface EnemyAreaProps {
+  enemyHeroHp: number;
+  enemyHandCards: Card[];
+  enemyFieldCards: (Card & { maxHp: number; canAttack?: boolean })[];
+  enemyDeck: Card[];
+  enemyGraveyard: Card[];
+  enemyCurrentMana: number;
+  turnSecondsRemaining: number;
+  isPlayerTurn: boolean;
+  draggingCard: string | null;
+  playerHandCards: Card[];
+  enemyAttackAnimation: { sourceCardId: string | null; targetId: string | "hero" } | null;
+  enemySpellAnimation: { targetId: string | "hero"; effect: string } | null;
+  onDragOver: (e: React.DragEvent<HTMLDivElement>) => void;
+  onDrop: (targetId: string | "hero") => void;
+  onCardClick: (cardId: string) => void;
+  enemyHeroRef: React.MutableRefObject<HTMLDivElement | null>;
+  enemyFieldRefs: React.MutableRefObject<{ [key: string]: HTMLDivElement | null }>;
+}
+
+export const EnemyArea: React.FC<EnemyAreaProps> = ({
+  enemyHeroHp,
+  enemyHandCards,
+  enemyFieldCards,
+  enemyDeck,
+  enemyGraveyard,
+  enemyCurrentMana,
+  turnSecondsRemaining,
+  isPlayerTurn,
+  draggingCard,
+  playerHandCards,
+  enemyAttackAnimation,
+  enemySpellAnimation,
+  onDragOver,
+  onDrop,
+  onCardClick,
+  enemyHeroRef,
+  enemyFieldRefs,
+}) => {
+  const getHpClass = (hp: number) => {
+    if (hp === 20) return styles.hpWhite;
+    if (hp >= 11) return styles.hpYellow;
+    return styles.hpRed;
+  };
+
+  const enemyHandCount = enemyHandCards.length;
+  const enemyMaxAngle = -20;
+  const enemyAngleStep = (enemyHandCount > 1) ? (enemyMaxAngle * 2) / (enemyHandCount - 1) : 0;
+
+  return (
+    <div className={`${styles.field_enemy} ${enemySpellAnimation ? styles.spell_cast_flash : ""}`}>
+      {/* 敵ヒーロー */}
+      <div
+        ref={enemyHeroRef}
+        className={styles.field_enemy_hero}
+        onDragOver={onDragOver}
+        onDrop={() => onDrop("hero")}
+        style={
+          enemySpellAnimation?.targetId === "hero"
+            ? { animation: "spellTargetFlash 0.6s ease-out" }
+            : {}
+        }
+      >
+        <div className={styles.field_enemy_hero_wrap}>
+          <div className={styles.field_enemy_hero_hp}>
+            <p className={getHpClass(enemyHeroHp)}>{enemyHeroHp}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* 敵フィールド */}
+      <div className={styles.field_enemy_battle}>
+        {enemyFieldCards.map((card) => {
+          const isAttacking = enemyAttackAnimation?.sourceCardId === card.uniqueId;
+          const isSummoning = (card as { isAnimating?: boolean }).isAnimating;
+          const isSpellTarget = enemySpellAnimation?.targetId === card.uniqueId;
+          return (
+            <CardItem
+              key={card.uniqueId}
+              {...card}
+              hp={card.hp ?? 0}
+              maxHp={card.maxHp ?? 0}
+              attack={card.attack ?? 0}
+              className={isSummoning ? styles.enemy_follower_summon : ""}
+              style={{
+                ...((card as { isAnimating?: boolean }).isAnimating ? { transform: "translateY(-40px)", opacity: 0 } : {}),
+                ...(isAttacking ? { animation: "enemyCardAttack 0.9s ease-in-out forwards" } : {}),
+                ...(isSpellTarget ? { animation: "spellTargetFlash 0.6s ease-out" } : {}),
+              }}
+              onDragOver={onDragOver}
+              onDrop={() => onDrop(card.uniqueId)}
+              isTarget={false}
+              ref={(el: HTMLDivElement | null) => {
+                enemyFieldRefs.current[card.uniqueId] = el;
+              }}
+              onClick={() => onCardClick(card.uniqueId)}
+            />
+          );
+        })}
+      </div>
+
+      {/* 敵手札（裏向き） */}
+      <div className={styles.field_enemy_hand_area}>
+        {enemyHandCards.map((card, i) => {
+          const angle = -enemyMaxAngle + enemyAngleStep * i;
+          const offsetX = (i - (enemyHandCount - 1) / 2) * 5;
+
+          const style: React.CSSProperties = {
+            transform: `translateX(${offsetX}px) rotate(${angle}deg)`,
+            marginLeft: i === 0 ? '0' : '-30px',
+            zIndex: i,
+            transition: 'transform 0.3s ease',
+          };
+
+          return (
+            <div
+              key={card.uniqueId}
+              className={styles.card_back}
+              aria-hidden={true}
+              style={{
+                ...style,
+                backgroundImage: `url(${cardBack.src})`
+              }}
+            />
+          );
+        })}
+      </div>
+
+      {/* 敵マナバー */}
+      <div className={styles.field_enemy_mana}>
+        <ManaBar maxMana={10} currentMana={enemyCurrentMana} />
+      </div>
+
+      {/* 敵ターンタイマー */}
+      <div className={styles.field_enemy_timer}>
+        <p>{!isPlayerTurn ? turnSecondsRemaining : 60}</p>
+      </div>
+
+      {/* 敵ステータス */}
+      <div className={styles.field_enemy_status}>
+        <p className={styles.field_enemy_status_hand}>
+          <Image src={handIcon} alt="敵手札" />{enemyHandCards.length}
+        </p>
+        <p className={styles.field_enemy_status_deck}>
+          <Image src={deckIcon} alt="敵デッキ" />{enemyDeck.length}
+        </p>
+        <p className={styles.field_player_status_death}>
+          <Image src={deathIcon} alt="敵墓地" />{enemyGraveyard.length}
+        </p>
+      </div>
+    </div>
+  );
+};

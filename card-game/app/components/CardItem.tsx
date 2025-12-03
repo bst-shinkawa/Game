@@ -33,6 +33,7 @@ type Props = {
   inHand?: boolean;
   currentMana?: number;
   style?: React.CSSProperties;
+  className?: string;
   selected?: boolean;
   noStatus?: boolean;
 };
@@ -81,6 +82,7 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
   inHand,
   currentMana,
   style,
+  className,
   selected,
   noStatus,
   onMouseEnter,
@@ -122,7 +124,7 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
 
   return (
     <div
-      className={styles.card}
+      className={`${styles.card} ${className || ""}`}
       data-uniqueid={uniqueId}
       data-type={type}
       aria-label={name}

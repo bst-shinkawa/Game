@@ -10,7 +10,7 @@ $img-path: "/img/field";
     margin-inline: auto;
     position: relative;
     z-index: 1;
-    background-image: url(/img/field/bg.png);
+    background-image: url(#{$img-path}/bg.png);
     background-repeat: no-repeat;
     background-size: cover;
 
