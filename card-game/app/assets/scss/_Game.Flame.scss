@@ -1,7 +1,5 @@
 @use 'template' as t;
 
-$base-path: ""; // ローカル用
-$img-path: "#{$base-path}/img/field";
 
 .field{
     width: 100vw;
@@ -9,9 +7,13 @@ $img-path: "#{$base-path}/img/field";
     margin-inline: auto;
     position: relative;
     z-index: 1;
-    background-image: url(#{$img-path}/bg.png);
+    background-image: url("/Game/img/field/bg.png");
     background-repeat: no-repeat;
     background-size: cover;
+
+    &_local{
+        background-image: url("/img/field/bg.png");
+    }
 
     &_enemy{
         width: 100%;

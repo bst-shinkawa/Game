@@ -450,7 +450,7 @@ export const GameField: React.FC<GameFieldProps> = ({
 
   // ゲーム画面のメイン
   return (
-    <div className={styles.field}>
+    <div className={`${styles.field} ${styles.field_local}`}>
       {/* ダメージフロート */}
       <DamageFloater floats={damageFloats} />
 
