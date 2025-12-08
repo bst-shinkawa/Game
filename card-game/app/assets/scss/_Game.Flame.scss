@@ -9,10 +9,10 @@
     z-index: 1;
     background-repeat: no-repeat;
     background-size: cover;
-    background-image: url("/Game/img/field/bg.png");
+    background-image: url("/Game/img/field/bg_1.png");
 
     &.field_local{
-        background-image: url("/img/field/bg.png");
+        background-image: url("/img/field/bg_1.png");
     }
     &_bg{
         position: absolute;
@@ -66,15 +66,6 @@
             display: flex;
             gap: 8px;
             padding: 10px;
-
-            span{
-                width: 15px;
-                height: 15px;
-                border-radius: 50%;
-                background-color: #ccc; 
-                transition: background-color 0.3s ease;
-            }
-
         }
 
         &_battle{
@@ -110,42 +101,33 @@
             position: absolute;
             top: 60%;
             right: 5%;
-            background-color: green;
-            border-radius: 50%;
-            width: 70px;
-            height: 70px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            p{
-                color: #fff;
-                font-size: 40px;
-            }
         }
 
         &_status{
             position: absolute;
             right: 0%;
             top: 0%;
-            background-color: #6e6e6e;
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 15px;
             padding: 10px;
             width: 300px;
             text-align: center;
+            
+            &_item{
+                position: relative;
 
-            p{
-                color: #fff;
-                font-size: 25px;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-                gap: 10%;
-                img{
-                    max-width: 45px;
+                span{
+                    position: absolute;
+                    top: 40%;
+                    left: 50%;
+                    transform: translate(-50%,-50%);
+                    color: #fff;
+                    font-family: serif;
+                    font-weight: bold;
+                    text-shadow: 2px 2px 4px #000;
+                    font-size: 25px;
                 }
-
             }
         }
 
@@ -173,6 +155,97 @@
                 transform-origin: top center;
             }
 
+        }
+
+        &_timer{
+            position: absolute;
+            bottom: 25%;
+            right: 0;
+            transform: translate(-50%,-50%);
+
+
+            /* タイマーカード */
+            &_card {
+                width:140px;
+                height:140px;
+                border-radius:16px;
+                display:flex;
+                align-items:center;
+                justify-content:center;
+                position:relative;
+                padding:18px;
+            }
+
+            /* SVG サイズ調整 */
+            svg.timer {
+                width:160px;
+                height:160px;
+                display:block;
+            }
+
+
+            /* 中央の数字 */
+            &_time_label {
+                position:absolute;
+                font-weight:600;
+                font-size:35px;
+                color:#463423;
+                pointer-events:none;
+                user-select:none;
+            }
+
+            /* トラック */
+            .track {
+                fill: none;
+                stroke: #efe6d8; /* 背景トラック */
+                stroke-width: 12;
+            }
+
+            /* プログレスの見た目 */
+            .progress {
+                fill:none;
+                stroke-linecap: round;
+                stroke-width: 12;
+                stroke: #80e95f;
+                transition: stroke 250ms linear, filter 250ms linear;
+                filter: drop-shadow(0 2px 2px rgba(0,0,0,0.08));
+                transform: rotate(-90deg);
+                transform-origin: 50% 50%;
+            }
+
+            /* "warn" は global class なので :global() を使う */
+            .warn {
+                stroke: #f0ad4e;
+            }
+
+            /* "critical" も global class なので :global() を使う */
+            .critical{
+                stroke: #d9534f;
+                filter: drop-shadow(0 6px 8px rgba(217,83,79,0.18));
+            }
+
+
+
+            /* コントロール */
+            &_controls {
+                margin-top:16px;
+                display:flex;
+                gap:8px;
+                justify-content:center;
+                width:100%;
+            }
+
+
+            &_btn {
+                padding:8px 12px;
+                border-radius:8px;
+                border:0;
+                font-weight:600;
+                cursor:pointer;
+                background:#463423;
+                color:#fff;
+                box-shadow: 0 4px 10px rgba(70,52,35,0.12);
+            }
         }
     }
 
@@ -216,15 +289,6 @@
             display: flex;
             gap: 8px;
             padding: 10px;
-
-            span{
-                width: 15px;
-                height: 15px;
-                border-radius: 50%;
-                background-color: #ccc;
-                transition: background-color 0.3s ease;
-            }
-
         }
 
         &_battle{
@@ -258,18 +322,92 @@
 
         &_timer{
             position: absolute;
-            bottom: 60%;
-            right: 5%;
-            background-color: green;
-            border-radius: 50%;
-            width: 70px;
-            height: 70px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            p{
-                color: #fff;
-                font-size: 40px;
+            top: 25%;
+            right: 0;
+            transform: translate(-50%,-50%);
+
+
+            /* タイマーカード */
+            &_card {
+                width:140px;
+                height:140px;
+                border-radius:16px;
+                display:flex;
+                align-items:center;
+                justify-content:center;
+                position:relative;
+                padding:18px;
+            }
+
+            /* SVG サイズ調整 */
+            svg.timer {
+                width:160px;
+                height:160px;
+                display:block;
+            }
+
+
+            /* 中央の数字 */
+            &_time_label {
+                position:absolute;
+                font-weight:600;
+                font-size:35px;
+                color:#463423;
+                pointer-events:none;
+                user-select:none;
+            }
+
+            /* トラック */
+            .track {
+                fill: none;
+                stroke: #efe6d8; /* 背景トラック */
+                stroke-width: 12;
+            }
+
+            /* プログレスの見た目 */
+            .progress {
+                fill:none;
+                stroke-linecap: round;
+                stroke-width: 12;
+                stroke: #80e95f;
+                transition: stroke 250ms linear, filter 250ms linear;
+                filter: drop-shadow(0 2px 2px rgba(0,0,0,0.08));
+                transform: rotate(-90deg);
+                transform-origin: 50% 50%;
+            }
+
+            /* "warn" は global class なので :global() を使う */
+            .warn {
+                stroke: #f0ad4e;
+            }
+
+            /* "critical" も global class なので :global() を使う */
+            .critical{
+                stroke: #d9534f;
+                filter: drop-shadow(0 6px 8px rgba(217,83,79,0.18));
+            }
+
+
+
+            /* コントロール */
+            &_controls {
+                margin-top:16px;
+                display:flex;
+                gap:8px;
+                justify-content:center;
+                width:100%;
+            }
+
+
+            &_btn {
+                padding:8px 12px;
+                border-radius:8px;
+                border:0;
+                font-weight:600;
+                cursor:pointer;
+                background:#463423;
+                color:#fff;
+                box-shadow: 0 4px 10px rgba(70,52,35,0.12);
             }
         }
 
@@ -277,22 +415,26 @@
             position: absolute;
             left: 0%;
             bottom: 0%;
-            background-color: #6e6e6e;
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 15px;
             padding: 10px;
             width: 300px;
             text-align: center;
-            p{
-                color: #fff;
-                display: flex;
-                font-size: 25px;
-                justify-content: center;
-                align-items: center;
-                gap: 10%;
-                img{
-                    max-width: 40px;
+
+            &_item{
+                position: relative;
+
+                span{
+                    position: absolute;
+                    top: 40%;
+                    left: 50%;
+                    transform: translate(-50%,-50%);
+                    color: #fff;
+                    font-family: serif;
+                    font-weight: bold;
+                    text-shadow: 2px 2px 4px #000;
+                    font-size: 25px;
                 }
             }
         }
@@ -383,11 +525,19 @@
         &_description{
             position: absolute;
             top: 20%;
-            left: 2.5%;
-            width: 200px;
-            height: 150px;
-            background-color: #fff;
-            padding: 1em;
+            left: 3.5%;
+            width: 330px;
+            height: 210px;
+            background-size: cover;
+            padding: 1.5em;
+            background-image: url("/img/field/description_flame.png");
+
+            h4{
+                font-size: 25px;
+                color: green;
+                font-weight: bold;
+                padding-bottom: 10px;
+            }
         }
     }
 
@@ -438,23 +588,80 @@
     }
 }
 
-.mana-bar {
-  display: flex;
-  gap: 8px;
-}
+.mulligan{
+    position: fixed;
+    left: 0; 
+    top: 0; 
+    right: 0;
+    bottom: 0;
+    z-index: 1500;
+    display: flex;
+    align-items:center;
+    justify-content: center;
 
-.mana-slot {
-  width: 15px;
-  height: 15px;
-  border-radius: 50%;
-  background-color: #ccc;
-  transition: background-color 0.3s ease;
-}
+    &_wrap{
+        background-color: #333;
+        color: #fff;
+        padding: 40px 0;
+        border-radius: 10px;
+        text-align: center;
+        width: 45%;
+    }
 
-.mana-slot.available {
-  background-color: #0f0;
-}
+    &_card{
+        display: flex;
+        gap: 12;
+        margin-top: 15px;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
 
+    &_trun{
+        font-size: 30px;
+        color: gold;
+        font-weight: bold;
+        padding-bottom: 15px;
+    }
+
+    &_text{
+        padding-bottom: 15px;
+    }
+
+    &_largeText{
+        font-size: 20px;
+        font-weight: bold;
+    }
+
+    &_btn{
+        margin-top: 12;
+        display: flex;
+        gap: 30px;
+        justify-content: center;
+        padding-top: 20px;
+
+        &_item{
+            background-color: #fff;
+            color: #000;
+            width: 140px;
+            padding: 10px 20px;
+            border-radius: 50px;
+            cursor: pointer;
+            font-weight: bold;
+
+            &:hover{
+                background-color: #ccc;
+                opacity: 0.7;
+            }
+        }
+    }
+
+    &_time{
+        font-size: 25px;
+        font-weight: bold;
+        color: gold;
+    }
+}
 
 .card_hp {
   font-weight: bold;
@@ -464,7 +671,7 @@
 /* HP 色 */
 .hpWhite { color: white; }
 .hpYellow { color: yellow; }
-.hpRed { color: rgb(135, 3, 3); }
+.hpRed { color: red; }
 
 /* 追加: CSS 側にあり SCSS に無かったルール */
 .card_back {

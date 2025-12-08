@@ -6,9 +6,10 @@ import ManaBar from "./ManaBar";
 import Image from "next/image";
 import type { Card } from "@/app/data/cards";
 import styles from "@/app/assets/css/Game.Master.module.css";
-import handIcon from "@/public/img/field/hand-card.png";
+import handIcon from "@/public/img/field/hand.png";
 import deckIcon from "@/public/img/field/deck.png";
-import deathIcon from "@/public/img/field/death-icon.png";
+import deathIcon from "@/public/img/field/void.png";
+import TimerCircle, { TimerController } from "./TimerCircle";
 
 interface PlayerAreaProps {
   playerHeroHp: number;
@@ -49,6 +50,7 @@ interface PlayerAreaProps {
   playerFieldRefs: React.MutableRefObject<{ [key: string]: HTMLDivElement | null }>;
   handAreaRef: React.MutableRefObject<HTMLDivElement | null>;
   collapseHand: () => void;
+  timerRef: React.MutableRefObject<TimerController | null>;
 }
 
 export const PlayerArea: React.FC<PlayerAreaProps> = ({
@@ -87,6 +89,7 @@ export const PlayerArea: React.FC<PlayerAreaProps> = ({
   playerFieldRefs,
   handAreaRef,
   collapseHand,
+  timerRef,
 }) => {
   // 手札レイアウト計算
   useEffect(() => {
@@ -337,25 +340,32 @@ export const PlayerArea: React.FC<PlayerAreaProps> = ({
 
       {/* マナバー */}
       <div className={styles.field_player_mana}>
-        <ManaBar maxMana={10} currentMana={currentMana} />
+        <ManaBar maxMana={10} currentMana={currentMana} type="player" /> 
+        {/* ↑ type="player" を追加 */}
       </div>
 
       {/* ターンタイマー */}
       <div className={styles.field_player_timer}>
-        <p>{isPlayerTurn ? turnSecondsRemaining : 60}</p>
+        <TimerCircle 
+          ref={timerRef} 
+          duration={60} 
+          isPlayerTurn={isPlayerTurn} 
+          type="player" // 【追加】プレイヤータイプを渡す
+        />
       </div>
+
 
       {/* プレイヤーステータス */}
       <div className={styles.field_player_status}>
-        <p className={styles.field_player_status_hand}>
-          <Image src={handIcon} alt="プレイヤー手札" />{playerHandCards.length}
-        </p>
-        <p className={styles.field_player_status_deck}>
-          <Image src={deckIcon} alt="プレイヤーデッキ" />{playerDeck.length}
-        </p>
-        <p className={styles.field_player_status_death}>
-          <Image src={deathIcon} alt="墓地" />{playerGraveyard.length}
-        </p>
+        <div className={styles.field_player_status_item}>
+          <Image src={handIcon} alt="プレイヤー手札" /><span>{playerHandCards.length}</span>
+        </div>
+        <div className={styles.field_player_status_item}>
+          <Image src={deckIcon} alt="プレイヤーデッキ" /><span>{playerDeck.length}</span>
+        </div>
+        <div className={styles.field_player_status_item}>
+          <Image src={deathIcon} alt="墓地" /><span>{playerGraveyard.length}</span>
+        </div>
       </div>
 
       {/* カード説明パネル */}
@@ -364,7 +374,7 @@ export const PlayerArea: React.FC<PlayerAreaProps> = ({
           || playerFieldCards.find(c => c.uniqueId === descCardId);
         return (
           <div className={styles.field_card_description} aria-hidden={false}>
-            <h4 style={{ marginTop: 0 }}>{card?.name ?? ""}</h4>
+            <h4>{card?.name ?? ""}</h4>
             <p>{card?.description ?? ""}</p>
           </div>
         );

@@ -26,7 +26,7 @@ export default function RootLayout({
   // ...existing code...
   const GameProvider = require('./context/GameContext').GameProvider;
   return (
-    <html lang="en">
+    <html lang="ja">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <GameProvider>
           {children}

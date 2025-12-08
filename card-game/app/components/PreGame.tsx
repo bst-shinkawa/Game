@@ -80,12 +80,13 @@ export const PreGame: React.FC<PreGameProps> = ({
 
   // coinResult が決定済みかつ coinPopup が非表示：マリガン画面を表示
   return (
-    <div style={{ position: 'fixed', left: 0, top: 0, right: 0, bottom: 0, zIndex: 1500, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-      <div style={{ background: 'rgba(0,0,0,0.95)', color: '#fff', padding: 20, borderRadius: 8, textAlign: "center" }}>
-        <h3>{coinResult === 'player' ? 'あなたは先攻' : 'あなたは後攻'}</h3>
-        <p>交換したいカードを選択してください<br></br>（選択後は「交換」を押してください）<br></br>制限時間: {mulliganTimer}s</p>
+    <div className={styles.mulligan}>
+      <div className={styles.mulligan_wrap}>
+        <h3 className={styles.mulligan_trun}>{coinResult === 'player' ? 'あなたは先攻' : 'あなたは後攻'}</h3>
+        <p className={styles.mulligan_text}><span className={styles.mulligan_largeText}>交換したいカードを選択してください</span><br></br>（選択後は「交換」を押してください）</p>
+        <p>制限時間:<span className={styles.mulligan_time}> {mulliganTimer} </span>s</p>
 
-        <div style={{ display: 'flex', gap: 12, marginTop: 12, alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>
+        <div className={styles.mulligan_card}>
           {playerHandCards.map((c) => {
             const marked = swapIds.includes(c.uniqueId);
             return (
@@ -106,9 +107,9 @@ export const PreGame: React.FC<PreGameProps> = ({
           })}
         </div>
 
-        <div style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'center' }}>
-          <button onClick={onMulliganSubmit}>交換</button>
-          <button onClick={onMulliganSkip}>交換せず開始</button>
+        <div className={styles.mulligan_btn}>
+          <button className={styles.mulligan_btn_item} onClick={onMulliganSubmit}>交換する</button>
+          <button className={styles.mulligan_btn_item} onClick={onMulliganSkip}>交換しない</button>
         </div>
       </div>
     </div>

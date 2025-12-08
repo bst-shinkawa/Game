@@ -6,10 +6,11 @@ import ManaBar from "./ManaBar";
 import Image from "next/image";
 import type { Card } from "@/app/data/cards";
 import styles from "@/app/assets/css/Game.Master.module.css";
-import handIcon from "@/public/img/field/hand-card.png";
+import handIcon from "@/public/img/field/hand.png";
 import deckIcon from "@/public/img/field/deck.png";
-import deathIcon from "@/public/img/field/death-icon.png";
+import deathIcon from "@/public/img/field/void.png";
 import cardBack from "@/public/img/field/card-back.png";
+import TimerCircle, { TimerController } from "./TimerCircle";
 
 interface EnemyAreaProps {
   enemyHeroHp: number;
@@ -29,6 +30,7 @@ interface EnemyAreaProps {
   onCardClick: (cardId: string) => void;
   enemyHeroRef: React.MutableRefObject<HTMLDivElement | null>;
   enemyFieldRefs: React.MutableRefObject<{ [key: string]: HTMLDivElement | null }>;
+  enemyTimerRef: React.MutableRefObject<TimerController | null>;
 }
 
 export const EnemyArea: React.FC<EnemyAreaProps> = ({
@@ -49,6 +51,7 @@ export const EnemyArea: React.FC<EnemyAreaProps> = ({
   onCardClick,
   enemyHeroRef,
   enemyFieldRefs,
+  enemyTimerRef,
 }) => {
   const getHpClass = (hp: number) => {
     if (hp === 20) return styles.hpWhite;
@@ -141,25 +144,31 @@ export const EnemyArea: React.FC<EnemyAreaProps> = ({
 
       {/* 敵マナバー */}
       <div className={styles.field_enemy_mana}>
-        <ManaBar maxMana={10} currentMana={enemyCurrentMana} />
+        <ManaBar maxMana={10} currentMana={enemyCurrentMana} type="enemy" /> 
+        {/* ↑ type="enemy" を追加 */}
       </div>
 
       {/* 敵ターンタイマー */}
       <div className={styles.field_enemy_timer}>
-        <p>{!isPlayerTurn ? turnSecondsRemaining : 60}</p>
+        <TimerCircle 
+          ref={enemyTimerRef} 
+          duration={60} 
+          isPlayerTurn={!isPlayerTurn} 
+          type="enemy"
+        />
       </div>
 
       {/* 敵ステータス */}
       <div className={styles.field_enemy_status}>
-        <p className={styles.field_enemy_status_hand}>
-          <Image src={handIcon} alt="敵手札" />{enemyHandCards.length}
-        </p>
-        <p className={styles.field_enemy_status_deck}>
-          <Image src={deckIcon} alt="敵デッキ" />{enemyDeck.length}
-        </p>
-        <p className={styles.field_player_status_death}>
-          <Image src={deathIcon} alt="敵墓地" />{enemyGraveyard.length}
-        </p>
+        <div className={styles.field_enemy_status_item}>
+          <Image src={handIcon} alt="敵手札" /><span>{enemyHandCards.length}</span>
+        </div>
+        <div className={styles.field_enemy_status_item}>
+          <Image src={deckIcon} alt="敵デッキ" /><span>{enemyDeck.length}</span>
+        </div>
+        <div className={styles.field_player_status_item}>
+          <Image src={deathIcon} alt="敵墓地" /><span>{enemyGraveyard.length}</span>
+        </div>
       </div>
     </div>
   );

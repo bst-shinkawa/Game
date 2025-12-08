@@ -450,20 +450,29 @@ export const GameField: React.FC<GameFieldProps> = ({
 
   const isLocal = process.env.NODE_ENV !== 'production';
   const basePath = process.env.NODE_ENV === 'production' ? '/Game' : '';
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    if (videoRef.current) {
+      videoRef.current.playbackRate = 0.75; // 再生速度を0.75倍に設定
+    }
+  }, []);
+
 
   // ゲーム画面のメイン
   return (
     <div className={`${styles.field} ${isLocal ? styles.field_local : ""}`}>
 
-      <div className={styles.field_bg}>
+      {/* <div className={styles.field_bg}>
         <video
+          ref={videoRef}
           src={`${basePath}/img/field/bg.mp4`}
           autoPlay
           muted
           loop
           playsInline
         ></video>
-      </div>
+      </div> */}
 
       {/* ダメージフロート */}
       <DamageFloater floats={damageFloats} />
@@ -584,7 +593,6 @@ export const GameField: React.FC<GameFieldProps> = ({
             {card.image && <img src={card.image} alt={card.name} />}
             <div className={styles.card_hp}><p>{Math.min(card.hp ?? 0, card.maxHp ?? 0)}</p></div>
             <div className={styles.card_attack}><p>{card.attack ?? 0}</p></div>
-            <div style={{ padding: 6 }}>{card.name}</div>
           </div>
         );
       })()}

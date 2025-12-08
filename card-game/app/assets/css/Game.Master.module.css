@@ -7,10 +7,10 @@
   z-index: 1;
   background-repeat: no-repeat;
   background-size: cover;
-  background-image: url("/Game/img/field/bg.png");
+  background-image: url("/Game/img/field/bg_1.png");
 }
 .field.field_local {
-  background-image: url("/img/field/bg.png");
+  background-image: url("/img/field/bg_1.png");
 }
 .field_bg {
   position: absolute;
@@ -63,13 +63,6 @@
   gap: 8px;
   padding: 10px;
 }
-.field_enemy_mana span {
-  width: 15px;
-  height: 15px;
-  border-radius: 50%;
-  background-color: #ccc;
-  transition: background-color 0.3s ease;
-}
 .field_enemy_battle {
   background-color: #c9c9c9;
   padding: 20px;
@@ -101,23 +94,11 @@
   position: absolute;
   top: 60%;
   right: 5%;
-  background-color: green;
-  border-radius: 50%;
-  width: 70px;
-  height: 70px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-.field_enemy_timer p {
-  color: #fff;
-  font-size: 40px;
 }
 .field_enemy_status {
   position: absolute;
   right: 0%;
   top: 0%;
-  background-color: #6e6e6e;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 15px;
@@ -125,16 +106,19 @@
   width: 300px;
   text-align: center;
 }
-.field_enemy_status p {
-  color: #fff;
-  font-size: 25px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 10%;
+.field_enemy_status_item {
+  position: relative;
 }
-.field_enemy_status p img {
-  max-width: 45px;
+.field_enemy_status_item span {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #fff;
+  font-family: serif;
+  font-weight: bold;
+  text-shadow: 2px 2px 4px #000;
+  font-size: 25px;
 }
 .field_enemy_hand_area {
   position: fixed;
@@ -157,6 +141,84 @@
   top: 10%;
   left: 15%;
   transform-origin: top center;
+}
+.field_enemy_timer {
+  position: absolute;
+  bottom: 25%;
+  right: 0;
+  transform: translate(-50%, -50%);
+  /* タイマーカード */
+  /* SVG サイズ調整 */
+  /* 中央の数字 */
+  /* トラック */
+  /* プログレスの見た目 */
+  /* "warn" は global class なので :global() を使う */
+  /* "critical" も global class なので :global() を使う */
+  /* コントロール */
+}
+.field_enemy_timer_card {
+  width: 140px;
+  height: 140px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  padding: 18px;
+}
+.field_enemy_timer svg.timer {
+  width: 160px;
+  height: 160px;
+  display: block;
+}
+.field_enemy_timer_time_label {
+  position: absolute;
+  font-weight: 600;
+  font-size: 35px;
+  color: #463423;
+  pointer-events: none;
+  -webkit-user-select: none;
+     -moz-user-select: none;
+          user-select: none;
+}
+.field_enemy_timer .track {
+  fill: none;
+  stroke: #efe6d8; /* 背景トラック */
+  stroke-width: 12;
+}
+.field_enemy_timer .progress {
+  fill: none;
+  stroke-linecap: round;
+  stroke-width: 12;
+  stroke: #80e95f;
+  transition: stroke 250ms linear, filter 250ms linear;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.08));
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+.field_enemy_timer .warn {
+  stroke: #f0ad4e;
+}
+.field_enemy_timer .critical {
+  stroke: #d9534f;
+  filter: drop-shadow(0 6px 8px rgba(217, 83, 79, 0.18));
+}
+.field_enemy_timer_controls {
+  margin-top: 16px;
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  width: 100%;
+}
+.field_enemy_timer_btn {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 0;
+  font-weight: 600;
+  cursor: pointer;
+  background: #463423;
+  color: #fff;
+  box-shadow: 0 4px 10px rgba(70, 52, 35, 0.12);
 }
 .field_player {
   width: 100%;
@@ -196,13 +258,6 @@
   gap: 8px;
   padding: 10px;
 }
-.field_player_mana span {
-  width: 15px;
-  height: 15px;
-  border-radius: 50%;
-  background-color: #ccc;
-  transition: background-color 0.3s ease;
-}
 .field_player_battle {
   background-color: #c9c9c9;
   padding: 20px;
@@ -232,25 +287,86 @@
 }
 .field_player_timer {
   position: absolute;
-  bottom: 60%;
-  right: 5%;
-  background-color: green;
-  border-radius: 50%;
-  width: 70px;
-  height: 70px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+  top: 25%;
+  right: 0;
+  transform: translate(-50%, -50%);
+  /* タイマーカード */
+  /* SVG サイズ調整 */
+  /* 中央の数字 */
+  /* トラック */
+  /* プログレスの見た目 */
+  /* "warn" は global class なので :global() を使う */
+  /* "critical" も global class なので :global() を使う */
+  /* コントロール */
 }
-.field_player_timer p {
+.field_player_timer_card {
+  width: 140px;
+  height: 140px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  padding: 18px;
+}
+.field_player_timer svg.timer {
+  width: 160px;
+  height: 160px;
+  display: block;
+}
+.field_player_timer_time_label {
+  position: absolute;
+  font-weight: 600;
+  font-size: 35px;
+  color: #463423;
+  pointer-events: none;
+  -webkit-user-select: none;
+     -moz-user-select: none;
+          user-select: none;
+}
+.field_player_timer .track {
+  fill: none;
+  stroke: #efe6d8; /* 背景トラック */
+  stroke-width: 12;
+}
+.field_player_timer .progress {
+  fill: none;
+  stroke-linecap: round;
+  stroke-width: 12;
+  stroke: #80e95f;
+  transition: stroke 250ms linear, filter 250ms linear;
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.08));
+  transform: rotate(-90deg);
+  transform-origin: 50% 50%;
+}
+.field_player_timer .warn {
+  stroke: #f0ad4e;
+}
+.field_player_timer .critical {
+  stroke: #d9534f;
+  filter: drop-shadow(0 6px 8px rgba(217, 83, 79, 0.18));
+}
+.field_player_timer_controls {
+  margin-top: 16px;
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  width: 100%;
+}
+.field_player_timer_btn {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 0;
+  font-weight: 600;
+  cursor: pointer;
+  background: #463423;
   color: #fff;
-  font-size: 40px;
+  box-shadow: 0 4px 10px rgba(70, 52, 35, 0.12);
 }
 .field_player_status {
   position: absolute;
   left: 0%;
   bottom: 0%;
-  background-color: #6e6e6e;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 15px;
@@ -258,16 +374,19 @@
   width: 300px;
   text-align: center;
 }
-.field_player_status p {
-  color: #fff;
-  display: flex;
-  font-size: 25px;
-  justify-content: center;
-  align-items: center;
-  gap: 10%;
+.field_player_status_item {
+  position: relative;
 }
-.field_player_status p img {
-  max-width: 40px;
+.field_player_status_item span {
+  position: absolute;
+  top: 40%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #fff;
+  font-family: serif;
+  font-weight: bold;
+  text-shadow: 2px 2px 4px #000;
+  font-size: 25px;
 }
 .field_player_hand_area {
   position: fixed;
@@ -343,11 +462,18 @@
 .field_card_description {
   position: absolute;
   top: 20%;
-  left: 2.5%;
-  width: 200px;
-  height: 150px;
-  background-color: #fff;
-  padding: 1em;
+  left: 3.5%;
+  width: 330px;
+  height: 210px;
+  background-size: cover;
+  padding: 1.5em;
+  background-image: url("/img/field/description_flame.png");
+}
+.field_card_description h4 {
+  font-size: 25px;
+  color: green;
+  font-weight: bold;
+  padding-bottom: 10px;
 }
 
 .card {
@@ -392,21 +518,70 @@
   text-align: center;
 }
 
-.mana-bar {
+.mulligan {
+  position: fixed;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1500;
   display: flex;
-  gap: 8px;
+  align-items: center;
+  justify-content: center;
 }
-
-.mana-slot {
-  width: 15px;
-  height: 15px;
-  border-radius: 50%;
+.mulligan_wrap {
+  background-color: #333;
+  color: #fff;
+  padding: 40px 0;
+  border-radius: 10px;
+  text-align: center;
+  width: 45%;
+}
+.mulligan_card {
+  display: flex;
+  gap: 12;
+  margin-top: 15px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.mulligan_trun {
+  font-size: 30px;
+  color: gold;
+  font-weight: bold;
+  padding-bottom: 15px;
+}
+.mulligan_text {
+  padding-bottom: 15px;
+}
+.mulligan_largeText {
+  font-size: 20px;
+  font-weight: bold;
+}
+.mulligan_btn {
+  margin-top: 12;
+  display: flex;
+  gap: 30px;
+  justify-content: center;
+  padding-top: 20px;
+}
+.mulligan_btn_item {
+  background-color: #fff;
+  color: #000;
+  width: 140px;
+  padding: 10px 20px;
+  border-radius: 50px;
+  cursor: pointer;
+  font-weight: bold;
+}
+.mulligan_btn_item:hover {
   background-color: #ccc;
-  transition: background-color 0.3s ease;
+  opacity: 0.7;
 }
-
-.mana-slot.available {
-  background-color: #0f0;
+.mulligan_time {
+  font-size: 25px;
+  font-weight: bold;
+  color: gold;
 }
 
 .card_hp {
@@ -424,7 +599,7 @@
 }
 
 .hpRed {
-  color: rgb(135, 3, 3);
+  color: red;
 }
 
 /* 追加: CSS 側にあり SCSS に無かったルール */
