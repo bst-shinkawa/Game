@@ -9,6 +9,7 @@ import GameOver from "./GameOver";
 import type { Card } from "@/app/data/cards";
 import type { DamageFloat } from "@/app/hooks/useGameUI";
 import styles from "@/app/assets/css/Game.Master.module.css";
+import { TimerController } from "./TimerCircle";
 
 interface GameFieldProps {
   // ゲームロジック
@@ -157,6 +158,9 @@ export const GameField: React.FC<GameFieldProps> = ({
   const playerHeroRef = useRef<HTMLDivElement | null>(null);
   const playerFieldRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const arrowStartPos = useRef<{ x: number; y: number } | null>(null);
+
+  const timerRef = useRef<TimerController | null>(null); 
+  const enemyTimerRef = useRef<TimerController | null>(null);
 
   const isPlayerTurn = turn % 2 === 1;
   const MAX_TIME = 60;
@@ -648,6 +652,7 @@ export const GameField: React.FC<GameFieldProps> = ({
         onCardClick={(cardId: string) => setDescCardId(descCardId === cardId ? null : cardId)}
         enemyHeroRef={enemyHeroRef}
         enemyFieldRefs={enemyFieldRefs}
+        enemyTimerRef={enemyTimerRef}
       />
 
       {/* プレイヤーエリア */}
@@ -723,6 +728,7 @@ export const GameField: React.FC<GameFieldProps> = ({
         playerFieldRefs={playerFieldRefs}
         handAreaRef={handAreaRef}
         collapseHand={collapseHand}
+        timerRef={timerRef}
       />
 
       {/* ターンエンドボタン */}
