@@ -13,12 +13,13 @@ export interface TimerController {
 }
 
 interface TimerProps {
-  duration: number; // タイマーの総時間
-  isPlayerTurn: boolean; // プレイヤーのターンかどうか (トリガーとして使用)
-  type: "player" | "enemy"; // 【追加】タイマーの所有者
+  duration: number;
+  isPlayerTurn: boolean;
+  isTimerActive: boolean;
+  type: "player" | "enemy";
 }
 
-const CircularTimer = forwardRef<TimerController, TimerProps>(({ duration, isPlayerTurn, type }, ref) => {
+const CircularTimer = forwardRef<TimerController, TimerProps>(({ duration, isPlayerTurn, isTimerActive, type }, ref) => {
   const cardRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -78,12 +79,14 @@ const CircularTimer = forwardRef<TimerController, TimerProps>(({ duration, isPla
 
     function pause() {
         if (paused) return;
-        paused = true;
-        cancelAnimationFrame(rafId!);
+          paused = true;
+          cancelAnimationFrame(rafId!);
 
         const now = performance.now();
-        const elapsed = (now - startTs!) / 1000;
-        remaining = Math.max(0, DURATION - elapsed); 
+        if (startTs !== null) { 
+            const elapsed = (now - startTs) / 1000;
+            remaining = Math.max(0, DURATION - elapsed); 
+        }
     }
 
     function reset() {
@@ -115,15 +118,19 @@ const CircularTimer = forwardRef<TimerController, TimerProps>(({ duration, isPla
 
     // propのisPlayerTurnが変化したときの動作
     if (isPlayerTurn) {
-      start();
+      if (isTimerActive) {
+          start();
+      } else {
+          pause();
+      }
     } else {
-      reset(); // ターン終了時（相手ターン開始時）にリセット
+      reset(); 
     }
 
     return () => {
       cancelAnimationFrame(rafId!);
     };
-  }, [duration, isPlayerTurn, styles]);
+  }, [duration, isPlayerTurn, isTimerActive, styles]);
 
 
   // typeに基づいてCSSクラスのベース名を決定

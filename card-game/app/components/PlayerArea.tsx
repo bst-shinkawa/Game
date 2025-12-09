@@ -51,6 +51,7 @@ interface PlayerAreaProps {
   handAreaRef: React.MutableRefObject<HTMLDivElement | null>;
   collapseHand: () => void;
   timerRef: React.MutableRefObject<TimerController | null>;
+  isTimerActive: boolean;
 }
 
 export const PlayerArea: React.FC<PlayerAreaProps> = ({
@@ -90,6 +91,7 @@ export const PlayerArea: React.FC<PlayerAreaProps> = ({
   handAreaRef,
   collapseHand,
   timerRef,
+  isTimerActive,
 }) => {
   // 手札レイアウト計算
   useEffect(() => {
@@ -350,7 +352,8 @@ export const PlayerArea: React.FC<PlayerAreaProps> = ({
           ref={timerRef} 
           duration={60} 
           isPlayerTurn={isPlayerTurn} 
-          type="player" // 【追加】プレイヤータイプを渡す
+          type="player"
+          isTimerActive={isTimerActive}
         />
       </div>
 

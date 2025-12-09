@@ -31,6 +31,7 @@ interface EnemyAreaProps {
   enemyHeroRef: React.MutableRefObject<HTMLDivElement | null>;
   enemyFieldRefs: React.MutableRefObject<{ [key: string]: HTMLDivElement | null }>;
   enemyTimerRef: React.MutableRefObject<TimerController | null>;
+  isTimerActive: boolean;
 }
 
 export const EnemyArea: React.FC<EnemyAreaProps> = ({
@@ -52,6 +53,7 @@ export const EnemyArea: React.FC<EnemyAreaProps> = ({
   enemyHeroRef,
   enemyFieldRefs,
   enemyTimerRef,
+  isTimerActive,
 }) => {
   const getHpClass = (hp: number) => {
     if (hp === 20) return styles.hpWhite;
@@ -155,6 +157,7 @@ export const EnemyArea: React.FC<EnemyAreaProps> = ({
           duration={60} 
           isPlayerTurn={!isPlayerTurn} 
           type="enemy"
+          isTimerActive={!isPlayerTurn && isTimerActive}
         />
       </div>
 

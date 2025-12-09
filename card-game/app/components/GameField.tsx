@@ -463,6 +463,12 @@ export const GameField: React.FC<GameFieldProps> = ({
   }, []);
 
 
+    const isTimerActive = !preGame &&       // プリゲーム中でない
+                          !showTurnModal &&   // ターン切り替えモーダル中でない
+                          !showGameStart &&   // ゲームスタートモーダル中でない
+                          !gameOver.over;     // ゲームオーバー中でない
+
+
   // ゲーム画面のメイン
   return (
     <div className={`${styles.field} ${isLocal ? styles.field_local : ""}`}>
@@ -653,6 +659,7 @@ export const GameField: React.FC<GameFieldProps> = ({
         enemyHeroRef={enemyHeroRef}
         enemyFieldRefs={enemyFieldRefs}
         enemyTimerRef={enemyTimerRef}
+        isTimerActive={isTimerActive}
       />
 
       {/* プレイヤーエリア */}
@@ -729,6 +736,7 @@ export const GameField: React.FC<GameFieldProps> = ({
         handAreaRef={handAreaRef}
         collapseHand={collapseHand}
         timerRef={timerRef}
+        isTimerActive={isTimerActive}
       />
 
       {/* ターンエンドボタン */}
