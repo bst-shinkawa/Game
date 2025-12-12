@@ -165,6 +165,8 @@ export const GameField: React.FC<GameFieldProps> = ({
   const isPlayerTurn = turn % 2 === 1;
   const MAX_TIME = 60;
 
+  const isTimeCritical = isPlayerTurn && turnSecondsRemaining <= 20;
+
   // ドラッグ中のマウス座標追跡
   useEffect(() => {
     if (!draggingCard) return;
@@ -744,15 +746,21 @@ export const GameField: React.FC<GameFieldProps> = ({
         <div className={styles.field_turn}>
           <button
             onClick={() => endTurn()}
-            disabled={!isPlayerTurn || aiRunning}
+            disabled={
+              !isPlayerTurn || 
+              aiRunning || 
+              preGame ||           
+              showGameStart        
+            }
+            // 緊迫状態のクラスを適用
+            className={isTimeCritical ? styles.field_turn_end_critical : ''} // <--- ここを修正
+            title={
+              preGame ? "ゲーム開始前です" :
+              showTurnModal ? "ターン切替処理中です" :
+              !isPlayerTurn ? "相手のターンです" : "ターンを終了します"
+            }
           >
-            <div
-              className={styles.flame_container}
-              style={{
-                '--flame-intensity': Math.max(0.2, turnSecondsRemaining / MAX_TIME).toFixed(2)
-              } as React.CSSProperties}
-            />
-            <span className={styles.field_turn_text}>TurnEnd</span>
+            <span className={styles.field_turn_text}>TURN END</span>
           </button>
         </div>
       </div>

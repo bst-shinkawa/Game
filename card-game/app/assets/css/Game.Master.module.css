@@ -433,31 +433,103 @@
   z-index: 20;
 }
 .field_turn {
-  position: absolute;
-  top: 50%;
+  /* ボタンテキスト */
+  /* --- (オプション) 簡易的なアニメーション --- */
+  /* isPlayerTurn の時だけ鼓動するアニメーション */
+  /* --- ターンエンドボタンの緊迫状態 (残り20秒以下) --- */
+  /* 緊迫時のネオン脈動アニメーションの定義 */
+  /* 緊迫状態のクラス */
+}
+.field_turn_wrapper {
+  position: fixed;
+  bottom: 50%;
   right: 0%;
-  transform: translate(-50%, -50%);
-  z-index: 5;
+  transform: translate(-50%, 50%);
+  z-index: 1000;
 }
 .field_turn button {
-  width: 150px;
-  height: 50px;
-  background-color: #fff;
-  border: none;
-  border-radius: 10px;
-  font-size: 1.5rem;
+  position: relative;
+  width: 180px;
+  height: 60px;
+  border-radius: 30px;
+  font-weight: bold;
+  font-size: 20px;
+  letter-spacing: 2px;
   cursor: pointer;
-  transition: background-color 0.3s;
+  /* 初期設定（非活性時） */
+  background-color: rgba(40, 44, 52, 0.7);
+  border: 2px solid #5a5f6b;
+  color: #a0a4b0;
+  box-shadow: none;
+  transition: all 0.3s ease;
+  overflow: hidden;
+  /* 活性時のスタイル */
 }
-.field_turn button:hover {
-  background-color: #ccc;
+.field_turn button:not(:disabled) {
+  background-color: rgba(30, 40, 50, 0.9); /* 濃い青背景 */
+  border: 3px solid #00ffff; /* ネオンシアンの枠線 */
+  color: #ccffff; /* 明るいテキスト */
+  box-shadow: 0 0 10px rgba(0, 255, 255, 0.6), 0 0 20px rgba(0, 255, 255, 0.3);
+}
+.field_turn button:not(:disabled):hover {
+  background-color: rgb(40, 50, 60);
+  border-color: #33ffff;
+  box-shadow: 0 0 15px rgba(0, 255, 255, 0.8), 0 0 30px rgba(0, 255, 255, 0.5);
+  transform: scale(1.05); /* 少し大きくする */
+}
+.field_turn button:not(:disabled):active {
+  transform: scale(0.98); /* 少し沈み込ませる */
+  box-shadow: 0 0 5px rgba(0, 255, 255, 0.4);
 }
 .field_turn_text {
-  position: absolute;
-  top: 50%;
-  transform: translate(-50%, -50%);
-  left: 50%;
-  z-index: 1500;
+  position: relative;
+  z-index: 2; /* ネオンの上にテキストを表示 */
+}
+@keyframes pulseGlow {
+  0% {
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.6), 0 0 20px rgba(0, 255, 255, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 15px rgba(0, 255, 255, 0.9), 0 0 30px rgba(0, 255, 255, 0.5);
+  }
+  100% {
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.6), 0 0 20px rgba(0, 255, 255, 0.3);
+  }
+}
+@keyframes criticalGlow {
+  0% {
+    /* ベースの赤色と弱い光 */
+    border-color: #ff5722; /* 鮮やかな赤 */
+    box-shadow: 0 0 10px rgba(255, 87, 34, 0.7);
+    transform: scale(1);
+  }
+  50% {
+    /* 強い光と拡大 */
+    border-color: #ffccbc; /* 明るい赤 */
+    box-shadow: 0 0 20px rgb(255, 87, 34), 0 0 40px rgba(255, 87, 34, 0.6);
+    transform: scale(1.03); /* 少し拡大 */
+  }
+  100% {
+    /* 元に戻る */
+    border-color: #ff5722;
+    box-shadow: 0 0 10px rgba(255, 87, 34, 0.7);
+    transform: scale(1);
+  }
+}
+.field_turn_end_critical {
+  /* 色を赤系に上書き */
+  background-color: rgba(60, 20, 20, 0.9) !important;
+  border-color: #ff5722 !important;
+  color: #fff3e0 !important; /* テキストを明るく */
+  /* 脈動アニメーションを適用 */
+  animation: criticalGlow 1.2s infinite alternate ease-in-out;
+  animation-fill-mode: both;
+}
+.field_turn_end_critical:hover {
+  animation: none; /* 脈動を停止 */
+  transform: scale(1.08) !important; /* 通常時より大きく拡大 */
+  border-color: #ffccbc !important;
+  box-shadow: 0 0 30px rgb(255, 87, 34), 0 0 50px rgba(255, 87, 34, 0.8) !important;
 }
 .field_card_description {
   position: absolute;
@@ -706,103 +778,6 @@
     transform: translateY(0);
   }
 }
-/* ターン切り替えモーダル */
-.turnModal {
-  position: fixed;
-  left: 50%;
-  top: 40%;
-  transform: translate(-50%, -50%);
-  z-index: 99998;
-  background: rgba(0, 0, 0, 0);
-  color: #fff;
-  font-size: 48px;
-  font-weight: 800;
-  padding: 12px 28px;
-  text-align: center;
-  pointer-events: none;
-  text-shadow: 0 6px 18px rgba(0, 0, 0, 0.7);
-}
-
-.turnModalFade {
-  animation: turn-fade 900ms ease-out;
-}
-
-@keyframes turn-fade {
-  from {
-    opacity: 0;
-    transform: translate(-50%, -56%);
-  }
-  to {
-    opacity: 1;
-    transform: translate(-50%, -50%);
-  }
-}
-/* ターンエンドボタンのコンテナとボタン本体の基本的なスタイルは前回の提案のものを流用 */
-.field_turn button {
-  position: relative;
-  /* ... 既存の盾型ボタンのスタイル ... */
-  overflow: visible; /* 炎の光がボタンの外にはみ出すことを許可 */
-}
-
-.flame_container {
-  /* 炎のコンテナをボタンの中央に配置 */
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 150px; /* 炎のサイズ */
-  height: 50px;
-  z-index: 10;
-}
-
-/* 炎の光と揺らぎ（CSSで最も重要な部分） */
-.flame_container::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  border-radius: 10px; /* 炎の中心の光 */
-  background-color: #fff;
-  /* 炎の色: 暖かいオレンジ */
-  box-shadow: 0 0 10px rgba(255, 100, 0, 0.9), 0 0 25px rgba(255, 165, 0, 0.7), 0 0 40px rgba(255, 69, 0, 0.4); /* 周囲への光の拡散 */
-  /* 炎の脈動アニメーション */
-  animation: flamePulse 2s infinite alternate;
-}
-
-@keyframes flamePulse {
-  0% {
-    transform: scale(1);
-    opacity: 0.9;
-  }
-  100% {
-    transform: scale(1.1);
-    opacity: 1;
-  } /* 少し大きく、明るくする */
-}
-/* 押下時の閃光アニメーション */
-.field_turn button:active .flame_container::before {
-  /* アニメーションを一時的に停止し、強い閃光に切り替える */
-  animation: none;
-  transition: all 0.05s ease-out; /* 瞬間的な変化 */
-  /* 閃光（白に近い黄色で強烈な光） */
-  box-shadow: 0 0 30px #FFFFE0, 0 0 60px #FFD700, 0 0 100px #FF8C00;
-  transform: scale(1.5); /* 一瞬大きく広がる */
-}
-
-/* 非活性時 (ターン終了後やAIターン) */
-.field_turn button:disabled .flame_container::before {
-  /* 炎のアニメーションを停止し、影をなくす */
-  animation: none;
-  box-shadow: none;
-  /* 代わりに灰のテクスチャや冷たい光を加える（例：薄い青の光） */
-  background: transparent; /* 灰の色 */
-  border-radius: 50%;
-  /* ボタン全体も冷たいトーンにする */
-  filter: grayscale(100%) brightness(0.7);
-}
-
 /* 敵の攻撃アニメーション */
 .enemy_attack_animation {
   position: fixed;
