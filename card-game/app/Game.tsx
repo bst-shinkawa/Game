@@ -8,6 +8,7 @@ import { cards } from "./data/cards";
 import { deck as initialDeck, drawInitialHand } from "./data/game";
 import { createDeck } from "./data/deck";
 import { startEnemyTurn, runEnemyTurn } from "./data/enemyAI";
+import { TurnTimer } from "./data/turnTimer";
 
 const MAX_HAND = 10;
 const MAX_MANA = 10;
@@ -51,6 +52,10 @@ export function useGame(): {
   finalizeCoin: (result: "player" | "enemy") => void;
   doMulligan: (keepIds: string[]) => void;
   startMatch: () => void;
+  // expose timer instances for UI subscription
+  playerTurnTimer: TurnTimer | null;
+  enemyTurnTimer: TurnTimer | null;
+  setPauseTimer: (pause: boolean) => void;
 } {
   // --- プレイヤー状態 ---
   const [deck, setDeck] = useState<Card[]>([...initialDeck]);
@@ -81,8 +86,9 @@ export function useGame(): {
   const [enemyMaxMana, setEnemyMaxMana] = useState(1);
   const [enemyCurrentMana, setEnemyCurrentMana] = useState(1);
   const [turnSecondsRemaining, setTurnSecondsRemaining] = useState<number>(60);
-  const turnTimeoutRef = useRef<number | null>(null);
-  const remainingRef = useRef<number>(60);
+  // TurnTimer を使用して正確な 1 秒カウントを行う（プレイヤー / 敵で別々に管理）
+  const playerTurnTimerRef = useRef<TurnTimer | null>(new TurnTimer(60));
+  const enemyTurnTimerRef = useRef<TurnTimer | null>(new TurnTimer(60));
   // UI側からタイマーとAIを一時停止するフラグ（ターン開始のモーダル表示など）
   const [pauseTimer, setPauseTimer] = useState<boolean>(false);
   // 初回ターンかどうか（プリゲーム後の最初の turn を特別扱いするためのフラグ）
@@ -220,71 +226,143 @@ export function useGame(): {
   // ターンタイマー（60秒）
   const isPlayerTurn = turn % 2 === 1;
 
+  // ターン変更時のリセット・イベント登録（プレイヤー/敵で独立）
+  const modalPauseRef = useRef<boolean>(false);
   useEffect(() => {
-    // プレゲーム中はタイマーを動かさない（プリゲーム終了で再開）
     if (preGame) return;
 
-    // ターン開始ごとに残り時間をリセット
-    remainingRef.current = 60;
-    setTurnSecondsRemaining(60);
-
-    // 安全な tick 実装：remainingRef を直接減らし、0 になったら endTurn を呼んで再スケジュールしない
-    const tick = () => {
-      remainingRef.current -= 1;
-      const next = remainingRef.current;
-      setTurnSecondsRemaining(next);
-      console.debug(`[Timer] turn=${turn} secondsRemaining -> ${next}`);
-      if (next <= 0) {
-        console.debug(`[Timer] timeup on turn=${turn}, calling endTurn()`);
-        endTurn();
-        return;
+    // ターン切替用モーダルを表示している間は必ずタイマーを一時停止する
+    modalPauseRef.current = true;
+    setPauseTimer(true);
+    const modalDuration = (turn % 2 === 1) ? 2000 : 1200;
+    const modalTimer = setTimeout(() => {
+      if (modalPauseRef.current) {
+        modalPauseRef.current = false;
+        setPauseTimer(false);
       }
-      turnTimeoutRef.current = window.setTimeout(tick, 1000) as unknown as number;
+    }, modalDuration);
+
+    // 両タイマーをリセット
+    playerTurnTimerRef.current?.setDuration(60);
+    playerTurnTimerRef.current?.reset();
+    enemyTurnTimerRef.current?.setDuration(60);
+    enemyTurnTimerRef.current?.reset();
+
+    // 現在のターン側の残りを表示
+    const activeRemaining = (turn % 2 === 1 ? playerTurnTimerRef.current?.getRemaining() : enemyTurnTimerRef.current?.getRemaining()) ?? 60;
+    setTurnSecondsRemaining(activeRemaining);
+
+    const playerTick = (remaining: number) => {
+      if (turn % 2 === 1) {
+        setTurnSecondsRemaining(remaining);
+        console.debug(`[Timer][player] turn=${turn} secondsRemaining -> ${remaining}`);
+      }
+    };
+    const enemyTick = (remaining: number) => {
+      if (turn % 2 === 0) {
+        setTurnSecondsRemaining(remaining);
+        console.debug(`[Timer][enemy] turn=${turn} secondsRemaining -> ${remaining}`);
+      }
     };
 
-    // 最初の tick を1秒後に開始
-    turnTimeoutRef.current = window.setTimeout(tick, 1000) as unknown as number;
+    const playerEnd = () => {
+      console.debug(`[Timer][player] timeup on turn=${turn}, calling endTurn()`);
+      endTurn();
+    };
+    const enemyEnd = () => {
+      console.debug(`[Timer][enemy] timeup on turn=${turn}, calling endTurn()`);
+      endTurn();
+    };
+
+    const offPlayerTick = playerTurnTimerRef.current?.onTick(playerTick);
+    const offPlayerEnd = playerTurnTimerRef.current?.onEnd(playerEnd);
+    const offEnemyTick = enemyTurnTimerRef.current?.onTick(enemyTick);
+    const offEnemyEnd = enemyTurnTimerRef.current?.onEnd(enemyEnd);
+
+    // モーダル表示中は pauseTimer=true にしているため、開始は pause が解除されるまで行わない
+    if (!pauseTimer) {
+      if (turn % 2 === 1) playerTurnTimerRef.current?.start();
+      else enemyTurnTimerRef.current?.start();
+    }
 
     return () => {
-      if (turnTimeoutRef.current !== null) {
-        clearTimeout(turnTimeoutRef.current as number);
-        turnTimeoutRef.current = null;
-      }
+      clearTimeout(modalTimer);
+      modalPauseRef.current = false;
+      if (offPlayerTick) offPlayerTick();
+      if (offPlayerEnd) offPlayerEnd();
+      if (offEnemyTick) offEnemyTick();
+      if (offEnemyEnd) offEnemyEnd();
+      // 一時停止（両方）
+      playerTurnTimerRef.current?.pause();
+      enemyTurnTimerRef.current?.pause();
     };
   }, [turn, preGame]);
+
+  // UI の一時停止要求に応じて pause/resume を行う（モーダル表示中など）
+  useEffect(() => {
+    if (pauseTimer) {
+      playerTurnTimerRef.current?.pause();
+      enemyTurnTimerRef.current?.pause();
+    } else {
+      const p = playerTurnTimerRef.current;
+      const e = enemyTurnTimerRef.current;
+      // 再開は現在ターン側のみ
+      if (turn % 2 === 1) {
+        if (p && !p.isRunning() && p.getRemaining() > 0) p.start();
+      } else {
+        if (e && !e.isRunning() && e.getRemaining() > 0) e.start();
+      }
+    }
+  }, [pauseTimer, turn]);
 
   // --- 敵AI: 簡易ターン処理 ---
   useEffect(() => {
     // プリゲーム中は AI を動かさない
     if (preGame) return;
-    // 敵ターンになったらAIを走らせる（turn % 2 === 0 なら敵ターン、turn > 1 で初期ターン以外）
-    if (turn > 1 && turn % 2 === 0 && !aiRunning) {
-      runEnemyTurn(
-        enemyHandCards,
-        setEnemyHandCards,
-        enemyFieldCards,
-        setEnemyFieldCards,
-        enemyCurrentMana,
-        setEnemyCurrentMana,
-        enemyHeroHp,
-        playerFieldCards,
-        playerHeroHp,
-        setPlayerHeroHp,
-        setPlayerFieldCards,
-        setPlayerGraveyard,
-        setGameOver,
-        setAiRunning,
-        setMovingAttack,
-        setEnemyAttackAnimation,
-        setEnemySpellAnimation,
-        attack,
-        endTurn,
-        turnTimeoutRef,
-        setEnemyGraveyard,
-        aiCancelRef
-      );
+    // モーダルや pause の間は敵の行動を開始しない（ポップアップ終了後に開始）
+    let enemyAiTimer: ReturnType<typeof setTimeout> | null = null;
+    if (turn > 1 && turn % 2 === 0 && !aiRunning && !pauseTimer) {
+      const scheduledTurn = turn;
+      // 1000ms の追加遅延を挟む（モーダル終了後にすぐ行動を開始しない）
+      enemyAiTimer = setTimeout(() => {
+        if (preGame) return;
+        if (pauseTimer) return;
+        if (aiCancelRef.current) return;
+        // ターンが変わっていたらキャンセル
+        if (turn !== scheduledTurn) return;
+        if (!aiRunning) {
+          runEnemyTurn(
+            enemyHandCards,
+            setEnemyHandCards,
+            enemyFieldCards,
+            setEnemyFieldCards,
+            enemyCurrentMana,
+            setEnemyCurrentMana,
+            enemyHeroHp,
+            playerFieldCards,
+            playerHeroHp,
+            setPlayerHeroHp,
+            setPlayerFieldCards,
+            setPlayerGraveyard,
+            setGameOver,
+            setAiRunning,
+            setMovingAttack,
+            setEnemyAttackAnimation,
+            setEnemySpellAnimation,
+            attack,
+            endTurn,
+            () => { enemyTurnTimerRef.current?.stop(); },
+            setEnemyGraveyard,
+            aiCancelRef
+          );
+        }
+      }, 1000);
     }
-  }, [turn, aiRunning, preGame]);
+
+    return () => {
+      if (enemyAiTimer) clearTimeout(enemyAiTimer);
+    };
+  }, [turn, aiRunning, preGame, pauseTimer]);
 
   // keep refs in sync with state so async callers (AI, logs) can read latest
   useEffect(() => {
@@ -297,15 +375,12 @@ export function useGame(): {
   // ゲーム終了時の完全停止: タイマーをクリアし、AI を中断・停止する
   useEffect(() => {
     if (!gameOver.over) return;
-    // clear timer
-    if (turnTimeoutRef.current !== null) {
-      clearTimeout(turnTimeoutRef.current as number);
-      turnTimeoutRef.current = null;
-    }
+    // stop both timers
+    try { playerTurnTimerRef.current?.stop(); enemyTurnTimerRef.current?.stop(); } catch (e) { /* ignore */ }
     // cancel running AI and prevent new AI start
     aiCancelRef.current = true;
     setAiRunning(false);
-    console.debug("[Game] gameOver -> cleared timer and cancelled AI");
+    console.debug("[Game] gameOver -> cleared timers and cancelled AI");
   }, [gameOver]);
 
   // --- ドロー ---
@@ -350,10 +425,7 @@ export function useGame(): {
   // --- ゲームリセット（新しい対戦を開始） ---
   const resetGame = (mode: "cpu" | "pvp" = "cpu") => {
     // 既存のタイマーをクリア
-    if (turnTimeoutRef.current !== null) {
-      clearTimeout(turnTimeoutRef.current as number);
-      turnTimeoutRef.current = null;
-    }
+    try { playerTurnTimerRef.current?.stop(); enemyTurnTimerRef.current?.stop(); } catch (e) { /* ignore */ }
     setAiRunning(false);
     setMovingAttack(null);
     // 敵AI 中断フラグを立てる
@@ -381,7 +453,10 @@ export function useGame(): {
     setEnemyMaxMana(1);
     setEnemyCurrentMana(1);
     setTurnSecondsRemaining(60);
-    remainingRef.current = 60;
+    playerTurnTimerRef.current?.setDuration(60);
+    playerTurnTimerRef.current?.reset();
+    enemyTurnTimerRef.current?.setDuration(60);
+    enemyTurnTimerRef.current?.reset();
     setGameOver({ over: false, winner: null });
     // プリゲーム（先攻/後攻決めとマリガン）を開始
     setPreGame(true);
@@ -483,10 +558,7 @@ export function useGame(): {
           const next = Math.max(h - dmg, 0);
           if (next <= 0) {
             setGameOver({ over: true, winner: "player" });
-            if (turnTimeoutRef.current !== null) {
-              clearTimeout(turnTimeoutRef.current as number);
-              turnTimeoutRef.current = null;
-            }
+            try { playerTurnTimerRef.current?.stop(); enemyTurnTimerRef.current?.stop(); } catch (e) { /* ignore */ }
             setAiRunning(false);
           }
           return next;
@@ -576,10 +648,7 @@ export function useGame(): {
         console.log('[Game] Hero HP before:', hp, 'after attack by', attacker.name, '->', next);
         if (next <= 0) {
           setGameOver({ over: true, winner: isPlayerAttacker ? "player" : "enemy" });
-          if (turnTimeoutRef.current !== null) {
-            clearTimeout(turnTimeoutRef.current as number);
-            turnTimeoutRef.current = null;
-          }
+          try { playerTurnTimerRef.current?.stop(); enemyTurnTimerRef.current?.stop(); } catch (e) { /* ignore */ }
           setAiRunning(false);
         }
         return next;
@@ -725,10 +794,7 @@ export function useGame(): {
           const next = Math.max(h - 2, 0);
           if (next <= 0) {
             setGameOver({ over: true, winner: "player" });
-            if (turnTimeoutRef.current !== null) {
-              clearTimeout(turnTimeoutRef.current as number);
-              turnTimeoutRef.current = null;
-            }
+            try { playerTurnTimerRef.current?.stop(); enemyTurnTimerRef.current?.stop(); } catch (e) { /* ignore */ }
             setAiRunning(false);
           }
           return next;
@@ -743,10 +809,7 @@ export function useGame(): {
             const next = Math.max(h - dmg, 0);
             if (next <= 0) {
               setGameOver({ over: true, winner: "player" });
-              if (turnTimeoutRef.current !== null) {
-                clearTimeout(turnTimeoutRef.current as number);
-                turnTimeoutRef.current = null;
-              }
+              try { playerTurnTimerRef.current?.stop(); enemyTurnTimerRef.current?.stop(); } catch (e) { /* ignore */ }
               setAiRunning(false);
             }
             return next;
@@ -860,6 +923,10 @@ export function useGame(): {
     finalizeCoin,
     doMulligan,
     startMatch,
+    // expose the timer instances so UI can subscribe
+    playerTurnTimer: playerTurnTimerRef.current,
+    enemyTurnTimer: enemyTurnTimerRef.current,
+    setPauseTimer,
   };
 }
 

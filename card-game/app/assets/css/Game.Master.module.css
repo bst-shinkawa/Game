@@ -7,10 +7,11 @@
   z-index: 1;
   background-repeat: no-repeat;
   background-size: cover;
-  background-image: url("/Game/img/field/bg_1.png");
+  background-position: center;
+  background-image: url("/Game/img/field/bg.png");
 }
 .field.field_local {
-  background-image: url("/img/field/bg_1.png");
+  background-image: url("/img/field/bg.png");
 }
 .field_bg {
   position: absolute;
@@ -64,10 +65,9 @@
   padding: 10px;
 }
 .field_enemy_battle {
-  background-color: #c9c9c9;
   padding: 20px;
   position: absolute;
-  bottom: -10%;
+  bottom: -18%;
   right: 50%;
   transform: translate(50%, -50%);
   max-width: 80%;
@@ -75,8 +75,14 @@
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 20px;
-  width: 500px;
-  height: 140px;
+  background-image: url("/img/field/enemy_battle_bg.png");
+  background-position: center;
+  background-size: contain;
+  background-repeat: no-repeat;
+}
+.field_enemy_battle:empty {
+  min-height: 44.5%;
+  min-width: 44.5%;
 }
 .field_enemy_hand {
   position: absolute;
@@ -103,7 +109,7 @@
   grid-template-columns: repeat(3, 1fr);
   gap: 15px;
   padding: 10px;
-  width: 300px;
+  width: 350px;
   text-align: center;
 }
 .field_enemy_status_item {
@@ -122,8 +128,9 @@
 }
 .field_enemy_hand_area {
   position: fixed;
-  top: 1%;
-  left: 5%;
+  top: 2vw;
+  left: 50%;
+  transform: translate(-50%, 0%);
   width: 100%;
   max-width: 390px;
   display: flex;
@@ -175,7 +182,7 @@
   position: absolute;
   font-weight: 600;
   font-size: 35px;
-  color: #463423;
+  color: #6e7ce3;
   pointer-events: none;
   -webkit-user-select: none;
      -moz-user-select: none;
@@ -259,19 +266,23 @@
   padding: 10px;
 }
 .field_player_battle {
-  background-color: #c9c9c9;
   padding: 20px;
   position: absolute;
-  top: 20%;
+  top: 25%;
   right: 50%;
   transform: translate(50%, -50%);
-  max-width: 80%;
   margin: 0 auto;
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 20px;
-  width: 500px;
-  height: 140px;
+  background-image: url("/img/field/player_battle_bg.png");
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+.field_player_battle:empty {
+  min-height: 44.5%;
+  min-width: 44.5%;
 }
 .field_player_hand {
   position: absolute;
@@ -318,7 +329,7 @@
   position: absolute;
   font-weight: 600;
   font-size: 35px;
-  color: #463423;
+  color: #6e7ce3;
   pointer-events: none;
   -webkit-user-select: none;
      -moz-user-select: none;
@@ -371,7 +382,7 @@
   grid-template-columns: repeat(3, 1fr);
   gap: 15px;
   padding: 10px;
-  width: 300px;
+  width: 350px;
   text-align: center;
 }
 .field_player_status_item {
@@ -390,24 +401,18 @@
 }
 .field_player_hand_area {
   position: fixed;
-  bottom: 5%;
-  right: 5%;
+  bottom: 5vw;
   width: 100%;
-  max-width: 390px;
   display: flex;
   justify-content: center;
-  align-items: flex-end;
   transition: all 0.6s ease;
   transform-origin: center;
   z-index: 1000;
 }
 .field_player_hand_area.expanded {
-  bottom: 15%;
-  right: 20%;
-  transform: translate(50%, 50%) scale(1);
-  flex-wrap: wrap;
-  justify-content: left;
+  display: flex;
   gap: 10px;
+  justify-content: center;
   align-items: center;
   z-index: 2000;
 }
@@ -417,13 +422,12 @@
   bottom: 0;
   transform: none !important;
 }
+.field_player_hand_area .card {
+  width: clamp(70px, 7vw, 90px);
+}
 .field_player_hand_card {
-  width: 19%;
-  max-width: 70px;
-  background: #eee;
   position: absolute;
   bottom: 0;
-  left: 50%;
   transform-origin: bottom center;
   cursor: pointer;
   transition: all 0.25s ease;
@@ -549,14 +553,18 @@
 }
 
 .card {
-  width: 100%;
-  max-width: 70px;
-  height: auto;
-  background-color: rgb(15, 36, 85);
+  width: clamp(80px, 8vw, 100px);
+  padding-top: 140%;
   position: relative;
 }
 .card:hover {
   cursor: pointer;
+}
+.card img {
+  position: absolute;
+  width: 100%;
+  top: 0;
+  right: 0;
 }
 .card_hp {
   background-color: green;
@@ -683,6 +691,7 @@
   align-items: center;
   justify-content: center;
   position: relative;
+  background-size: contain;
 }
 
 /* ルーレット / コインポップアップ / モーダル系 */

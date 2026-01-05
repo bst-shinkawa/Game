@@ -29,7 +29,7 @@ export function useGameActions(
   enemyHeroHp: number,
   setEnemyHeroHp: React.Dispatch<React.SetStateAction<number>>,
   setGameOver: React.Dispatch<React.SetStateAction<{ over: boolean; winner: null | "player" | "enemy" }>>,
-  turnTimeoutRef: React.MutableRefObject<number | null>,
+  stopTimer: () => void,
   setAiRunning: React.Dispatch<React.SetStateAction<boolean>>
 ) {
   // フォロワーをフィールドに出す
@@ -78,10 +78,7 @@ export function useGameActions(
           const next = Math.max(h - dmg, 0);
           if (next <= 0) {
             setGameOver({ over: true, winner: "player" });
-            if (turnTimeoutRef.current !== null) {
-              clearTimeout(turnTimeoutRef.current as number);
-              turnTimeoutRef.current = null;
-            }
+            try { stopTimer(); } catch (e) { /* ignore */ }
             setAiRunning(false);
           }
           return next;
@@ -140,10 +137,7 @@ export function useGameActions(
         const next = Math.max(hp - total, 0);
         if (next <= 0) {
           setGameOver({ over: true, winner: isPlayerAttacker ? "player" : "enemy" });
-          if (turnTimeoutRef.current !== null) {
-            clearTimeout(turnTimeoutRef.current as number);
-            turnTimeoutRef.current = null;
-          }
+          try { stopTimer(); } catch (e) { /* ignore */ }
           setAiRunning(false);
         }
         return next;
@@ -263,10 +257,7 @@ export function useGameActions(
           const next = Math.max(h - 2, 0);
           if (next <= 0) {
             setGameOver({ over: true, winner: "player" });
-            if (turnTimeoutRef.current !== null) {
-              clearTimeout(turnTimeoutRef.current as number);
-              turnTimeoutRef.current = null;
-            }
+            try { stopTimer(); } catch (e) { /* ignore */ }
             setAiRunning(false);
           }
           return next;
@@ -280,10 +271,7 @@ export function useGameActions(
             const next = Math.max(h - dmg, 0);
             if (next <= 0) {
               setGameOver({ over: true, winner: "player" });
-              if (turnTimeoutRef.current !== null) {
-                clearTimeout(turnTimeoutRef.current as number);
-                turnTimeoutRef.current = null;
-              }
+              try { stopTimer(); } catch (e) { /* ignore */ }
               setAiRunning(false);
             }
             return next;

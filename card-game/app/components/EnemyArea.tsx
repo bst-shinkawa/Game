@@ -6,11 +6,12 @@ import ManaBar from "./ManaBar";
 import Image from "next/image";
 import type { Card } from "@/app/data/cards";
 import styles from "@/app/assets/css/Game.Master.module.css";
-import handIcon from "@/public/img/field/hand.png";
-import deckIcon from "@/public/img/field/deck.png";
-import deathIcon from "@/public/img/field/void.png";
-import cardBack from "@/public/img/field/card-back.png";
+import handIcon from "@/public/img/field/hand-icon.png";
+import deckIcon from "@/public/img/field/deck-icon.png";
+import deathIcon from "@/public/img/field/void-icon.png";
+import cardBack from "@/public/img/field/card_back.png";
 import TimerCircle, { TimerController } from "./TimerCircle";
+import { TurnTimer } from "@/app/data/turnTimer";
 
 interface EnemyAreaProps {
   enemyHeroHp: number;
@@ -27,11 +28,14 @@ interface EnemyAreaProps {
   enemySpellAnimation: { targetId: string | "hero"; effect: string } | null;
   onDragOver: (e: React.DragEvent<HTMLDivElement>) => void;
   onDrop: (targetId: string | "hero") => void;
-  onCardClick: (cardId: string) => void;
+  onCardHoverEnter?: (cardId: string) => void;
+  onCardHoverLeave?: () => void;
+  onCardClick?: (cardId: string) => void;
   enemyHeroRef: React.MutableRefObject<HTMLDivElement | null>;
   enemyFieldRefs: React.MutableRefObject<{ [key: string]: HTMLDivElement | null }>;
   enemyTimerRef: React.MutableRefObject<TimerController | null>;
   isTimerActive: boolean;
+  enemyTurnTimer?: TurnTimer | null;
 }
 
 export const EnemyArea: React.FC<EnemyAreaProps> = ({
@@ -49,11 +53,13 @@ export const EnemyArea: React.FC<EnemyAreaProps> = ({
   enemySpellAnimation,
   onDragOver,
   onDrop,
-  onCardClick,
+  onCardHoverEnter,
+  onCardHoverLeave,
   enemyHeroRef,
   enemyFieldRefs,
   enemyTimerRef,
   isTimerActive,
+  enemyTurnTimer,
 }) => {
   const getHpClass = (hp: number) => {
     if (hp === 20) return styles.hpWhite;
@@ -111,7 +117,8 @@ export const EnemyArea: React.FC<EnemyAreaProps> = ({
               ref={(el: HTMLDivElement | null) => {
                 enemyFieldRefs.current[card.uniqueId] = el;
               }}
-              onClick={() => onCardClick(card.uniqueId)}
+              onMouseEnter={() => onCardHoverEnter && onCardHoverEnter(card.uniqueId)}
+              onMouseLeave={() => onCardHoverLeave && onCardHoverLeave()}
             />
           );
         })}
@@ -158,6 +165,7 @@ export const EnemyArea: React.FC<EnemyAreaProps> = ({
           isPlayerTurn={!isPlayerTurn} 
           type="enemy"
           isTimerActive={!isPlayerTurn && isTimerActive}
+          timer={enemyTurnTimer}
         />
       </div>
 

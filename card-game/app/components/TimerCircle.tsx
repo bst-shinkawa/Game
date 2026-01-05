@@ -3,12 +3,14 @@
 
 import { useEffect, useRef, useImperativeHandle, forwardRef } from "react";
 import styles from "@/app/assets/css/Game.Master.module.css";
+import { TurnTimer } from "@/app/data/turnTimer";
 import { clsx } from "clsx"; // clsxをインポート
 
 
 // 制御用のインターフェースを定義
 export interface TimerController {
   start: () => void;
+  pause: () => void;
   reset: () => void;
 }
 
@@ -17,10 +19,14 @@ interface TimerProps {
   isPlayerTurn: boolean;
   isTimerActive: boolean;
   type: "player" | "enemy";
+  timer?: TurnTimer | null;
 }
 
-const CircularTimer = forwardRef<TimerController, TimerProps>(({ duration, isPlayerTurn, isTimerActive, type }, ref) => {
+const CircularTimer = forwardRef<TimerController, TimerProps>(({ duration, isPlayerTurn, isTimerActive, type, timer }, ref) => {
   const cardRef = useRef<HTMLDivElement>(null);
+  const startRef = useRef<() => void>(() => {});
+  const pauseRef = useRef<() => void>(() => {});
+  const resetRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     const root = cardRef.current!;
@@ -31,106 +37,72 @@ const CircularTimer = forwardRef<TimerController, TimerProps>(({ duration, isPla
     const R = 40;
     const C = 2 * Math.PI * R;
 
-    let remaining = DURATION;
-    let startTs: number | null = null;
-    let paused = true;
-    let rafId: number | null = null;
-
     progress.setAttribute("strokeDasharray", String(C));
-    timeLabel.textContent = String(Math.ceil(remaining));
-    setProgress(0); 
+    timeLabel.textContent = String(Math.ceil(DURATION));
+    setProgress(1);
 
     function setProgress(ratio: number) {
-        const offset = C * (1 - ratio);
-        progress.style.strokeDashoffset = String(offset);
+      const offset = C * (1 - ratio);
+      progress.style.strokeDashoffset = String(offset);
 
-        const rem = DURATION * (1 - ratio); 
-        progress.classList.remove(styles.warn, styles.critical); 
-        if (rem <= Math.max(1, DURATION * 0.15)) {
-            progress.classList.add(styles.critical);
-        } else if (rem <= Math.max(2, DURATION * 0.3)) {
-            progress.classList.add(styles.warn);
-        }
+      const rem = Math.max(0, Math.ceil(ratio * DURATION));
+      progress.classList.remove(styles.warn, styles.critical);
+      if (rem <= Math.max(1, DURATION * 0.15)) {
+        progress.classList.add(styles.critical);
+      } else if (rem <= Math.max(2, DURATION * 0.3)) {
+        progress.classList.add(styles.warn);
+      }
     }
 
-    function tick(now: number) {
-        if (startTs === null) startTs = now;
-        const elapsed = (now - startTs) / 1000;
-        let ratio = elapsed / DURATION; 
+    // subscribe to external timer if provided
+    let offTick: (() => void) | undefined;
+    let offEnd: (() => void) | undefined;
 
-        if (ratio >= 1) ratio = 1;
-        const rem = Math.max(0, DURATION - elapsed); 
-        timeLabel.textContent = String(Math.ceil(rem));
+    if (typeof timer !== 'undefined' && timer !== null) {
+      offTick = timer.onTick((remainingSeconds) => {
+        const ratio = remainingSeconds / DURATION;
+        timeLabel.textContent = String(Math.ceil(remainingSeconds));
         setProgress(ratio);
+      });
 
-        if (ratio < 1 && !paused) {
-            rafId = requestAnimationFrame(tick);
-        } else if (ratio >= 1) {
-            onTimerEnd();
-        }
-    }
-
-    function start() {
-        if (!paused) return;
-        paused = false;
-        startTs = performance.now() - ((DURATION - remaining) * 1000); 
-        rafId = requestAnimationFrame(tick);
-    }
-
-    function pause() {
-        if (paused) return;
-          paused = true;
-          cancelAnimationFrame(rafId!);
-
-        const now = performance.now();
-        if (startTs !== null) { 
-            const elapsed = (now - startTs) / 1000;
-            remaining = Math.max(0, DURATION - elapsed); 
-        }
-    }
-
-    function reset() {
-        paused = true;
-        cancelAnimationFrame(rafId!);
-        remaining = DURATION; 
-        startTs = null;
-        timeLabel.textContent = String(Math.ceil(remaining));
-        setProgress(0);
-        progress.classList.remove(styles.critical, styles.warn); 
-    }
-
-    function onTimerEnd() {
-        paused = true;
-        cancelAnimationFrame(rafId!);
+      offEnd = timer.onEnd(() => {
         timeLabel.textContent = "0";
-
+        setProgress(0);
         progress.classList.remove(styles.warn);
         progress.classList.add(styles.critical);
-        
         progress.animate(
-            [
-                { filter: "drop-shadow(0 6px 8px rgba(217,83,79,0.22))", transform: "scale(1.02)" },
-                { filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.08))", transform: "scale(1)" }
-            ],
-            { duration: 400, iterations: 2 }
+          [
+            { filter: "drop-shadow(0 6px 8px rgba(217,83,79,0.22))", transform: "scale(1.02)" },
+            { filter: "drop-shadow(0 2px 2px rgba(0,0,0,0.08))", transform: "scale(1)" }
+          ],
+          { duration: 400, iterations: 2 }
         );
+      });
     }
 
-    // propのisPlayerTurnが変化したときの動作
-    if (isPlayerTurn) {
-      if (isTimerActive) {
-          start();
-      } else {
-          pause();
-      }
-    } else {
-      reset(); 
+    // connect refs to external timer control if available
+    startRef.current = () => { if (timer) timer.start(); };
+    pauseRef.current = () => { if (timer) timer.pause(); };
+    resetRef.current = () => { if (timer) { timer.reset(); } else { timeLabel.textContent = String(Math.ceil(DURATION)); setProgress(1); } };
+
+    // legacy props compatibility (visual pause/reset)
+    if (!timer) {
+      // fall back to previous behavior
+      setProgress(1);
     }
 
     return () => {
-      cancelAnimationFrame(rafId!);
+      if (offTick) offTick();
+      if (offEnd) offEnd();
     };
-  }, [duration, isPlayerTurn, isTimerActive, styles]);
+  }, [duration, timer, styles]);
+
+  // 外部から start/pause/reset を呼べるようにする
+  useImperativeHandle(ref, () => ({
+    start: () => startRef.current(),
+    pause: () => pauseRef.current(),
+    reset: () => resetRef.current(),
+  }), []);
 
 
   // typeに基づいてCSSクラスのベース名を決定

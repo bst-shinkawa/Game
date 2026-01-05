@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
+import { TurnTimer } from "@/app/data/turnTimer";
 import { DamageFloater } from "./DamageFloater";
 import { EnemyArea } from "./EnemyArea";
 import { PlayerArea } from "./PlayerArea";
@@ -69,6 +70,7 @@ interface GameFieldProps {
   setIsHandExpanded: (expanded: boolean) => void;
   setActiveHandCardId: (id: string | null) => void;
   setShowTurnModal: (show: boolean) => void;
+  setPauseTimer: (pause: boolean) => void;
   setDescCardId: (id: string | null) => void;
   setRouletteRunning: (running: boolean) => void;
   setRouletteLabel: (label: string) => void;
@@ -77,6 +79,8 @@ interface GameFieldProps {
   setSwapIds: (ids: string[]) => void;
   setShowGameStart: (show: boolean) => void;
   setAttackClone: (clone: any) => void;
+  playerTurnTimer?: TurnTimer | null;
+  enemyTurnTimer?: TurnTimer | null;
 
   // Refs
   playerBattleRef: React.MutableRefObject<HTMLDivElement | null>;
@@ -139,6 +143,7 @@ export const GameField: React.FC<GameFieldProps> = ({
   setIsHandExpanded,
   setActiveHandCardId,
   setShowTurnModal,
+  setPauseTimer,
   setDescCardId,
   setRouletteRunning,
   setRouletteLabel,
@@ -151,6 +156,8 @@ export const GameField: React.FC<GameFieldProps> = ({
   playerBattleRef,
   handAreaRef,
   collapseHand,
+  playerTurnTimer,
+  enemyTurnTimer,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const enemyHeroRef = useRef<HTMLDivElement | null>(null);
@@ -179,7 +186,7 @@ export const GameField: React.FC<GameFieldProps> = ({
     return () => document.removeEventListener('mousemove', handleMouseMove);
   }, [draggingCard, setDragPosition]);
 
-  // ターン切替時に中央モーダルを短時間表示する
+  // ターン切替時に中央モーダルを短時間表示する（UI のみ）
   useEffect(() => {
     if (preGame || showGameStart) {
       setShowTurnModal(false);
@@ -187,8 +194,13 @@ export const GameField: React.FC<GameFieldProps> = ({
     }
     setShowTurnModal(true);
     const duration = isPlayerTurn ? 2000 : 1200;
-    const t = setTimeout(() => setShowTurnModal(false), duration);
-    return () => clearTimeout(t);
+    const t = setTimeout(() => {
+      setShowTurnModal(false);
+    }, duration);
+    return () => {
+      clearTimeout(t);
+      setShowTurnModal(false);
+    };
   }, [isPlayerTurn, turn, preGame, showGameStart, setShowTurnModal]);
 
   // ダメージフロート表示ロジック: ヒーローとフィールドカードのHP変化を監視してフロートを追加
@@ -662,6 +674,7 @@ export const GameField: React.FC<GameFieldProps> = ({
         enemyFieldRefs={enemyFieldRefs}
         enemyTimerRef={enemyTimerRef}
         isTimerActive={isTimerActive}
+        enemyTurnTimer={enemyTurnTimer}
       />
 
       {/* プレイヤーエリア */}
@@ -739,6 +752,7 @@ export const GameField: React.FC<GameFieldProps> = ({
         collapseHand={collapseHand}
         timerRef={timerRef}
         isTimerActive={isTimerActive}
+        playerTurnTimer={playerTurnTimer}
       />
 
       {/* ターンエンドボタン */}

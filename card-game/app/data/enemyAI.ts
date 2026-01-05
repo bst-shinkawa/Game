@@ -94,7 +94,7 @@ export async function runEnemyTurn(
   setEnemySpellAnimation: React.Dispatch<React.SetStateAction<{ targetId: string | "hero"; effect: string } | null>>,
   attack: (attackerId: string, targetId: string | "hero", isPlayerAttacker: boolean) => void,
   endTurn: () => void,
-  turnTimeoutRef: React.MutableRefObject<number | null>,
+  stopTimer: () => void,
   setEnemyGraveyard: React.Dispatch<React.SetStateAction<Card[]>>,
   cancelRef: MutableRefObject<boolean>
 ) {
@@ -129,10 +129,7 @@ export async function runEnemyTurn(
           const next = Math.max(hp - dmg, 0);
           if (next <= 0) {
             setGameOver({ over: true, winner: "enemy" });
-            if (turnTimeoutRef.current !== null) {
-              clearTimeout(turnTimeoutRef.current as number);
-              turnTimeoutRef.current = null;
-            }
+            try { stopTimer(); } catch (e) { /* ignore */ }
             return 0;
           }
           return next;
@@ -234,10 +231,7 @@ export async function runEnemyTurn(
           const next = Math.max(hp - dmg, 0);
           if (next <= 0) {
             setGameOver({ over: true, winner: "enemy" });
-            if (turnTimeoutRef.current !== null) {
-              clearTimeout(turnTimeoutRef.current as number);
-              turnTimeoutRef.current = null;
-            }
+            try { stopTimer(); } catch (e) { /* ignore */ }
             return 0;
           }
           return next;
@@ -373,10 +367,7 @@ export async function runEnemyTurn(
         const next = Math.max(hp - dmg, 0);
         if (next <= 0) {
           setGameOver({ over: true, winner: "enemy" });
-          if (turnTimeoutRef.current !== null) {
-            clearTimeout(turnTimeoutRef.current as number);
-            turnTimeoutRef.current = null;
-          }
+          try { stopTimer(); } catch (e) { /* ignore */ }
           return 0;
         }
         return next;
@@ -405,10 +396,7 @@ export async function runEnemyTurn(
           const next = Math.max(hp - dmg, 0);
           if (next <= 0) {
             setGameOver({ over: true, winner: "enemy" });
-            if (turnTimeoutRef.current !== null) {
-              clearTimeout(turnTimeoutRef.current as number);
-              turnTimeoutRef.current = null;
-            }
+            try { stopTimer(); } catch (e) { /* ignore */ }
             return 0;
           }
           return next;

@@ -6,10 +6,11 @@ import ManaBar from "./ManaBar";
 import Image from "next/image";
 import type { Card } from "@/app/data/cards";
 import styles from "@/app/assets/css/Game.Master.module.css";
-import handIcon from "@/public/img/field/hand.png";
-import deckIcon from "@/public/img/field/deck.png";
-import deathIcon from "@/public/img/field/void.png";
+import handIcon from "@/public/img/field/hand-icon.png";
+import deckIcon from "@/public/img/field/deck-icon.png";
+import deathIcon from "@/public/img/field/void-icon.png";
 import TimerCircle, { TimerController } from "./TimerCircle";
+import { TurnTimer } from "@/app/data/turnTimer";
 
 interface PlayerAreaProps {
   playerHeroHp: number;
@@ -52,9 +53,11 @@ interface PlayerAreaProps {
   collapseHand: () => void;
   timerRef: React.MutableRefObject<TimerController | null>;
   isTimerActive: boolean;
+  playerTurnTimer?: TurnTimer | null;
 }
 
 export const PlayerArea: React.FC<PlayerAreaProps> = ({
+  playerTurnTimer,
   playerHeroHp,
   playerHandCards = [],
   playerFieldCards = [],
@@ -121,10 +124,8 @@ export const PlayerArea: React.FC<PlayerAreaProps> = ({
 
     if (activeHandCardId === cardId) {
       setActiveHandCardId(null);
-      setDescCardId(null);
     } else {
       setActiveHandCardId(cardId);
-      setDescCardId(cardId);
     }
   };
 
@@ -326,9 +327,12 @@ export const PlayerArea: React.FC<PlayerAreaProps> = ({
                 currentMana={currentMana}
                 onDragStart={(e) => {
                   if (!isPlayerTurn) return;
+                  setDescCardId(null);
                   onDragStart(card, e);
                 }}
                 onDragEnd={onDragEnd}
+                onMouseEnter={() => setDescCardId(card.uniqueId)}
+                onMouseLeave={() => setDescCardId(null)}
                 style={{
                   ...swapIds.includes(card.uniqueId) ? { border: '2px solid limegreen' } : undefined,
                   opacity: isDragging ? 0.3 : 1,
@@ -354,6 +358,7 @@ export const PlayerArea: React.FC<PlayerAreaProps> = ({
           isPlayerTurn={isPlayerTurn} 
           type="player"
           isTimerActive={isTimerActive}
+          timer={playerTurnTimer}
         />
       </div>
 
