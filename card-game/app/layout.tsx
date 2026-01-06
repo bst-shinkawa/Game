@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import AppViewport from "./components/AppViewport";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -29,7 +30,12 @@ export default function RootLayout({
     <html lang="ja">
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
         <GameProvider>
-          {children}
+          {/* 16:9 固定スケーリングのラッパー */}
+          <div id="app-viewport-root">
+            <AppViewport>
+              {children}
+            </AppViewport>
+          </div>
         </GameProvider>
       </body>
     </html>

@@ -11,9 +11,28 @@ const GamePage: React.FC = () => {
   const uiState = useGameUI();
 
   if (mode === "menu") {
+    const tryLockLandscape = async () => {
+      if (typeof window === "undefined") return;
+      try {
+        // iOS Safari doesn't support orientation.lock; catch failures
+        if (document.fullscreenEnabled) {
+          await document.documentElement.requestFullscreen();
+        }
+        // @ts-ignore
+        if (screen?.orientation && (screen.orientation as any).lock) {
+          // try locking to landscape-primary first
+          // @ts-ignore
+          await (screen.orientation as any).lock("landscape");
+        }
+      } catch (e) {
+        // ignore; we'll show rotate overlay via AppViewport
+        console.info("orientation lock failed or not supported", e);
+      }
+    };
+
     return (
       <StartMenu
-        onSelectMode={(m) => {
+        onSelectMode={async (m) => {
           if (m === "cpu") {
             gameState.resetGame("cpu");
             uiState.setDescCardId(null);
@@ -24,6 +43,8 @@ const GamePage: React.FC = () => {
             uiState.setSwapIds([]);
             uiState.setMulliganTimer(15);
           }
+          // ユーザーのクリック操作に紐づけてフルスクリーン + 横向きロックを試みる
+          await tryLockLandscape();
           setMode("game");
         }}
         onDeck={() => setMode("deck")}
