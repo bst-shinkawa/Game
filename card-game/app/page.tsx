@@ -1,9 +1,11 @@
 "use client";
 import React, { useState } from "react";
+import dynamic from 'next/dynamic';
 import { useGameContext } from "./context/GameContext";
 import { useGameUI } from "./hooks/useGameUI";
-import { GameField } from "./components/GameField";
+const GameField = dynamic(() => import('./components/GameField').then(mod => mod.GameField), { ssr: false, loading: () => <div>Loading...</div> });
 import StartMenu from "./components/StartMenu";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 const GamePage: React.FC = () => {
   const [mode, setMode] = useState<"menu" | "game" | "deck">("menu");
