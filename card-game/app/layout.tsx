@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import AppViewport from "./components/AppViewport";
+import ErrorBoundary from "./components/ErrorBoundary";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -33,7 +34,9 @@ export default function RootLayout({
           {/* 16:9 固定スケーリングのラッパー */}
           <div id="app-viewport-root">
             <AppViewport>
-              {children}
+              <ErrorBoundary>
+                {children}
+              </ErrorBoundary>
             </AppViewport>
           </div>
         </GameProvider>
