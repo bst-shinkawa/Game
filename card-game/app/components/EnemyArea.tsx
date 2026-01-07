@@ -38,7 +38,7 @@ interface EnemyAreaProps {
   enemyTurnTimer?: TurnTimer | null;
 }
 
-export const EnemyArea: React.FC<EnemyAreaProps> = ({
+export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string | null; id?: string | null }, dropSuccess?: { type: string | null; id?: string | null } }> = ({
   enemyHeroHp,
   enemyHandCards,
   enemyFieldCards,
@@ -60,6 +60,8 @@ export const EnemyArea: React.FC<EnemyAreaProps> = ({
   enemyTimerRef,
   isTimerActive,
   enemyTurnTimer,
+  hoverTarget,
+  dropSuccess,
 }) => {
   const getHpClass = (hp: number) => {
     if (hp === 20) return styles.hpWhite;
@@ -76,9 +78,11 @@ export const EnemyArea: React.FC<EnemyAreaProps> = ({
       {/* 敵ヒーロー */}
       <div
         ref={enemyHeroRef}
-        className={styles.field_enemy_hero}
+        className={`${styles.field_enemy_hero} ${hoverTarget?.type === 'enemyHero' ? styles.target_highlight : ''} ${dropSuccess?.type === 'enemyHero' ? styles.drop_success : ''}`}
         onDragOver={onDragOver}
-        onDrop={() => onDrop("hero")}
+        onDrop={() => {
+          onDrop("hero");
+        }}
         style={
           enemySpellAnimation?.targetId === "hero"
             ? { animation: "spellTargetFlash 0.6s ease-out" }
@@ -98,6 +102,8 @@ export const EnemyArea: React.FC<EnemyAreaProps> = ({
           const isAttacking = enemyAttackAnimation?.sourceCardId === card.uniqueId;
           const isSummoning = (card as { isAnimating?: boolean }).isAnimating;
           const isSpellTarget = enemySpellAnimation?.targetId === card.uniqueId;
+          const isHovered = hoverTarget?.id === card.uniqueId && hoverTarget?.type === 'enemyCard';
+          const isDropped = dropSuccess?.id === card.uniqueId && dropSuccess?.type === 'enemyCard';
           return (
             <CardItem
               key={card.uniqueId}
@@ -105,7 +111,7 @@ export const EnemyArea: React.FC<EnemyAreaProps> = ({
               hp={card.hp ?? 0}
               maxHp={card.maxHp ?? 0}
               attack={card.attack ?? 0}
-              className={isSummoning ? styles.enemy_follower_summon : ""}
+              className={`${isSummoning ? styles.enemy_follower_summon : ""} ${isHovered ? styles.target_highlight : ''} ${isDropped ? styles.drop_success : ''}`}
               style={{
                 ...((card as { isAnimating?: boolean }).isAnimating ? { transform: "translateY(-40px)", opacity: 0 } : {}),
                 ...(isAttacking ? { animation: "enemyCardAttack 0.9s ease-in-out forwards" } : {}),

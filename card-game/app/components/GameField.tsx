@@ -1,10 +1,12 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { TurnTimer } from "@/app/data/turnTimer";
 import { DamageFloater } from "./DamageFloater";
 import { EnemyArea } from "./EnemyArea";
 import { PlayerArea } from "./PlayerArea";
+import CardItem from "./CardItem";
 import { PreGame } from "./PreGame";
 import GameOver from "./GameOver";
 import type { Card } from "@/app/data/cards";
@@ -174,17 +176,223 @@ export const GameField: React.FC<GameFieldProps> = ({
 
   const isTimeCritical = isPlayerTurn && turnSecondsRemaining <= 20;
 
-  // ドラッグ中のマウス座標追跡
+  // ドラッグ中のマウス座標追跡（mousemove / dragover を rAF でバッファして更新）
+  const dragPendingRef = React.useRef<{ x: number; y: number } | null>(null);
+  const dragRafRef = React.useRef<number | null>(null);
+  const dragOffsetRef = React.useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [hoverTarget, setHoverTarget] = React.useState<{ type: string | null; id?: string | null }>({ type: null });
+  const [dropSuccess, setDropSuccess] = React.useState<{ type: string | null; id?: string | null }>({ type: null });
+
   useEffect(() => {
-    if (!draggingCard) return;
+    if (!draggingCard) {
+      setHoverTarget({ type: null });
+      return;
+    }
+
+    const flushPending = () => {
+      if (dragPendingRef.current) {
+        const pos = { x: dragPendingRef.current.x - dragOffsetRef.current.x, y: dragPendingRef.current.y - dragOffsetRef.current.y };
+        setDragPosition(pos);
+        // determine hover target
+        try {
+          const el = document.elementFromPoint(dragPendingRef.current.x, dragPendingRef.current.y) as HTMLElement | null;
+          if (el) {
+            const enemyHeroEl = el.closest('.' + styles.field_enemy_hero);
+            const playerHeroEl = el.closest('.' + styles.field_player_hero);
+            const enemyBattleEl = el.closest('.' + styles.field_enemy_battle);
+            const playerBattleEl = el.closest('.' + styles.field_player_battle);
+            const cardEl = el.closest('[data-uniqueid]') as HTMLElement | null;
+
+            if (enemyHeroEl) setHoverTarget({ type: 'enemyHero' });
+            else if (playerHeroEl) setHoverTarget({ type: 'playerHero' });
+            else if (cardEl && enemyBattleEl) setHoverTarget({ type: 'enemyCard', id: cardEl.getAttribute('data-uniqueid') });
+            else if (cardEl && playerBattleEl) setHoverTarget({ type: 'playerCard', id: cardEl.getAttribute('data-uniqueid') });
+            else if (playerBattleEl) setHoverTarget({ type: 'playerBattle' });
+            else if (enemyBattleEl) setHoverTarget({ type: 'enemyBattle' });
+            else setHoverTarget({ type: null });
+          } else {
+            setHoverTarget({ type: null });
+          }
+        } catch (e) {
+          setHoverTarget({ type: null });
+        }
+
+        dragPendingRef.current = null;
+      }
+      if (dragRafRef.current) {
+        cancelAnimationFrame(dragRafRef.current);
+        dragRafRef.current = null;
+      }
+    };
+
+    const scheduleFlush = () => {
+      if (dragRafRef.current != null) return;
+      dragRafRef.current = requestAnimationFrame(() => {
+        if (dragPendingRef.current) {
+          const pos = { x: dragPendingRef.current.x - dragOffsetRef.current.x, y: dragPendingRef.current.y - dragOffsetRef.current.y };
+          setDragPosition(pos);
+          // determine hover target
+          try {
+            const p = dragPendingRef.current as { x: number; y: number };
+            const el = document.elementFromPoint(p.x, p.y) as HTMLElement | null;
+            if (el) {
+              const enemyHeroEl = el.closest('.' + styles.field_enemy_hero);
+              const playerHeroEl = el.closest('.' + styles.field_player_hero);
+              const enemyBattleEl = el.closest('.' + styles.field_enemy_battle);
+              const playerBattleEl = el.closest('.' + styles.field_player_battle);
+              const cardEl = el.closest('[data-uniqueid]') as HTMLElement | null;
+
+              if (enemyHeroEl) setHoverTarget({ type: 'enemyHero' });
+              else if (playerHeroEl) setHoverTarget({ type: 'playerHero' });
+              else if (cardEl && enemyBattleEl) setHoverTarget({ type: 'enemyCard', id: cardEl.getAttribute('data-uniqueid') });
+              else if (cardEl && playerBattleEl) setHoverTarget({ type: 'playerCard', id: cardEl.getAttribute('data-uniqueid') });
+              else if (playerBattleEl) setHoverTarget({ type: 'playerBattle' });
+              else if (enemyBattleEl) setHoverTarget({ type: 'enemyBattle' });
+              else setHoverTarget({ type: null });
+            } else {
+              setHoverTarget({ type: null });
+            }
+          } catch (e) {
+            setHoverTarget({ type: null });
+          }
+          dragPendingRef.current = null;
+        }
+        dragRafRef.current = null;
+      });
+    };
 
     const handleMouseMove = (e: MouseEvent) => {
-      setDragPosition({ x: e.clientX, y: e.clientY });
+      dragPendingRef.current = { x: e.clientX, y: e.clientY };
+      scheduleFlush();
+    };
+
+    const handleDragOver = (e: DragEvent) => {
+      // dragover provides client coordinates reliably during HTML5 drag
+      dragPendingRef.current = { x: e.clientX, y: e.clientY };
+      scheduleFlush();
     };
 
     document.addEventListener('mousemove', handleMouseMove);
-    return () => document.removeEventListener('mousemove', handleMouseMove);
+    document.addEventListener('dragover', handleDragOver);
+
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('dragover', handleDragOver);
+      if (dragRafRef.current) cancelAnimationFrame(dragRafRef.current);
+      dragPendingRef.current = null;
+      dragRafRef.current = null;
+      setHoverTarget({ type: null });
+    };
   }, [draggingCard, setDragPosition]);
+
+  // Pointer / touch fallback: document-level pointer handling to support mobile drag
+  useEffect(() => {
+    let activePointerId: number | null = null;
+    let startRect: DOMRect | null = null;
+    let pointerOffset = { x: 0, y: 0 };
+
+    const onPointerDown = (e: PointerEvent) => {
+      // find the closest card element that has data-uniqueid
+      const el = (e.target as HTMLElement).closest('[data-uniqueid]') as HTMLElement | null;
+      if (!el) return;
+      const id = el.getAttribute('data-uniqueid');
+      if (!id) return;
+
+      // only start - if it's a player hand card or an attack-capable field card
+      const handCard = playerHandCards.find((c) => c.uniqueId === id);
+      const fieldCard = playerFieldCards.find((c) => c.uniqueId === id && c.canAttack);
+      if (!handCard && !fieldCard) return;
+      // ignore if not player's turn
+      if (!isPlayerTurn) return;
+
+      activePointerId = (e as any).pointerId ?? null;
+      startRect = el.getBoundingClientRect();
+      const startX = e.clientX;
+      const startY = e.clientY;
+      let dragStarted = false;
+      const DRAG_START_THRESHOLD = 6;
+
+      const onPointerMove = (ev: PointerEvent) => {
+        if (activePointerId == null || (ev as any).pointerId !== activePointerId) return;
+        const dx = ev.clientX - startX;
+        const dy = ev.clientY - startY;
+        if (!dragStarted) {
+          if (Math.hypot(dx, dy) > DRAG_START_THRESHOLD) {
+            dragStarted = true;
+            ev.preventDefault();
+            // compute offset relative to top-left so the grabbed point stays under pointer
+            pointerOffset = { x: startX - (startRect!.left), y: startY - (startRect!.top) };
+            setDraggingCard(id);
+            arrowStartPos.current = { x: startRect!.left + startRect!.width / 2, y: startRect!.top + startRect!.height / 2 };
+            setDragPosition({ x: ev.clientX - pointerOffset.x, y: ev.clientY - pointerOffset.y });
+          } else {
+            return;
+          }
+        } else {
+          ev.preventDefault();
+          const x = ev.clientX - pointerOffset.x;
+          const y = ev.clientY - pointerOffset.y;
+          setDragPosition({ x, y });
+        }
+      };
+
+      const onPointerUp = (ev: PointerEvent) => {
+        if (activePointerId == null || (ev as any).pointerId !== activePointerId) return;
+        if (!dragStarted) {
+          // click (no drag) — let click handlers run
+          document.removeEventListener('pointermove', onPointerMove);
+          document.removeEventListener('pointerup', onPointerUp);
+          activePointerId = null;
+          return;
+        }
+        ev.preventDefault();
+        // determine drop target
+        const dropEl = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null;
+
+        // If dropped on enemy hero or enemy field, try to cast spell or attack
+        const isDropOnEnemyHero = dropEl && enemyHeroRef.current && (enemyHeroRef.current === dropEl || enemyHeroRef.current.contains(dropEl));
+        const dropFieldCardEl = dropEl ? dropEl.closest('[data-uniqueid]') as HTMLElement | null : null;
+        const dropFieldCardId = dropFieldCardEl?.getAttribute('data-uniqueid') || null;
+
+        if (handCard) {
+          if (isDropOnEnemyHero) {
+            if (handCard.type === 'spell') castSpell(handCard.uniqueId, 'hero', true);
+            else attack(handCard.uniqueId, 'hero', true);
+          } else if (dropFieldCardId && enemyFieldCards.some(c => c.uniqueId === dropFieldCardId)) {
+            if (handCard.type === 'spell') castSpell(handCard.uniqueId, dropFieldCardId, true);
+            else attack(handCard.uniqueId, dropFieldCardId, true);
+          } else if (dropEl && playerBattleRef.current && (playerBattleRef.current === dropEl || playerBattleRef.current.contains(dropEl))) {
+            if (preGame && coinResult !== 'deciding') {
+              setSwapIds(swapIds.includes(handCard.uniqueId) ? swapIds.filter(id => id !== handCard.uniqueId) : [...swapIds, handCard.uniqueId]);
+            } else if (handCard.type !== 'spell') {
+              playCardToField(handCard);
+            }
+          }
+        } else if (fieldCard) {
+          if (isDropOnEnemyHero) {
+            attack(fieldCard.uniqueId, 'hero', true);
+          } else if (dropFieldCardId && enemyFieldCards.some(c => c.uniqueId === dropFieldCardId)) {
+            attack(fieldCard.uniqueId, dropFieldCardId, true);
+          }
+        }
+
+        // cleanup
+        setDraggingCard(null);
+        arrowStartPos.current = null;
+        document.removeEventListener('pointermove', onPointerMove);
+        document.removeEventListener('pointerup', onPointerUp);
+        activePointerId = null;
+      };
+
+      document.addEventListener('pointermove', onPointerMove);
+      document.addEventListener('pointerup', onPointerUp);
+    };
+
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+    };
+  }, [playerHandCards, playerFieldCards, isPlayerTurn, castSpell, attack, playCardToField, preGame, coinResult, swapIds]);
 
   // ターン切替時に中央モーダルを短時間表示する（UI のみ）
   useEffect(() => {
@@ -561,31 +769,44 @@ export const GameField: React.FC<GameFieldProps> = ({
         const cardWidth = 70;
         const cardHeight = 100;
 
-        return (
+        // scale the drag preview to match viewport scale so it aligns visually with scaled content
+        let s = 1;
+        if (typeof window !== 'undefined') {
+          const DESIGN_W = 1280;
+          const DESIGN_H = 720;
+          s = Math.min(window.innerWidth / DESIGN_W, window.innerHeight / DESIGN_H);
+        }
+        const displayW = Math.max(28, Math.round(cardWidth * s));
+        const displayH = Math.max(40, Math.round(cardHeight * s));
+
+        const clone = (
           <div
             style={{
               position: 'fixed',
-              left: dragPosition.x - cardWidth / 2,
-              top: dragPosition.y - cardHeight / 2,
-              width: cardWidth,
-              height: cardHeight,
-              zIndex: 950,
+              left: dragPosition.x,
+              top: dragPosition.y,
+              width: displayW,
+              height: displayH,
+              zIndex: 1600,
               pointerEvents: 'none',
-              opacity: 0.9,
-              filter: 'drop-shadow(0 4px 12px rgba(0,0,0,0.5))',
+              opacity: 0.98,
+              transform: 'scale(1.12)',
+              transition: 'transform 120ms ease',
             }}
-            className={styles.card}
+            className={styles.drag_clone}
           >
-            {card.image && <img src={card.image} alt={card.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />}
-            {card.type === 'follower' && (
-              <>
-                <div className={styles.card_hp}><p>{Math.min(card.hp ?? 0, card.maxHp ?? 0)}</p></div>
-                <div className={styles.card_attack}><p>{card.attack ?? 0}</p></div>
-              </>
-            )}
-            <div className={styles.card_cost}><p>{card.cost ?? 0}</p></div>
+            <CardItem
+              {...card}
+              hp={card.hp ?? 0}
+              maxHp={card.maxHp ?? 0}
+              attack={card.attack ?? 0}
+              className={styles.drag_clone_card}
+              style={{ width: displayW, height: displayH, paddingTop: 0 }}
+            />
           </div>
         );
+
+        return createPortal(clone, document.body);
       })()}
 
       {/* メニューボタン */}
@@ -653,6 +874,8 @@ export const GameField: React.FC<GameFieldProps> = ({
         playerHandCards={playerHandCards}
         enemyAttackAnimation={enemyAttackAnimation}
         enemySpellAnimation={enemySpellAnimation}
+        hoverTarget={hoverTarget}
+        dropSuccess={dropSuccess}
         onDragOver={(e) => {
           const handCard = playerHandCards.find((c) => c.uniqueId === draggingCard);
           const isHeal = handCard && handCard.effect === "heal_single";
@@ -668,6 +891,15 @@ export const GameField: React.FC<GameFieldProps> = ({
           }
           setDraggingCard(null);
           arrowStartPos.current = null;
+          dragOffsetRef.current = { x: 0, y: 0 };
+
+          // visual feedback for drop success
+          if (targetId === 'hero') {
+            setDropSuccess({ type: 'enemyHero' });
+          } else {
+            setDropSuccess({ type: 'enemyCard', id: targetId });
+          }
+          setTimeout(() => setDropSuccess({ type: null }), 500);
         }}
         onCardClick={(cardId: string) => setDescCardId(descCardId === cardId ? null : cardId)}
         enemyHeroRef={enemyHeroRef}
@@ -704,15 +936,25 @@ export const GameField: React.FC<GameFieldProps> = ({
         setArrowStartPos={(pos) => { arrowStartPos.current = pos; }}
         onDragStart={(card, e) => {
           if (!isPlayerTurn) return;
-          setDraggingCard(card.uniqueId);
+          try {
+            // Suppress browser drag ghost and ensure the drag carries an identifier
+            e.dataTransfer?.setData('text/plain', card.uniqueId);
+            e.dataTransfer?.setDragImage(new Image(), 0, 0);
+          } catch (err) { /* ignore for browsers that restrict dataTransfer */ }
+
           const rect = e.currentTarget.getBoundingClientRect();
-          const startPos = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-          arrowStartPos.current = startPos;
-          setDragPosition(startPos);
+          const startCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+          // store pointer offset relative to top-left so the grabbed point stays under pointer
+          const offset = { x: (e as any).clientX - rect.left, y: (e as any).clientY - rect.top };
+          (dragOffsetRef as any).current = offset;
+          setDraggingCard(card.uniqueId);
+          arrowStartPos.current = startCenter;
+          setDragPosition({ x: (e as any).clientX - offset.x, y: (e as any).clientY - offset.y });
         }}
         onDragEnd={() => {
           setDraggingCard(null);
           arrowStartPos.current = null;
+          dragOffsetRef.current = { x: 0, y: 0 };
         }}
         onDragOver={(e) => {
           const handCard = playerHandCards.find((c) => c.uniqueId === draggingCard);
@@ -728,6 +970,7 @@ export const GameField: React.FC<GameFieldProps> = ({
           }
           setDraggingCard(null);
           arrowStartPos.current = null;
+          dragOffsetRef.current = { x: 0, y: 0 };
         }}
         onPlayerFieldDrop={() => {
           if (!draggingCard) return;
@@ -740,6 +983,7 @@ export const GameField: React.FC<GameFieldProps> = ({
           }
           setDraggingCard(null);
           arrowStartPos.current = null;
+          dragOffsetRef.current = { x: 0, y: 0 };
         }}
         onCardClick={(cardId: string) => setDescCardId(descCardId === cardId ? null : cardId)}
         onCardSwap={(cardId: string) => {
@@ -753,6 +997,8 @@ export const GameField: React.FC<GameFieldProps> = ({
         timerRef={timerRef}
         isTimerActive={isTimerActive}
         playerTurnTimer={playerTurnTimer}
+        hoverTarget={hoverTarget}
+        dropSuccess={dropSuccess}
       />
 
       {/* ターンエンドボタン */}

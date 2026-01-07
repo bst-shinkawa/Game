@@ -56,7 +56,7 @@ interface PlayerAreaProps {
   playerTurnTimer?: TurnTimer | null;
 }
 
-export const PlayerArea: React.FC<PlayerAreaProps> = ({
+export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: string | null; id?: string | null }, dropSuccess?: { type: string | null; id?: string | null } }> = ({
   playerTurnTimer,
   playerHeroHp,
   playerHandCards = [],
@@ -95,6 +95,8 @@ export const PlayerArea: React.FC<PlayerAreaProps> = ({
   collapseHand,
   timerRef,
   isTimerActive,
+  hoverTarget,
+  dropSuccess,
 }) => {
   // 手札レイアウト計算
   useEffect(() => {
@@ -273,7 +275,11 @@ export const PlayerArea: React.FC<PlayerAreaProps> = ({
         }}
         onDrop={onPlayerFieldDrop}
       >
-        {playerFieldCards.map((card) => (
+        {playerFieldCards.map((card) => {
+          const isDragging = draggingCard === card.uniqueId;
+          const isHovered = hoverTarget?.id === card.uniqueId && hoverTarget?.type === 'playerCard';
+          const isDropped = dropSuccess?.id === card.uniqueId && dropSuccess?.type === 'playerCard';
+          return (
           <CardItem
             key={card.uniqueId}
             {...card}
@@ -288,14 +294,15 @@ export const PlayerArea: React.FC<PlayerAreaProps> = ({
             onDragEnd={onDragEnd}
             onDragOver={onDragOver}
             onDrop={() => onCardClick(card.uniqueId)}
+            className={`${isHovered ? styles.target_highlight : ''} ${isDropped ? styles.drop_success : ''}`}
             style={{
-              opacity: draggingCard === card.uniqueId ? 0.3 : 1,
+              opacity: isDragging ? 0.15 : 1,
               transition: 'opacity 0.1s ease',
             }}
             ref={(el: HTMLDivElement | null) => { playerFieldRefs.current[card.uniqueId] = el; }}
             onClick={() => onCardClick(card.uniqueId)}
           />
-        ))}
+        )})}
       </div>
 
       {/* プレイヤー手札 */}
@@ -317,28 +324,32 @@ export const PlayerArea: React.FC<PlayerAreaProps> = ({
               }}
               style={{ zIndex: isActive ? 4000 : (isDragging ? 950 : 10), transition: 'all 0.25s ease' }}
             >
-              <CardItem
-                {...card}
-                hp={card.hp ?? 0}
-                maxHp={card.maxHp ?? 0}
-                attack={card.attack ?? 0}
-                draggable
-                inHand
-                currentMana={currentMana}
-                onDragStart={(e) => {
-                  if (!isPlayerTurn) return;
-                  setDescCardId(null);
-                  onDragStart(card, e);
-                }}
-                onDragEnd={onDragEnd}
-                onMouseEnter={() => setDescCardId(card.uniqueId)}
-                onMouseLeave={() => setDescCardId(null)}
-                style={{
-                  ...swapIds.includes(card.uniqueId) ? { border: '2px solid limegreen' } : undefined,
-                  opacity: isDragging ? 0.3 : 1,
-                  transition: 'opacity 0.1s ease',
-                }}
-              />
+              {isDragging ? (
+                <div className={styles.card_placeholder} aria-hidden={true} />
+              ) : (
+                <CardItem
+                  {...card}
+                  hp={card.hp ?? 0}
+                  maxHp={card.maxHp ?? 0}
+                  attack={card.attack ?? 0}
+                  draggable
+                  inHand
+                  currentMana={currentMana}
+                  onDragStart={(e) => {
+                    if (!isPlayerTurn) return;
+                    setDescCardId(null);
+                    onDragStart(card, e);
+                  }}
+                  onDragEnd={onDragEnd}
+                  onMouseEnter={() => setDescCardId(card.uniqueId)}
+                  onMouseLeave={() => setDescCardId(null)}
+                  style={{
+                    ...swapIds.includes(card.uniqueId) ? { border: '2px solid limegreen' } : undefined,
+                    opacity: isDragging ? 0.3 : 1,
+                    transition: 'opacity 0.1s ease',
+                  }}
+                />
+              )}
             </div>
           );
         })}
