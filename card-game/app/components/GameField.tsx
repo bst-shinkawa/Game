@@ -290,6 +290,7 @@ export const GameField: React.FC<GameFieldProps> = ({
     let activePointerId: number | null = null;
     let startRect: DOMRect | null = null;
     let pointerOffset = { x: 0, y: 0 };
+    const DEBUG = typeof window !== 'undefined' && (window as any).__GAME_DRAG_DEBUG__ === true;
 
     const DRAG_START_THRESHOLD = 6;
 
@@ -297,9 +298,11 @@ export const GameField: React.FC<GameFieldProps> = ({
       activePointerId = idForPointer ?? null;
       startRect = el.getBoundingClientRect();
       let dragStarted = false;
+      if (DEBUG) console.debug('[drag-debug] beginPotentialDrag', { id, startX, startY, idForPointer, startRect: { left: startRect.left, top: startRect.top, width: startRect.width, height: startRect.height } });
 
       const forceStart = () => {
         if (dragStarted) return;
+        if (DEBUG) console.debug('[drag-debug] forceStart', { id });
         dragStarted = true;
         try { (document.activeElement as HTMLElement | null)?.blur(); } catch (e) {}
         pointerOffset = { x: startX - (startRect!.left), y: startY - (startRect!.top) };
@@ -314,6 +317,7 @@ export const GameField: React.FC<GameFieldProps> = ({
         if (!dragStarted) {
           if (Math.hypot(dx, dy) > DRAG_START_THRESHOLD) {
             dragStarted = true;
+            if (DEBUG) console.debug('[drag-debug] dragStarted by move', { id, x, y, dx, dy });
             // prevent native scrolling when drag actually starts
             if (preventDefaultIfStarted) {
               try { /* best-effort */ (document.activeElement as HTMLElement | null)?.blur(); } catch (e) {}
@@ -327,12 +331,13 @@ export const GameField: React.FC<GameFieldProps> = ({
           }
           return false;
         } else {
+          if (DEBUG) console.debug('[drag-debug] dragMove', { id, x, y });
           setDragPosition({ x: x - pointerOffset.x, y: y - pointerOffset.y });
           return true;
         }
       };
 
-      return { onMove, forceStart, finish: () => { startRect = null; activePointerId = null; } };
+      return { onMove, forceStart, finish: () => { if (DEBUG) console.debug('[drag-debug] finish', { id }); startRect = null; activePointerId = null; } };
     };
 
     const onPointerDown = (e: PointerEvent) => {
@@ -352,20 +357,24 @@ export const GameField: React.FC<GameFieldProps> = ({
       const startX = e.clientX;
       const startY = e.clientY;
       const pd = beginPotentialDrag(startX, startY, el, id, (e as any).pointerId ?? null);
+      if (DEBUG) console.debug('[drag-debug] pointerdown', { id, startX, startY, pointerId: (e as any).pointerId, handCard: !!handCard, fieldCard: !!fieldCard });
 
       // long-press fallback for pointer (some mobile browsers use pointer events)
       let longPressTimer: number | null = null;
       const LONG_PRESS_MS = 180;
       longPressTimer = window.setTimeout(() => {
+        if (DEBUG) console.debug('[drag-debug] pointer longPress fired', { id });
         pd.forceStart();
       }, LONG_PRESS_MS);
+      if (DEBUG) console.debug('[drag-debug] set pointer longPress timer', { ms: LONG_PRESS_MS, id });
 
       const moveHandler = (ev: PointerEvent) => {
         if (activePointerId == null || (ev as any).pointerId !== activePointerId) return;
         // cancel longPress if user moved
-        if (Math.hypot(ev.clientX - startX, ev.clientY - startY) > 4 && longPressTimer != null) { clearTimeout(longPressTimer); longPressTimer = null; }
+        if (Math.hypot(ev.clientX - startX, ev.clientY - startY) > 4 && longPressTimer != null) { if (DEBUG) console.debug('[drag-debug] pointer move cancelled longPress', { id }); clearTimeout(longPressTimer); longPressTimer = null; }
         if (pd.onMove(ev.clientX, ev.clientY)) {
-          if (longPressTimer != null) { clearTimeout(longPressTimer); longPressTimer = null; }
+          if (longPressTimer != null) { if (DEBUG) console.debug('[drag-debug] pointer move started drag', { id }); clearTimeout(longPressTimer); longPressTimer = null; }
+          if (DEBUG) console.debug('[drag-debug] pointer move prevented default', { id, x: ev.clientX, y: ev.clientY });
           ev.preventDefault();
         }
       };
@@ -375,11 +384,13 @@ export const GameField: React.FC<GameFieldProps> = ({
         if (activePointerId == null || (ev as any).pointerId !== activePointerId) return;
         // if drag didn't start, leave click semantics intact
         if (pd.onMove(ev.clientX, ev.clientY, false) === false) {
+          if (DEBUG) console.debug('[drag-debug] pointer up without drag (click)', { id, x: ev.clientX, y: ev.clientY });
           document.removeEventListener('pointermove', moveHandler);
           document.removeEventListener('pointerup', upHandler);
           pd.finish();
           return;
         }
+        if (DEBUG) console.debug('[drag-debug] pointer up with drop', { id, x: ev.clientX, y: ev.clientY });
 
         // finish drop logic (same as before)
         ev.preventDefault();
@@ -438,25 +449,30 @@ export const GameField: React.FC<GameFieldProps> = ({
       const startX = t.clientX;
       const startY = t.clientY;
       const pd = beginPotentialDrag(startX, startY, el, id, null);
+      if (DEBUG) console.debug('[drag-debug] touchstart', { id, startX, startY, handCard: !!handCard, fieldCard: !!fieldCard });
 
       // long-press fallback for touch to start drag without movement
       let longPressTimer: number | null = null;
       const LONG_PRESS_MS = 180;
       longPressTimer = window.setTimeout(() => {
+        if (DEBUG) console.debug('[drag-debug] touch longPress fired', { id });
         pd.forceStart();
       }, LONG_PRESS_MS);
+      if (DEBUG) console.debug('[drag-debug] set touch longPress timer', { ms: LONG_PRESS_MS, id });
 
       const touchMove = (ev: TouchEvent) => {
         const t2 = ev.touches[0];
         if (!t2) return;
         // if user moved before long-press, cancel timer
         if (Math.hypot(t2.clientX - startX, t2.clientY - startY) > 4 && longPressTimer != null) {
+          if (DEBUG) console.debug('[drag-debug] touch move cancelled longPress', { id });
           clearTimeout(longPressTimer);
           longPressTimer = null;
         }
         // prevent scrolling only once drag begins
         if (pd.onMove(t2.clientX, t2.clientY)) {
-          if (longPressTimer != null) { clearTimeout(longPressTimer); longPressTimer = null; }
+          if (longPressTimer != null) { if (DEBUG) console.debug('[drag-debug] touch move started drag', { id }); clearTimeout(longPressTimer); longPressTimer = null; }
+          if (DEBUG) console.debug('[drag-debug] touch move prevented default', { id, x: t2.clientX, y: t2.clientY });
           ev.preventDefault();
         }
       };
@@ -466,11 +482,13 @@ export const GameField: React.FC<GameFieldProps> = ({
         const t2 = ev.changedTouches[0];
         if (!t2) return;
         if (pd.onMove(t2.clientX, t2.clientY, false) === false) {
+          if (DEBUG) console.debug('[drag-debug] touch end without drag (tap)', { id, x: t2.clientX, y: t2.clientY });
           document.removeEventListener('touchmove', touchMove, { passive: false } as any);
           document.removeEventListener('touchend', touchEnd);
           pd.finish();
           return;
         }
+        if (DEBUG) console.debug('[drag-debug] touch end with drop', { id, x: t2.clientX, y: t2.clientY });
 
         // finish drop
         const dropEl = document.elementFromPoint(t2.clientX, t2.clientY) as HTMLElement | null;
