@@ -171,6 +171,9 @@ export const GameField: React.FC<GameFieldProps> = ({
   const timerRef = useRef<TimerController | null>(null); 
   const enemyTimerRef = useRef<TimerController | null>(null);
 
+  // Debugging flag (controlled at runtime via window.__GAME_DRAG_DEBUG__)
+  const DEBUG = typeof window !== 'undefined' && (window as any).__GAME_DRAG_DEBUG__ === true;
+
   const isPlayerTurn = turn % 2 === 1;
   const MAX_TIME = 60;
 
@@ -182,6 +185,14 @@ export const GameField: React.FC<GameFieldProps> = ({
   const dragOffsetRef = React.useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const [hoverTarget, setHoverTarget] = React.useState<{ type: string | null; id?: string | null }>({ type: null });
   const [dropSuccess, setDropSuccess] = React.useState<{ type: string | null; id?: string | null }>({ type: null });
+
+  // Debug HUD state & helper (visible when window.__GAME_DRAG_DEBUG__ === true)
+  const [debugEvents, setDebugEvents] = React.useState<Array<{ t: number; text: string; data?: any }>>([]);
+  const pushDebug = (text: string, data?: any) => {
+    const enabled = typeof window !== 'undefined' && (window as any).__GAME_DRAG_DEBUG__ === true;
+    if (!enabled) return;
+    setDebugEvents((prev) => [{ t: Date.now(), text, data }, ...prev].slice(0, 12));
+  };
 
   useEffect(() => {
     if (!draggingCard) {
@@ -293,13 +304,6 @@ export const GameField: React.FC<GameFieldProps> = ({
     // element that we captured pointer on (for pointer events)
     let capturedPointerElement: HTMLElement | null = null;
     let capturedPointerId: number | null = null;
-    const DEBUG = typeof window !== 'undefined' && (window as any).__GAME_DRAG_DEBUG__ === true;
-    const [debugEvents, setDebugEvents] = React.useState<Array<{ t: number; text: string; data?: any }>>([]);
-    const pushDebug = (text: string, data?: any) => {
-      const enabled = typeof window !== 'undefined' && (window as any).__GAME_DRAG_DEBUG__ === true;
-      if (!enabled) return;
-      setDebugEvents((prev) => [{ t: Date.now(), text, data }, ...prev].slice(0, 12));
-    };
 
     const DRAG_START_THRESHOLD = 6;
 
