@@ -298,6 +298,16 @@ export const GameField: React.FC<GameFieldProps> = ({
       startRect = el.getBoundingClientRect();
       let dragStarted = false;
 
+      const forceStart = () => {
+        if (dragStarted) return;
+        dragStarted = true;
+        try { (document.activeElement as HTMLElement | null)?.blur(); } catch (e) {}
+        pointerOffset = { x: startX - (startRect!.left), y: startY - (startRect!.top) };
+        setDraggingCard(id);
+        arrowStartPos.current = { x: startRect!.left + startRect!.width / 2, y: startRect!.top + startRect!.height / 2 };
+        setDragPosition({ x: startX - pointerOffset.x, y: startY - pointerOffset.y });
+      };
+
       const onMove = (x: number, y: number, preventDefaultIfStarted = true) => {
         const dx = x - startX;
         const dy = y - startY;
@@ -322,7 +332,7 @@ export const GameField: React.FC<GameFieldProps> = ({
         }
       };
 
-      return { onMove, finish: () => { startRect = null; activePointerId = null; } };
+      return { onMove, forceStart, finish: () => { startRect = null; activePointerId = null; } };
     };
 
     const onPointerDown = (e: PointerEvent) => {
@@ -343,12 +353,25 @@ export const GameField: React.FC<GameFieldProps> = ({
       const startY = e.clientY;
       const pd = beginPotentialDrag(startX, startY, el, id, (e as any).pointerId ?? null);
 
+      // long-press fallback for pointer (some mobile browsers use pointer events)
+      let longPressTimer: number | null = null;
+      const LONG_PRESS_MS = 180;
+      longPressTimer = window.setTimeout(() => {
+        pd.forceStart();
+      }, LONG_PRESS_MS);
+
       const moveHandler = (ev: PointerEvent) => {
         if (activePointerId == null || (ev as any).pointerId !== activePointerId) return;
-        if (pd.onMove(ev.clientX, ev.clientY)) ev.preventDefault();
+        // cancel longPress if user moved
+        if (Math.hypot(ev.clientX - startX, ev.clientY - startY) > 4 && longPressTimer != null) { clearTimeout(longPressTimer); longPressTimer = null; }
+        if (pd.onMove(ev.clientX, ev.clientY)) {
+          if (longPressTimer != null) { clearTimeout(longPressTimer); longPressTimer = null; }
+          ev.preventDefault();
+        }
       };
 
       const upHandler = (ev: PointerEvent) => {
+        if (longPressTimer != null) { clearTimeout(longPressTimer); longPressTimer = null; }
         if (activePointerId == null || (ev as any).pointerId !== activePointerId) return;
         // if drag didn't start, leave click semantics intact
         if (pd.onMove(ev.clientX, ev.clientY, false) === false) {
@@ -416,16 +439,30 @@ export const GameField: React.FC<GameFieldProps> = ({
       const startY = t.clientY;
       const pd = beginPotentialDrag(startX, startY, el, id, null);
 
+      // long-press fallback for touch to start drag without movement
+      let longPressTimer: number | null = null;
+      const LONG_PRESS_MS = 180;
+      longPressTimer = window.setTimeout(() => {
+        pd.forceStart();
+      }, LONG_PRESS_MS);
+
       const touchMove = (ev: TouchEvent) => {
         const t2 = ev.touches[0];
         if (!t2) return;
+        // if user moved before long-press, cancel timer
+        if (Math.hypot(t2.clientX - startX, t2.clientY - startY) > 4 && longPressTimer != null) {
+          clearTimeout(longPressTimer);
+          longPressTimer = null;
+        }
         // prevent scrolling only once drag begins
         if (pd.onMove(t2.clientX, t2.clientY)) {
+          if (longPressTimer != null) { clearTimeout(longPressTimer); longPressTimer = null; }
           ev.preventDefault();
         }
       };
 
       const touchEnd = (ev: TouchEvent) => {
+        if (longPressTimer != null) { clearTimeout(longPressTimer); longPressTimer = null; }
         const t2 = ev.changedTouches[0];
         if (!t2) return;
         if (pd.onMove(t2.clientX, t2.clientY, false) === false) {
