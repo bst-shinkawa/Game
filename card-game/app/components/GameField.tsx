@@ -290,6 +290,9 @@ export const GameField: React.FC<GameFieldProps> = ({
     let activePointerId: number | null = null;
     let startRect: DOMRect | null = null;
     let pointerOffset = { x: 0, y: 0 };
+    // element that we captured pointer on (for pointer events)
+    let capturedPointerElement: HTMLElement | null = null;
+    let capturedPointerId: number | null = null;
     const DEBUG = typeof window !== 'undefined' && (window as any).__GAME_DRAG_DEBUG__ === true;
 
     const DRAG_START_THRESHOLD = 6;
@@ -337,7 +340,7 @@ export const GameField: React.FC<GameFieldProps> = ({
         }
       };
 
-      return { onMove, forceStart, finish: () => { if (DEBUG) console.debug('[drag-debug] finish', { id }); startRect = null; activePointerId = null; } };
+      return { onMove, forceStart, finish: () => { if (DEBUG) console.debug('[drag-debug] finish', { id }); startRect = null; activePointerId = null; try { if (capturedPointerElement && capturedPointerId != null) { capturedPointerElement.releasePointerCapture(capturedPointerId); if (DEBUG) console.debug('[drag-debug] finish releasePointerCapture', { id, pid: capturedPointerId }); } } catch (err) { if (DEBUG) console.debug('[drag-debug] finish releasePointerCapture failed', err); } capturedPointerElement = null; capturedPointerId = null; } };
     };
 
     const onPointerDown = (e: PointerEvent) => {
@@ -358,6 +361,16 @@ export const GameField: React.FC<GameFieldProps> = ({
       const startY = e.clientY;
       const pd = beginPotentialDrag(startX, startY, el, id, (e as any).pointerId ?? null);
       if (DEBUG) console.debug('[drag-debug] pointerdown', { id, startX, startY, pointerId: (e as any).pointerId, handCard: !!handCard, fieldCard: !!fieldCard });
+      // Try to capture the pointer on the original element so we keep receiving pointermove/up even if DOM changes
+      try {
+        const pid = (e as any).pointerId ?? null;
+        if (pid != null && el && (el as any).setPointerCapture) {
+          (el as any).setPointerCapture(pid);
+          capturedPointerElement = el;
+          capturedPointerId = pid;
+          if (DEBUG) console.debug('[drag-debug] setPointerCapture', { id, pid });
+        }
+      } catch (err) { if (DEBUG) console.debug('[drag-debug] setPointerCapture failed', err); }
 
       // long-press fallback for pointer (some mobile browsers use pointer events)
       let longPressTimer: number | null = null;
@@ -423,6 +436,15 @@ export const GameField: React.FC<GameFieldProps> = ({
 
         setDraggingCard(null);
         arrowStartPos.current = null;
+        // release any pointer capture
+        try {
+          if (capturedPointerElement && capturedPointerId != null) {
+            capturedPointerElement.releasePointerCapture(capturedPointerId);
+            if (DEBUG) console.debug('[drag-debug] releasePointerCapture', { id, pid: capturedPointerId });
+          }
+        } catch (err) { if (DEBUG) console.debug('[drag-debug] releasePointerCapture failed', err); }
+        capturedPointerElement = null;
+        capturedPointerId = null;
         document.removeEventListener('pointermove', moveHandler);
         document.removeEventListener('pointerup', upHandler);
         pd.finish();
