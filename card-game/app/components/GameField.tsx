@@ -291,6 +291,40 @@ export const GameField: React.FC<GameFieldProps> = ({
     let startRect: DOMRect | null = null;
     let pointerOffset = { x: 0, y: 0 };
 
+    const DRAG_START_THRESHOLD = 6;
+
+    const beginPotentialDrag = (startX: number, startY: number, el: HTMLElement, id: string, idForPointer?: number | null) => {
+      activePointerId = idForPointer ?? null;
+      startRect = el.getBoundingClientRect();
+      let dragStarted = false;
+
+      const onMove = (x: number, y: number, preventDefaultIfStarted = true) => {
+        const dx = x - startX;
+        const dy = y - startY;
+        if (!dragStarted) {
+          if (Math.hypot(dx, dy) > DRAG_START_THRESHOLD) {
+            dragStarted = true;
+            // prevent native scrolling when drag actually starts
+            if (preventDefaultIfStarted) {
+              try { /* best-effort */ (document.activeElement as HTMLElement | null)?.blur(); } catch (e) {}
+            }
+            // compute offset relative to top-left so the grabbed point stays under pointer
+            pointerOffset = { x: startX - (startRect!.left), y: startY - (startRect!.top) };
+            setDraggingCard(id);
+            arrowStartPos.current = { x: startRect!.left + startRect!.width / 2, y: startRect!.top + startRect!.height / 2 };
+            setDragPosition({ x: x - pointerOffset.x, y: y - pointerOffset.y });
+            return true;
+          }
+          return false;
+        } else {
+          setDragPosition({ x: x - pointerOffset.x, y: y - pointerOffset.y });
+          return true;
+        }
+      };
+
+      return { onMove, finish: () => { startRect = null; activePointerId = null; } };
+    };
+
     const onPointerDown = (e: PointerEvent) => {
       // find the closest card element that has data-uniqueid
       const el = (e.target as HTMLElement).closest('[data-uniqueid]') as HTMLElement | null;
@@ -305,51 +339,28 @@ export const GameField: React.FC<GameFieldProps> = ({
       // ignore if not player's turn
       if (!isPlayerTurn) return;
 
-      activePointerId = (e as any).pointerId ?? null;
-      startRect = el.getBoundingClientRect();
       const startX = e.clientX;
       const startY = e.clientY;
-      let dragStarted = false;
-      const DRAG_START_THRESHOLD = 6;
+      const pd = beginPotentialDrag(startX, startY, el, id, (e as any).pointerId ?? null);
 
-      const onPointerMove = (ev: PointerEvent) => {
+      const moveHandler = (ev: PointerEvent) => {
         if (activePointerId == null || (ev as any).pointerId !== activePointerId) return;
-        const dx = ev.clientX - startX;
-        const dy = ev.clientY - startY;
-        if (!dragStarted) {
-          if (Math.hypot(dx, dy) > DRAG_START_THRESHOLD) {
-            dragStarted = true;
-            ev.preventDefault();
-            // compute offset relative to top-left so the grabbed point stays under pointer
-            pointerOffset = { x: startX - (startRect!.left), y: startY - (startRect!.top) };
-            setDraggingCard(id);
-            arrowStartPos.current = { x: startRect!.left + startRect!.width / 2, y: startRect!.top + startRect!.height / 2 };
-            setDragPosition({ x: ev.clientX - pointerOffset.x, y: ev.clientY - pointerOffset.y });
-          } else {
-            return;
-          }
-        } else {
-          ev.preventDefault();
-          const x = ev.clientX - pointerOffset.x;
-          const y = ev.clientY - pointerOffset.y;
-          setDragPosition({ x, y });
-        }
+        if (pd.onMove(ev.clientX, ev.clientY)) ev.preventDefault();
       };
 
-      const onPointerUp = (ev: PointerEvent) => {
+      const upHandler = (ev: PointerEvent) => {
         if (activePointerId == null || (ev as any).pointerId !== activePointerId) return;
-        if (!dragStarted) {
-          // click (no drag) — let click handlers run
-          document.removeEventListener('pointermove', onPointerMove);
-          document.removeEventListener('pointerup', onPointerUp);
-          activePointerId = null;
+        // if drag didn't start, leave click semantics intact
+        if (pd.onMove(ev.clientX, ev.clientY, false) === false) {
+          document.removeEventListener('pointermove', moveHandler);
+          document.removeEventListener('pointerup', upHandler);
+          pd.finish();
           return;
         }
-        ev.preventDefault();
-        // determine drop target
-        const dropEl = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null;
 
-        // If dropped on enemy hero or enemy field, try to cast spell or attack
+        // finish drop logic (same as before)
+        ev.preventDefault();
+        const dropEl = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null;
         const isDropOnEnemyHero = dropEl && enemyHeroRef.current && (enemyHeroRef.current === dropEl || enemyHeroRef.current.contains(dropEl));
         const dropFieldCardEl = dropEl ? dropEl.closest('[data-uniqueid]') as HTMLElement | null : null;
         const dropFieldCardId = dropFieldCardEl?.getAttribute('data-uniqueid') || null;
@@ -376,23 +387,102 @@ export const GameField: React.FC<GameFieldProps> = ({
           }
         }
 
-        // cleanup
         setDraggingCard(null);
         arrowStartPos.current = null;
-        document.removeEventListener('pointermove', onPointerMove);
-        document.removeEventListener('pointerup', onPointerUp);
-        activePointerId = null;
+        document.removeEventListener('pointermove', moveHandler);
+        document.removeEventListener('pointerup', upHandler);
+        pd.finish();
       };
 
-      document.addEventListener('pointermove', onPointerMove);
-      document.addEventListener('pointerup', onPointerUp);
+      document.addEventListener('pointermove', moveHandler);
+      document.addEventListener('pointerup', upHandler);
+    };
+
+    // Touch fallback for browsers that don't emit pointer events reliably
+    const onTouchStart = (e: TouchEvent) => {
+      const t = e.touches[0];
+      if (!t) return;
+      const el = (e.target as HTMLElement).closest('[data-uniqueid]') as HTMLElement | null;
+      if (!el) return;
+      const id = el.getAttribute('data-uniqueid');
+      if (!id) return;
+
+      const handCard = playerHandCards.find((c) => c.uniqueId === id);
+      const fieldCard = playerFieldCards.find((c) => c.uniqueId === id && c.canAttack);
+      if (!handCard && !fieldCard) return;
+      if (!isPlayerTurn) return;
+
+      const startX = t.clientX;
+      const startY = t.clientY;
+      const pd = beginPotentialDrag(startX, startY, el, id, null);
+
+      const touchMove = (ev: TouchEvent) => {
+        const t2 = ev.touches[0];
+        if (!t2) return;
+        // prevent scrolling only once drag begins
+        if (pd.onMove(t2.clientX, t2.clientY)) {
+          ev.preventDefault();
+        }
+      };
+
+      const touchEnd = (ev: TouchEvent) => {
+        const t2 = ev.changedTouches[0];
+        if (!t2) return;
+        if (pd.onMove(t2.clientX, t2.clientY, false) === false) {
+          document.removeEventListener('touchmove', touchMove, { passive: false } as any);
+          document.removeEventListener('touchend', touchEnd);
+          pd.finish();
+          return;
+        }
+
+        // finish drop
+        const dropEl = document.elementFromPoint(t2.clientX, t2.clientY) as HTMLElement | null;
+        const isDropOnEnemyHero = dropEl && enemyHeroRef.current && (enemyHeroRef.current === dropEl || enemyHeroRef.current.contains(dropEl));
+        const dropFieldCardEl = dropEl ? dropEl.closest('[data-uniqueid]') as HTMLElement | null : null;
+        const dropFieldCardId = dropFieldCardEl?.getAttribute('data-uniqueid') || null;
+
+        if (handCard) {
+          if (isDropOnEnemyHero) {
+            if (handCard.type === 'spell') castSpell(handCard.uniqueId, 'hero', true);
+            else attack(handCard.uniqueId, 'hero', true);
+          } else if (dropFieldCardId && enemyFieldCards.some(c => c.uniqueId === dropFieldCardId)) {
+            if (handCard.type === 'spell') castSpell(handCard.uniqueId, dropFieldCardId, true);
+            else attack(handCard.uniqueId, dropFieldCardId, true);
+          } else if (dropEl && playerBattleRef.current && (playerBattleRef.current === dropEl || playerBattleRef.current.contains(dropEl))) {
+            if (preGame && coinResult !== 'deciding') {
+              setSwapIds(swapIds.includes(handCard.uniqueId) ? swapIds.filter(id => id !== handCard.uniqueId) : [...swapIds, handCard.uniqueId]);
+            } else if (handCard.type !== 'spell') {
+              playCardToField(handCard);
+            }
+          }
+        } else if (fieldCard) {
+          if (isDropOnEnemyHero) {
+            attack(fieldCard.uniqueId, 'hero', true);
+          } else if (dropFieldCardId && enemyFieldCards.some(c => c.uniqueId === dropFieldCardId)) {
+            attack(fieldCard.uniqueId, dropFieldCardId, true);
+          }
+        }
+
+        setDraggingCard(null);
+        arrowStartPos.current = null;
+        document.removeEventListener('touchmove', touchMove as EventListenerOrEventListenerObject);
+        document.removeEventListener('touchend', touchEnd as EventListenerOrEventListenerObject);
+        pd.finish();
+      };
+
+      document.addEventListener('touchmove', touchMove, { passive: false } as any);
+      document.addEventListener('touchend', touchEnd as any);
     };
 
     document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('touchstart', onTouchStart, { passive: true } as any);
     return () => {
       document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('touchstart', onTouchStart as any);
     };
   }, [playerHandCards, playerFieldCards, isPlayerTurn, castSpell, attack, playCardToField, preGame, coinResult, swapIds]);
+
+
 
   // ターン切替時に中央モーダルを短時間表示する（UI のみ）
   useEffect(() => {

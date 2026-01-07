@@ -137,6 +137,7 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
       style={{
+        touchAction: (draggable || inHand) ? 'none' : undefined,
         ...style,
         border: `${borderWidth}px solid ${borderColor}`,
       }}
