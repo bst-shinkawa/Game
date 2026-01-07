@@ -571,6 +571,39 @@ export const GameField: React.FC<GameFieldProps> = ({
     };
   }, [playerHandCards, playerFieldCards, isPlayerTurn, castSpell, attack, playCardToField, preGame, coinResult, swapIds]);
 
+  // Capture global client-side errors and unhandled promise rejections and post to debug HUD
+  React.useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleError = (ev: ErrorEvent) => {
+      try {
+        const { message, filename, lineno, colno, error } = ev;
+        pushDebug('window.error', { message, filename, lineno, colno, stack: error?.stack });
+        console.error('Captured window.error', message, filename, lineno, colno, error);
+      } catch (e) {
+        console.error('Error in handleError', e);
+      }
+    };
+
+    const handleRejection = (ev: PromiseRejectionEvent) => {
+      try {
+        const reason = ev.reason;
+        pushDebug('unhandledrejection', { reason: String(reason), stack: (reason && (reason as any).stack) || null });
+        console.error('Captured unhandledrejection', reason);
+      } catch (e) {
+        console.error('Error in handleRejection', e);
+      }
+    };
+
+    window.addEventListener('error', handleError as EventListener);
+    window.addEventListener('unhandledrejection', handleRejection as EventListener);
+
+    return () => {
+      window.removeEventListener('error', handleError as EventListener);
+      window.removeEventListener('unhandledrejection', handleRejection as EventListener);
+    };
+  }, []);
+
 
 
   // ターン切替時に中央モーダルを短時間表示する（UI のみ）
