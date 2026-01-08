@@ -311,6 +311,55 @@ export const GameField: React.FC<GameFieldProps> = ({
       activePointerId = idForPointer ?? null;
       startRect = el.getBoundingClientRect();
       let dragStarted = false;
+      let lastPointer = { x: startX, y: startY };
+      let monitorTimer: number | null = null;
+
+      const startMonitor = (idLocal: string) => {
+        if (monitorTimer != null) return;
+        monitorTimer = window.setInterval(() => {
+          try {
+            const cloneEl = document.querySelector('.' + styles.drag_clone) as HTMLElement | null;
+            const elAtPoint = document.elementFromPoint(lastPointer.x, lastPointer.y) as HTMLElement | null;
+            pushDebug('monitor', { id: idLocal, lastPointer, hasClone: !!cloneEl, cloneRect: cloneEl ? (() => { const r = cloneEl.getBoundingClientRect(); return { left: r.left, top: r.top, w: r.width, h: r.height }; })() : null, elAtPoint: elAtPoint ? (elAtPoint.getAttribute && elAtPoint.getAttribute('data-uniqueid')) : null });
+          } catch (e) {
+            if (DEBUG) console.debug('[drag-debug] monitor error', e);
+          }
+        }, 120);
+      };
+
+      const stopMonitor = () => {
+        if (monitorTimer != null) { clearInterval(monitorTimer); monitorTimer = null; }
+      };
+
+      const resyncPointerOffset = (idLocal: string, pointerX: number, pointerY: number) => {
+        // run a couple of rAFs to allow layout to settle
+        window.requestAnimationFrame(() => {
+          window.requestAnimationFrame(() => {
+            try {
+              const cloneEl = document.querySelector('.' + styles.drag_clone) as HTMLElement | null;
+              if (cloneEl) {
+                const rect = cloneEl.getBoundingClientRect();
+                pointerOffset = { x: pointerX - rect.left, y: pointerY - rect.top };
+                setDragPosition({ x: pointerX - pointerOffset.x, y: pointerY - pointerOffset.y });
+                if (DEBUG) pushDebug('resyncPointerOffset', { id: idLocal, pointerX, pointerY, rect, pointerOffset });
+              } else {
+                // fallback: try to query the card element in the hand (might still be present)
+                const handEl = document.querySelector('[data-uniqueid="' + idLocal + '"]') as HTMLElement | null;
+                if (handEl) {
+                  const rect = handEl.getBoundingClientRect();
+                  pointerOffset = { x: pointerX - rect.left, y: pointerY - rect.top };
+                  setDragPosition({ x: pointerX - pointerOffset.x, y: pointerY - pointerOffset.y });
+                  if (DEBUG) pushDebug('resyncPointerOffset-hand', { id: idLocal, pointerX, pointerY, rect, pointerOffset });
+                } else {
+                  if (DEBUG) pushDebug('resyncPointerOffset-no-anchor', { id: idLocal, pointerX, pointerY });
+                }
+              }
+            } catch (e) {
+              if (DEBUG) pushDebug('resyncPointerOffset-ex', { id: idLocal, err: String(e) });
+            }
+          });
+        });
+      };
       if (DEBUG) { console.debug('[drag-debug] beginPotentialDrag', { id, startX, startY, idForPointer, startRect: { left: startRect.left, top: startRect.top, width: startRect.width, height: startRect.height } }); pushDebug('beginPotentialDrag', { id, startX, startY, idForPointer, startRect: { left: startRect.left, top: startRect.top, width: startRect.width, height: startRect.height } }); }
 
       const forceStart = () => {
@@ -322,6 +371,10 @@ export const GameField: React.FC<GameFieldProps> = ({
         setDraggingCard(id);
         arrowStartPos.current = { x: startRect!.left + startRect!.width / 2, y: startRect!.top + startRect!.height / 2 };
         setDragPosition({ x: startX - pointerOffset.x, y: startY - pointerOffset.y });
+        // update last pointer and start monitor and attempt to resync in case DOM layout changed
+        lastPointer = { x: startX, y: startY };
+        startMonitor(id);
+        resyncPointerOffset(id, startX, startY);
       };
 
       const onMove = (x: number, y: number, preventDefaultIfStarted = true) => {
@@ -340,17 +393,22 @@ export const GameField: React.FC<GameFieldProps> = ({
             setDraggingCard(id);
             arrowStartPos.current = { x: startRect!.left + startRect!.width / 2, y: startRect!.top + startRect!.height / 2 };
             setDragPosition({ x: x - pointerOffset.x, y: y - pointerOffset.y });
+            // update last pointer, start monitor and attempt resync
+            lastPointer = { x, y };
+            startMonitor(id);
+            resyncPointerOffset(id, x, y);
             return true;
           }
           return false;
         } else {
+          lastPointer = { x, y };
           if (DEBUG) { console.debug('[drag-debug] dragMove', { id, x, y }); pushDebug('dragMove', { id, x, y }); }
           setDragPosition({ x: x - pointerOffset.x, y: y - pointerOffset.y });
           return true;
         }
       };
 
-      return { onMove, forceStart, finish: () => { if (DEBUG) console.debug('[drag-debug] finish', { id }); startRect = null; activePointerId = null; try { if (capturedPointerElement && capturedPointerId != null) { capturedPointerElement.releasePointerCapture(capturedPointerId); if (DEBUG) { console.debug('[drag-debug] finish releasePointerCapture', { id, pid: capturedPointerId }); pushDebug('finish releasePointerCapture', { id, pid: capturedPointerId }); } } } catch (err) { if (DEBUG) { console.debug('[drag-debug] finish releasePointerCapture failed', err); pushDebug('finish releasePointerCapture failed', { id, err: String(err) }); } } capturedPointerElement = null; capturedPointerId = null; } };
+      return { onMove, forceStart, finish: () => { if (DEBUG) console.debug('[drag-debug] finish', { id }); startRect = null; activePointerId = null; stopMonitor(); try { if (capturedPointerElement && capturedPointerId != null) { capturedPointerElement.releasePointerCapture(capturedPointerId); if (DEBUG) { console.debug('[drag-debug] finish releasePointerCapture', { id, pid: capturedPointerId }); pushDebug('finish releasePointerCapture', { id, pid: capturedPointerId }); } } } catch (err) { if (DEBUG) { console.debug('[drag-debug] finish releasePointerCapture failed', err); pushDebug('finish releasePointerCapture failed', { id, err: String(err) }); } } capturedPointerElement = null; capturedPointerId = null; } };
     };
 
     const onPointerDown = (e: PointerEvent) => {
