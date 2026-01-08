@@ -194,6 +194,28 @@ export const GameField: React.FC<GameFieldProps> = ({
     setDebugEvents((prev) => [{ t: Date.now(), text, data }, ...prev].slice(0, 12));
   };
 
+  // Monitor refs moved to component scope so we can always stop from anywhere
+  const lastPointerRef = React.useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const monitorTimerRef = React.useRef<number | null>(null);
+
+  const startMonitor = (idLocal: string) => {
+    if (monitorTimerRef.current != null) return;
+    monitorTimerRef.current = window.setInterval(() => {
+      try {
+        const lp = lastPointerRef.current;
+        const cloneEl = document.querySelector('.' + styles.drag_clone) as HTMLElement | null;
+        const elAtPoint = document.elementFromPoint(lp.x, lp.y) as HTMLElement | null;
+        pushDebug('monitor', { id: idLocal, lastPointer: lp, hasClone: !!cloneEl, cloneRect: cloneEl ? (() => { const r = cloneEl.getBoundingClientRect(); return { left: r.left, top: r.top, w: r.width, h: r.height }; })() : null, elAtPoint: elAtPoint ? (elAtPoint.getAttribute && elAtPoint.getAttribute('data-uniqueid')) : null });
+      } catch (e) {
+        if (DEBUG) console.debug('[drag-debug] monitor error', e);
+      }
+    }, 120) as unknown as number;
+  };
+
+  const stopMonitor = () => {
+    if (monitorTimerRef.current != null) { clearInterval(monitorTimerRef.current); monitorTimerRef.current = null; }
+  };
+
   useEffect(() => {
     if (!draggingCard) {
       setHoverTarget({ type: null });
@@ -312,24 +334,6 @@ export const GameField: React.FC<GameFieldProps> = ({
       startRect = el.getBoundingClientRect();
       let dragStarted = false;
       let lastPointer = { x: startX, y: startY };
-      let monitorTimer: number | null = null;
-
-      const startMonitor = (idLocal: string) => {
-        if (monitorTimer != null) return;
-        monitorTimer = window.setInterval(() => {
-          try {
-            const cloneEl = document.querySelector('.' + styles.drag_clone) as HTMLElement | null;
-            const elAtPoint = document.elementFromPoint(lastPointer.x, lastPointer.y) as HTMLElement | null;
-            pushDebug('monitor', { id: idLocal, lastPointer, hasClone: !!cloneEl, cloneRect: cloneEl ? (() => { const r = cloneEl.getBoundingClientRect(); return { left: r.left, top: r.top, w: r.width, h: r.height }; })() : null, elAtPoint: elAtPoint ? (elAtPoint.getAttribute && elAtPoint.getAttribute('data-uniqueid')) : null });
-          } catch (e) {
-            if (DEBUG) console.debug('[drag-debug] monitor error', e);
-          }
-        }, 120);
-      };
-
-      const stopMonitor = () => {
-        if (monitorTimer != null) { clearInterval(monitorTimer); monitorTimer = null; }
-      };
 
       const resyncPointerOffset = (idLocal: string, pointerX: number, pointerY: number) => {
         // run a couple of rAFs to allow layout to settle
@@ -360,6 +364,7 @@ export const GameField: React.FC<GameFieldProps> = ({
           });
         });
       };
+
       if (DEBUG) { console.debug('[drag-debug] beginPotentialDrag', { id, startX, startY, idForPointer, startRect: { left: startRect.left, top: startRect.top, width: startRect.width, height: startRect.height } }); pushDebug('beginPotentialDrag', { id, startX, startY, idForPointer, startRect: { left: startRect.left, top: startRect.top, width: startRect.width, height: startRect.height } }); }
 
       const forceStart = () => {
@@ -375,6 +380,7 @@ export const GameField: React.FC<GameFieldProps> = ({
         try { document.body.style.touchAction = 'none'; if (DEBUG) pushDebug('set body.touchAction none'); } catch (e) {}
         // update last pointer and start monitor and attempt to resync in case DOM layout changed
         lastPointer = { x: startX, y: startY };
+        lastPointerRef.current = { x: startX, y: startY };
         startMonitor(id);
         resyncPointerOffset(id, startX, startY);
       };
@@ -397,6 +403,7 @@ export const GameField: React.FC<GameFieldProps> = ({
             setDragPosition({ x: x - pointerOffset.x, y: y - pointerOffset.y });
             // update last pointer, start monitor and attempt resync
             lastPointer = { x, y };
+            lastPointerRef.current = { x, y };
             startMonitor(id);
             resyncPointerOffset(id, x, y);
             return true;
@@ -404,6 +411,7 @@ export const GameField: React.FC<GameFieldProps> = ({
           return false;
         } else {
           lastPointer = { x, y };
+          lastPointerRef.current = { x, y };
           if (DEBUG) { console.debug('[drag-debug] dragMove', { id, x, y }); pushDebug('dragMove', { id, x, y }); }
           setDragPosition({ x: x - pointerOffset.x, y: y - pointerOffset.y });
           return true;
@@ -464,6 +472,16 @@ export const GameField: React.FC<GameFieldProps> = ({
         }
       };
 
+      const cancelHandler = (ev: PointerEvent) => {
+        if (DEBUG) pushDebug('pointer cancel', { id });
+        if (longPressTimer != null) { clearTimeout(longPressTimer); longPressTimer = null; }
+        document.removeEventListener('pointermove', moveHandler);
+        document.removeEventListener('pointerup', upHandler);
+        document.removeEventListener('pointercancel', cancelHandler);
+        try { document.body.style.touchAction = ''; } catch (e) {}
+        pd.finish();
+      };
+
       const upHandler = (ev: PointerEvent) => {
         if (longPressTimer != null) { clearTimeout(longPressTimer); longPressTimer = null; }
         if (activePointerId == null || (ev as any).pointerId !== activePointerId) return;
@@ -472,6 +490,7 @@ export const GameField: React.FC<GameFieldProps> = ({
           if (DEBUG) console.debug('[drag-debug] pointer up without drag (click)', { id, x: ev.clientX, y: ev.clientY });
           document.removeEventListener('pointermove', moveHandler);
           document.removeEventListener('pointerup', upHandler);
+          document.removeEventListener('pointercancel', cancelHandler);
           pd.finish();
           return;
         }
@@ -525,6 +544,7 @@ export const GameField: React.FC<GameFieldProps> = ({
 
       document.addEventListener('pointermove', moveHandler);
       document.addEventListener('pointerup', upHandler);
+      document.addEventListener('pointercancel', cancelHandler);
     };
 
     // Touch fallback for browsers that don't emit pointer events reliably
@@ -572,14 +592,25 @@ export const GameField: React.FC<GameFieldProps> = ({
         }
       };
 
+      const touchCancel = (ev: TouchEvent) => {
+        if (DEBUG) pushDebug('touch cancel', { id });
+        if (longPressTimer != null) { clearTimeout(longPressTimer); longPressTimer = null; }
+        document.removeEventListener('touchmove', touchMove as EventListenerOrEventListenerObject);
+        document.removeEventListener('touchend', touchEnd as EventListenerOrEventListenerObject);
+        document.removeEventListener('touchcancel', touchCancel as EventListenerOrEventListenerObject);
+        try { document.body.style.touchAction = ''; } catch (e) {}
+        pd.finish();
+      };
+
       const touchEnd = (ev: TouchEvent) => {
         if (longPressTimer != null) { clearTimeout(longPressTimer); longPressTimer = null; }
         const t2 = ev.changedTouches[0];
         if (!t2) return;
         if (pd.onMove(t2.clientX, t2.clientY, false) === false) {
           if (DEBUG) console.debug('[drag-debug] touch end without drag (tap)', { id, x: t2.clientX, y: t2.clientY });
-          document.removeEventListener('touchmove', touchMove, { passive: false } as any);
-          document.removeEventListener('touchend', touchEnd);
+          document.removeEventListener('touchmove', touchMove as EventListenerOrEventListenerObject);
+          document.removeEventListener('touchend', touchEnd as EventListenerOrEventListenerObject);
+          document.removeEventListener('touchcancel', touchCancel as EventListenerOrEventListenerObject);
           pd.finish();
           return;
         }
@@ -623,6 +654,7 @@ export const GameField: React.FC<GameFieldProps> = ({
 
       document.addEventListener('touchmove', touchMove, { passive: false } as any);
       document.addEventListener('touchend', touchEnd as any);
+      document.addEventListener('touchcancel', touchCancel as any);
     };
 
     document.addEventListener('pointerdown', onPointerDown);
@@ -633,6 +665,14 @@ export const GameField: React.FC<GameFieldProps> = ({
       document.removeEventListener('touchstart', onTouchStart as any);
     };
   }, [playerHandCards, playerFieldCards, isPlayerTurn, castSpell, attack, playCardToField, preGame, coinResult, swapIds]);
+
+  // Ensure monitor and touchAction are cleared when drag state ends
+  React.useEffect(() => {
+    if (!draggingCard) {
+      stopMonitor();
+      try { document.body.style.touchAction = ''; } catch (e) {}
+    }
+  }, [draggingCard]);
 
   // Capture global client-side errors and unhandled promise rejections and post to debug HUD
   React.useEffect(() => {
