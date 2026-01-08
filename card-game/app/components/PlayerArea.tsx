@@ -325,7 +325,24 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
               style={{ zIndex: isActive ? 4000 : (isDragging ? 950 : 10), transition: 'all 0.25s ease' }}
             >
               {isDragging ? (
-                <div className={styles.card_placeholder} aria-hidden={true} />
+                // keep card DOM in place but hide visually to avoid layout shifts that may break touch tracking
+                <CardItem
+                  {...card}
+                  hp={card.hp ?? 0}
+                  maxHp={card.maxHp ?? 0}
+                  attack={card.attack ?? 0}
+                  draggable
+                  inHand
+                  currentMana={currentMana}
+                  aria-hidden={true}
+                  style={{
+                    visibility: 'hidden',
+                    pointerEvents: 'none',
+                    ...swapIds.includes(card.uniqueId) ? { border: '2px solid limegreen' } : undefined,
+                    opacity: 0,
+                    transition: 'opacity 0.1s ease',
+                  }}
+                />
               ) : (
                 <CardItem
                   {...card}

@@ -371,6 +371,8 @@ export const GameField: React.FC<GameFieldProps> = ({
         setDraggingCard(id);
         arrowStartPos.current = { x: startRect!.left + startRect!.width / 2, y: startRect!.top + startRect!.height / 2 };
         setDragPosition({ x: startX - pointerOffset.x, y: startY - pointerOffset.y });
+        // prevent browser touch gestures from stealing moves
+        try { document.body.style.touchAction = 'none'; if (DEBUG) pushDebug('set body.touchAction none'); } catch (e) {}
         // update last pointer and start monitor and attempt to resync in case DOM layout changed
         lastPointer = { x: startX, y: startY };
         startMonitor(id);
@@ -408,7 +410,7 @@ export const GameField: React.FC<GameFieldProps> = ({
         }
       };
 
-      return { onMove, forceStart, finish: () => { if (DEBUG) console.debug('[drag-debug] finish', { id }); startRect = null; activePointerId = null; stopMonitor(); try { if (capturedPointerElement && capturedPointerId != null) { capturedPointerElement.releasePointerCapture(capturedPointerId); if (DEBUG) { console.debug('[drag-debug] finish releasePointerCapture', { id, pid: capturedPointerId }); pushDebug('finish releasePointerCapture', { id, pid: capturedPointerId }); } } } catch (err) { if (DEBUG) { console.debug('[drag-debug] finish releasePointerCapture failed', err); pushDebug('finish releasePointerCapture failed', { id, err: String(err) }); } } capturedPointerElement = null; capturedPointerId = null; } };
+      return { onMove, forceStart, finish: () => { if (DEBUG) console.debug('[drag-debug] finish', { id }); startRect = null; activePointerId = null; stopMonitor(); try { document.body.style.touchAction = ''; } catch (e) {} try { if (capturedPointerElement && capturedPointerId != null) { capturedPointerElement.releasePointerCapture(capturedPointerId); if (DEBUG) { console.debug('[drag-debug] finish releasePointerCapture', { id, pid: capturedPointerId }); pushDebug('finish releasePointerCapture', { id, pid: capturedPointerId }); } } } catch (err) { if (DEBUG) { console.debug('[drag-debug] finish releasePointerCapture failed', err); pushDebug('finish releasePointerCapture failed', { id, err: String(err) }); } } capturedPointerElement = null; capturedPointerId = null; } };
     };
 
     const onPointerDown = (e: PointerEvent) => {
@@ -506,6 +508,7 @@ export const GameField: React.FC<GameFieldProps> = ({
 
         setDraggingCard(null);
         arrowStartPos.current = null;
+        try { document.body.style.touchAction = ''; } catch (e) {}
         // release any pointer capture
         try {
           if (capturedPointerElement && capturedPointerId != null) {
@@ -612,6 +615,7 @@ export const GameField: React.FC<GameFieldProps> = ({
 
         setDraggingCard(null);
         arrowStartPos.current = null;
+        try { document.body.style.touchAction = ''; } catch (e) {}
         document.removeEventListener('touchmove', touchMove as EventListenerOrEventListenerObject);
         document.removeEventListener('touchend', touchEnd as EventListenerOrEventListenerObject);
         pd.finish();
@@ -622,7 +626,8 @@ export const GameField: React.FC<GameFieldProps> = ({
     };
 
     document.addEventListener('pointerdown', onPointerDown);
-    document.addEventListener('touchstart', onTouchStart, { passive: true } as any);
+    // use passive: false so we can preventDefault on touchstart / long-press if needed
+    document.addEventListener('touchstart', onTouchStart, { passive: false } as any);
     return () => {
       document.removeEventListener('pointerdown', onPointerDown);
       document.removeEventListener('touchstart', onTouchStart as any);
