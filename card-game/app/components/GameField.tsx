@@ -1077,7 +1077,10 @@ export const GameField: React.FC<GameFieldProps> = ({
         );
 
         const portal = createPortal(clone, document.body);
-        if (DEBUG) pushDebug('render clone', { id: draggingCard, pos: dragPosition });
+        if (DEBUG && typeof window !== 'undefined') {
+          // schedule after render to avoid setState during render
+          window.requestAnimationFrame(() => pushDebug('render clone', { id: draggingCard, pos: dragPosition }));
+        }
         return portal;
       })()}
 
