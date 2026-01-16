@@ -335,28 +335,39 @@ export const GameField: React.FC<GameFieldProps> = ({
       let dragStarted = false;
       let lastPointer = { x: startX, y: startY };
 
-      const resyncPointerOffset = (idLocal: string, pointerX: number, pointerY: number) => {
+      const resyncPointerOffset = (idLocal: string, pointerX: number, pointerY: number, attempt = 0) => {
         // run a couple of rAFs to allow layout to settle
         window.requestAnimationFrame(() => {
           window.requestAnimationFrame(() => {
             try {
               const cloneEl = document.querySelector('.' + styles.drag_clone) as HTMLElement | null;
               if (cloneEl) {
-                const rect = cloneEl.getBoundingClientRect();
-                pointerOffset = { x: pointerX - rect.left, y: pointerY - rect.top };
-                setDragPosition({ x: pointerX - pointerOffset.x, y: pointerY - pointerOffset.y });
-                if (DEBUG) pushDebug('resyncPointerOffset', { id: idLocal, pointerX, pointerY, rect, pointerOffset });
-              } else {
-                // fallback: try to query the card element in the hand (might still be present)
-                const handEl = document.querySelector('[data-uniqueid="' + idLocal + '"]') as HTMLElement | null;
-                if (handEl) {
-                  const rect = handEl.getBoundingClientRect();
+                const cloneId = cloneEl.getAttribute('data-drag-id') || null;
+                // only use the clone rect if it corresponds to the id we expect
+                if (cloneId === idLocal) {
+                  const rect = cloneEl.getBoundingClientRect();
                   pointerOffset = { x: pointerX - rect.left, y: pointerY - rect.top };
                   setDragPosition({ x: pointerX - pointerOffset.x, y: pointerY - pointerOffset.y });
-                  if (DEBUG) pushDebug('resyncPointerOffset-hand', { id: idLocal, pointerX, pointerY, rect, pointerOffset });
+                  if (DEBUG) pushDebug('resyncPointerOffset', { id: idLocal, pointerX, pointerY, rect, pointerOffset });
+                  return;
                 } else {
-                  if (DEBUG) pushDebug('resyncPointerOffset-no-anchor', { id: idLocal, pointerX, pointerY });
+                  if (DEBUG) pushDebug('resyncPointerOffset-wrong-clone', { id: idLocal, cloneId, attempt });
+                  // retry a couple of frames to wait for clone to update
+                  if (attempt < 2) {
+                    window.requestAnimationFrame(() => resyncPointerOffset(idLocal, pointerX, pointerY, attempt + 1));
+                    return;
+                  }
                 }
+              }
+              // fallback: try to query the card element in the hand (might still be present)
+              const handEl = document.querySelector('[data-uniqueid="' + idLocal + '"]') as HTMLElement | null;
+              if (handEl) {
+                const rect = handEl.getBoundingClientRect();
+                pointerOffset = { x: pointerX - rect.left, y: pointerY - rect.top };
+                setDragPosition({ x: pointerX - pointerOffset.x, y: pointerY - pointerOffset.y });
+                if (DEBUG) pushDebug('resyncPointerOffset-hand', { id: idLocal, pointerX, pointerY, rect, pointerOffset });
+              } else {
+                if (DEBUG) pushDebug('resyncPointerOffset-no-anchor', { id: idLocal, pointerX, pointerY });
               }
             } catch (e) {
               if (DEBUG) pushDebug('resyncPointerOffset-ex', { id: idLocal, err: String(e) });
@@ -1010,7 +1021,7 @@ export const GameField: React.FC<GameFieldProps> = ({
   return (
     <div className={`${styles.field} ${isLocal ? styles.field_local : ""}`}>
 
-      {/* <div className={styles.field_bg}>
+      <div className={styles.field_bg}>
         <video
           ref={videoRef}
           src={`${basePath}/img/field/bg.mp4`}
@@ -1019,7 +1030,7 @@ export const GameField: React.FC<GameFieldProps> = ({
           loop
           playsInline
         ></video>
-      </div> */}
+      </div>
 
       {/* ダメージフロート */}
       <DamageFloater floats={damageFloats} />
@@ -1108,6 +1119,7 @@ export const GameField: React.FC<GameFieldProps> = ({
               transform: 'scale(1.12)',
               transition: 'transform 120ms ease',
             }}
+            data-drag-id={draggingCard}
             className={styles.drag_clone}
           >
             <CardItem
