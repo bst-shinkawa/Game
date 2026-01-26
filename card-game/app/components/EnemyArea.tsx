@@ -38,7 +38,7 @@ interface EnemyAreaProps {
   enemyTurnTimer?: TurnTimer | null;
 }
 
-export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string | null; id?: string | null }, dropSuccess?: { type: string | null; id?: string | null } }> = ({
+export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string | null; id?: string | null }, dropSuccess?: { type: string | null; id?: string | null }, attackTargets?: string[] }> = ({
   enemyHeroHp,
   enemyHandCards,
   enemyFieldCards,
@@ -62,7 +62,9 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
   enemyTurnTimer,
   hoverTarget,
   dropSuccess,
+  attackTargets = [],
 }) => {
+  console.log('EnemyArea attackTargets:', attackTargets);
   const getHpClass = (hp: number) => {
     if (hp === 20) return styles.hpWhite;
     if (hp >= 11) return styles.hpYellow;
@@ -78,7 +80,7 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
       {/* 敵ヒーロー */}
       <div
         ref={enemyHeroRef}
-        className={`${styles.field_enemy_hero} ${hoverTarget?.type === 'enemyHero' ? styles.target_highlight : ''} ${dropSuccess?.type === 'enemyHero' ? styles.drop_success : ''}`}
+        className={`${styles.field_enemy_hero} ${hoverTarget?.type === 'enemyHero' ? styles.target_highlight : ''} ${dropSuccess?.type === 'enemyHero' ? styles.drop_success : ''} ${attackTargets.includes('hero') ? styles.attack_highlight : ''}`}
         onDragOver={onDragOver}
         onDrop={() => {
           onDrop("hero");
@@ -86,6 +88,8 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
         style={
           enemySpellAnimation?.targetId === "hero"
             ? { animation: "spellTargetFlash 0.6s ease-out" }
+            : enemyAttackAnimation?.targetId === "hero"
+            ? { animation: "enemyCardAttack 0.9s ease-in-out forwards" }
             : {}
         }
       >
@@ -104,6 +108,7 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
           const isSpellTarget = enemySpellAnimation?.targetId === card.uniqueId;
           const isHovered = hoverTarget?.id === card.uniqueId && hoverTarget?.type === 'enemyCard';
           const isDropped = dropSuccess?.id === card.uniqueId && dropSuccess?.type === 'enemyCard';
+          console.log('enemy card', card.uniqueId, 'attackTargets', attackTargets, 'includes', attackTargets.includes(card.uniqueId));
           return (
             <CardItem
               key={card.uniqueId}
@@ -111,7 +116,7 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
               hp={card.hp ?? 0}
               maxHp={card.maxHp ?? 0}
               attack={card.attack ?? 0}
-              className={`${isSummoning ? styles.enemy_follower_summon : ""} ${isHovered ? styles.target_highlight : ''} ${isDropped ? styles.drop_success : ''}`}
+              className={`${isSummoning ? styles.enemy_follower_summon : ""} ${isHovered ? styles.target_highlight : ''} ${isDropped ? styles.drop_success : ''} ${attackTargets.includes(card.uniqueId) ? styles.attack_highlight : ''}`}
               style={{
                 ...((card as { isAnimating?: boolean }).isAnimating ? { transform: "translateY(-40px)", opacity: 0 } : {}),
                 ...(isAttacking ? { animation: "enemyCardAttack 0.9s ease-in-out forwards" } : {}),

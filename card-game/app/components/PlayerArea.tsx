@@ -29,6 +29,7 @@ interface PlayerAreaProps {
   descCardId: string | null;
   enemyAttackAnimation: { sourceCardId: string | null; targetId: string | "hero" } | null;
   enemySpellAnimation: { targetId: string | "hero"; effect: string } | null;
+  attackTargets: string[];
   // UI状態
   setIsHandExpanded: (expanded: boolean) => void;
   setActiveHandCardId: (id: string | null) => void;
@@ -97,6 +98,7 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
   isTimerActive,
   hoverTarget,
   dropSuccess,
+  attackTargets = [],
 }) => {
   // 手札レイアウト計算
   useEffect(() => {
@@ -243,7 +245,7 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
         <div className={styles.field_player_hero_wrap}>
           <div
             ref={playerHeroRef}
-            className={styles.field_player_hero_hp}
+            className={`${styles.field_player_hero_hp} ${attackTargets.includes('hero') ? styles.attack_highlight : ''}`}
             onDragOver={(e) => {
               const handCard = playerHandCards.find((c) => c.uniqueId === draggingCard);
               const isHeal = handCard && handCard.effect === "heal_single";
@@ -275,34 +277,51 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
         }}
         onDrop={onPlayerFieldDrop}
       >
-        {playerFieldCards.map((card) => {
-          const isDragging = draggingCard === card.uniqueId;
-          const isHovered = hoverTarget?.id === card.uniqueId && hoverTarget?.type === 'playerCard';
-          const isDropped = dropSuccess?.id === card.uniqueId && dropSuccess?.type === 'playerCard';
-          return (
-          <CardItem
-            key={card.uniqueId}
-            {...card}
-            hp={card.hp ?? 0}
-            maxHp={card.maxHp ?? 0}
-            attack={card.attack ?? 0}
-            draggable={card.canAttack}
-            onDragStart={(e) => {
-              if (!isPlayerTurn) return;
-              onDragStart(card, e);
-            }}
-            onDragEnd={onDragEnd}
-            onDragOver={onDragOver}
-            onDrop={() => onCardClick(card.uniqueId)}
-            className={`${isHovered ? styles.target_highlight : ''} ${isDropped ? styles.drop_success : ''}`}
-            style={{
-              opacity: isDragging ? 0.15 : 1,
-              transition: 'opacity 0.1s ease',
-            }}
-            ref={(el: HTMLDivElement | null) => { playerFieldRefs.current[card.uniqueId] = el; }}
-            onClick={() => onCardClick(card.uniqueId)}
-          />
-        )})}
+        {Array.from({ length: 5 }, (_, index) => {
+          const card = playerFieldCards[index];
+          if (card) {
+            const isDragging = draggingCard === card.uniqueId;
+            const isHovered = hoverTarget?.id === card.uniqueId && hoverTarget?.type === 'playerCard';
+            const isDropped = dropSuccess?.id === card.uniqueId && dropSuccess?.type === 'playerCard';
+            const isSummoning = (card as { isAnimating?: boolean }).isAnimating;
+            return (
+              <CardItem
+                key={card.uniqueId}
+                {...card}
+                hp={card.hp ?? 0}
+                maxHp={card.maxHp ?? 0}
+                attack={card.attack ?? 0}
+                draggable={card.canAttack}
+                onDragStart={(e) => {
+                  if (!isPlayerTurn) return;
+                  onDragStart(card, e);
+                }}
+                onDragEnd={onDragEnd}
+                onDragOver={onDragOver}
+                onDrop={() => onCardClick(card.uniqueId)}
+                className={`${isSummoning ? styles.enemy_follower_summon : ""} ${isHovered ? styles.target_highlight : ''} ${isDropped ? styles.drop_success : ''} ${attackTargets.includes(card.uniqueId) ? styles.attack_highlight : ''}`}
+                style={{
+                  opacity: isDragging ? 0.15 : 1,
+                  transition: 'opacity 0.1s ease',
+                  ...((card as { isAnimating?: boolean }).isAnimating ? { transform: "translateY(-40px)", opacity: 0 } : {}),
+                }}
+                ref={(el: HTMLDivElement | null) => { playerFieldRefs.current[card.uniqueId] = el; }}
+                onClick={() => onCardClick(card.uniqueId)}
+              />
+            );
+          } else {
+            // 空スロット
+            const isHighlight = draggingCard && playerHandCards.some(c => c.uniqueId === draggingCard && c.type === 'follower');
+            return (
+              <div
+                key={`empty-${index}`}
+                className={`${styles.field_slot} ${isHighlight ? styles.field_slot_highlight : ''}`}
+              >
+                {isHighlight ? '召喚可能' : ''}
+              </div>
+            );
+          }
+        })}
       </div>
 
       {/* プレイヤー手札 */}

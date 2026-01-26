@@ -185,6 +185,8 @@ export const GameField: React.FC<GameFieldProps> = ({
   const dragOffsetRef = React.useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const [hoverTarget, setHoverTarget] = React.useState<{ type: string | null; id?: string | null }>({ type: null });
   const [dropSuccess, setDropSuccess] = React.useState<{ type: string | null; id?: string | null }>({ type: null });
+  const [attackTargets, setAttackTargets] = React.useState<string[]>([]);
+  const [arrowProgress, setArrowProgress] = React.useState<number>(0);
 
   // Debug HUD state & helper (visible when window.__GAME_DRAG_DEBUG__ === true)
   const [debugEvents, setDebugEvents] = React.useState<Array<{ t: number; text: string; data?: any }>>([]);
@@ -317,6 +319,18 @@ export const GameField: React.FC<GameFieldProps> = ({
       setHoverTarget({ type: null });
     };
   }, [draggingCard, setDragPosition]);
+
+  React.useEffect(() => {
+    if (hoverTarget.type && attackTargets.includes(hoverTarget.id || 'hero')) {
+      setArrowProgress(0);
+      const interval = setInterval(() => {
+        setArrowProgress(prev => Math.min(prev + 0.05, 1));
+      }, 50);
+      return () => clearInterval(interval);
+    } else {
+      setArrowProgress(0);
+    }
+  }, [hoverTarget, attackTargets]);
 
   // Pointer / touch fallback: document-level pointer handling to support mobile drag
   useEffect(() => {
@@ -810,7 +824,11 @@ export const GameField: React.FC<GameFieldProps> = ({
 
     const drawArrow = () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      if (!draggingCard || !arrowStartPos.current) return;
+      if (!draggingCard || !arrowStartPos.current) {
+        return;
+      }
+
+      console.log('drawArrow called, draggingCard:', draggingCard);
 
       const isHandCard = playerHandCards.some(c => c.uniqueId === draggingCard);
       const draggingCardObj = playerHandCards.find(c => c.uniqueId === draggingCard) || playerFieldCards.find(c => c.uniqueId === draggingCard);
@@ -822,7 +840,7 @@ export const GameField: React.FC<GameFieldProps> = ({
 
       const attackingCard = playerFieldCards.find(c => c.uniqueId === draggingCard && c.canAttack);
       if (attackingCard || isHandSpell) {
-        const targets: { x: number; y: number; kind: "damage" | "heal" }[] = [];
+        const targets: { x: number; y: number; kind: "damage" | "heal"; id: string }[] = [];
 
         if (isDamageSpell || attackingCard) {
           const canTargetHero = !((attackingCard as { rushInitialTurn?: boolean })?.rushInitialTurn);
@@ -830,7 +848,7 @@ export const GameField: React.FC<GameFieldProps> = ({
 
           if (canTargetHero && !hasWallGuardOnEnemy && enemyHeroRef.current) {
             const rect = enemyHeroRef.current.getBoundingClientRect();
-            targets.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height, kind: "damage" });
+            targets.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height, kind: "damage", id: "hero" });
           }
 
           for (const c of enemyFieldCards) {
@@ -838,21 +856,17 @@ export const GameField: React.FC<GameFieldProps> = ({
             if (ref) {
               if ((c as { stealth?: boolean }).stealth) continue;
               const rect = ref.getBoundingClientRect();
-              targets.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, kind: "damage" });
+              targets.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, kind: "damage", id: c.uniqueId });
             }
           }
         }
 
         if (isHealSpell) {
-          if (playerHeroRef.current) {
-            const rect = playerHeroRef.current.getBoundingClientRect();
-            targets.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height, kind: "heal" });
-          }
           for (const c of playerFieldCards) {
             const ref = playerFieldRefs.current[c.uniqueId];
             if (ref) {
               const rect = ref.getBoundingClientRect();
-              targets.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, kind: "heal" });
+              targets.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, kind: "heal", id: c.uniqueId });
             }
           }
         }
@@ -863,45 +877,74 @@ export const GameField: React.FC<GameFieldProps> = ({
               const ref = playerFieldRefs.current[c.uniqueId];
               if (ref) {
                 const rect = ref.getBoundingClientRect();
-                targets.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, kind: "heal" });
+                targets.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, kind: "heal", id: c.uniqueId });
               }
             }
           }
         }
 
-        const startX = arrowStartPos.current.x;
-        const startY = arrowStartPos.current.y;
-        ctx.lineWidth = 3;
-        for (const t of targets) {
-          const endX = t.x;
-          const endY = t.y;
-          if (t.kind === "heal") {
-            ctx.strokeStyle = "#4caf50";
-            ctx.fillStyle = "#4caf50";
-          } else {
-            ctx.strokeStyle = "#ff5722";
-            ctx.fillStyle = "#ff5722";
-          }
+        console.log('targets', targets);
+        setAttackTargets(targets.map(t => t.id));
 
+        // ターゲットを選択
+        let target: { x: number; y: number; kind: "damage" | "heal" } | null = null;
+        if (hoverTarget.type === 'enemyHero' && targets.some(t => t.id === 'hero')) {
+          const rect = enemyHeroRef.current?.getBoundingClientRect();
+          if (rect) target = { x: rect.left + rect.width / 2, y: rect.top + rect.height, kind: "damage" };
+        } else if (hoverTarget.type === 'enemyCard' && hoverTarget.id && targets.some(t => t.id === hoverTarget.id)) {
+          const ref = enemyFieldRefs.current[hoverTarget.id];
+          if (ref) {
+            const rect = ref.getBoundingClientRect();
+            target = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, kind: "damage" };
+          }
+        } else if (hoverTarget.type === 'playerHero' && targets.some(t => t.id === 'hero')) {
+          const rect = playerHeroRef.current?.getBoundingClientRect();
+          if (rect) target = { x: rect.left + rect.width / 2, y: rect.top + rect.height, kind: "heal" };
+        } else if (hoverTarget.type === 'playerCard' && hoverTarget.id && targets.some(t => t.id === hoverTarget.id)) {
+          const ref = playerFieldRefs.current[hoverTarget.id];
+          if (ref) {
+            const rect = ref.getBoundingClientRect();
+            target = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, kind: "heal" };
+          }
+        }
+
+        if (target) {
+          const startX = arrowStartPos.current.x;
+          const startY = arrowStartPos.current.y;
+          const endX = target.x;
+          const endY = target.y;
+          const distance = Math.sqrt((endX - startX) ** 2 + (endY - startY) ** 2);
+          const currentLength = distance * arrowProgress;
+          const ratio = Math.min(currentLength / distance, 1);
+          const currentEndX = startX + (endX - startX) * ratio;
+          const currentEndY = startY + (endY - startY) * ratio;
+
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = target.kind === "heal" ? "#4caf50" : "#ff5722";
+          ctx.setLineDash([5, 5]);
+          ctx.lineDashOffset = -arrowProgress * 20;
           ctx.beginPath();
           ctx.moveTo(startX, startY);
-          ctx.lineTo(endX, endY);
+          ctx.lineTo(currentEndX, currentEndY);
           ctx.stroke();
 
-          const angle = Math.atan2(endY - startY, endX - startX);
-          const arrowLength = 10;
-          ctx.beginPath();
-          ctx.moveTo(endX, endY);
-          ctx.lineTo(
-            endX - arrowLength * Math.cos(angle - Math.PI / 6),
-            endY - arrowLength * Math.sin(angle - Math.PI / 6)
-          );
-          ctx.lineTo(
-            endX - arrowLength * Math.cos(angle + Math.PI / 6),
-            endY - arrowLength * Math.sin(angle + Math.PI / 6)
-          );
-          ctx.lineTo(endX, endY);
-          ctx.fill();
+          // 矢印の頭
+          if (ratio >= 1) {
+            const angle = Math.atan2(endY - startY, endX - startX);
+            const arrowLength = 10;
+            ctx.beginPath();
+            ctx.moveTo(currentEndX, currentEndY);
+            ctx.lineTo(
+              currentEndX - arrowLength * Math.cos(angle - Math.PI / 6),
+              currentEndY - arrowLength * Math.sin(angle - Math.PI / 6)
+            );
+            ctx.moveTo(currentEndX, currentEndY);
+            ctx.lineTo(
+              currentEndX - arrowLength * Math.cos(angle + Math.PI / 6),
+              currentEndY - arrowLength * Math.sin(angle + Math.PI / 6)
+            );
+            ctx.stroke();
+          }
         }
       }
     };
@@ -1227,6 +1270,7 @@ export const GameField: React.FC<GameFieldProps> = ({
         enemySpellAnimation={enemySpellAnimation}
         hoverTarget={hoverTarget}
         dropSuccess={dropSuccess}
+        attackTargets={attackTargets}
         onDragOver={(e) => {
           const handCard = playerHandCards.find((c) => c.uniqueId === draggingCard);
           const isHeal = handCard && handCard.effect === "heal_single";
@@ -1236,6 +1280,7 @@ export const GameField: React.FC<GameFieldProps> = ({
           if (!draggingCard) return;
           const handCard = playerHandCards.find((c) => c.uniqueId === draggingCard);
           if (handCard && handCard.type === "spell") {
+            setAttackTargets([]);
             castSpell(draggingCard, targetId, true);
           } else {
             attack(draggingCard, targetId, true);
@@ -1250,6 +1295,7 @@ export const GameField: React.FC<GameFieldProps> = ({
           } else {
             setDropSuccess({ type: 'enemyCard', id: targetId });
           }
+          setAttackTargets([]);
           setTimeout(() => setDropSuccess({ type: null }), 500);
         }}
         onCardClick={(cardId: string) => setDescCardId(descCardId === cardId ? null : cardId)}
@@ -1278,6 +1324,9 @@ export const GameField: React.FC<GameFieldProps> = ({
         descCardId={descCardId}
         enemyAttackAnimation={enemyAttackAnimation}
         enemySpellAnimation={enemySpellAnimation}
+        hoverTarget={hoverTarget}
+        dropSuccess={dropSuccess}
+        attackTargets={attackTargets}
         setIsHandExpanded={setIsHandExpanded}
         setActiveHandCardId={setActiveHandCardId}
         setDescCardId={setDescCardId}
@@ -1287,6 +1336,7 @@ export const GameField: React.FC<GameFieldProps> = ({
         setArrowStartPos={(pos) => { arrowStartPos.current = pos; }}
         onDragStart={(card, e) => {
           if (!isPlayerTurn) return;
+          setArrowProgress(0);
           try {
             // Suppress browser drag ghost and ensure the drag carries an identifier
             e.dataTransfer?.setData('text/plain', card.uniqueId);
@@ -1306,6 +1356,7 @@ export const GameField: React.FC<GameFieldProps> = ({
           setDraggingCard(null);
           arrowStartPos.current = null;
           dragOffsetRef.current = { x: 0, y: 0 };
+          setAttackTargets([]);
         }}
         onDragOver={(e) => {
           const handCard = playerHandCards.find((c) => c.uniqueId === draggingCard);
@@ -1317,11 +1368,13 @@ export const GameField: React.FC<GameFieldProps> = ({
           const handCard = playerHandCards.find((c) => c.uniqueId === draggingCard);
           const isHeal = handCard && handCard.effect === "heal_single";
           if (handCard && handCard.type === "spell" && isHeal) {
+            setAttackTargets([]);
             castSpell(draggingCard, card?.uniqueId || "hero", true);
           }
           setDraggingCard(null);
           arrowStartPos.current = null;
           dragOffsetRef.current = { x: 0, y: 0 };
+          setAttackTargets([]);
         }}
         onPlayerFieldDrop={() => {
           if (!draggingCard) return;

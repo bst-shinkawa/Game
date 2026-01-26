@@ -537,10 +537,16 @@ export function useGame(): {
         maxHp: card.hp ?? 0,
         canAttack,
         rushInitialTurn: card.rush ? true : undefined, // rush の初回ターンかどうかをマーク
+        isAnimating: true,
       },
     ]);
 
     setPlayerHandCards((h) => h.filter((c) => c.uniqueId !== card.uniqueId));
+
+    // アニメーション終了
+    setTimeout(() => {
+      setPlayerFieldCards((list) => list.map((c) => (c.uniqueId === card.uniqueId ? { ...c, isAnimating: false } : c)));
+    }, 600);
 
     // 召喚時効果の発動（例: 騎士の召喚時全体ダメージなど）
     if (card.summonEffect) {
@@ -599,6 +605,12 @@ export function useGame(): {
     targetId: string | "hero",
     isPlayerAttacker: boolean = true
   ) => {
+    // アニメーション開始
+    if (isPlayerAttacker) {
+      setEnemyAttackAnimation({ sourceCardId: attackerId, targetId });
+    } else {
+      setEnemyAttackAnimation({ sourceCardId: attackerId, targetId });
+    }
     const attackerList = isPlayerAttacker ? playerFieldRef.current : enemyFieldRef.current;
     const targetList = isPlayerAttacker ? enemyFieldRef.current : playerFieldRef.current;
     const setAttackerList = isPlayerAttacker ? setPlayerFieldCards : setEnemyFieldCards;
@@ -758,6 +770,11 @@ export function useGame(): {
         });
       }
     }
+
+    // アニメーションクリア
+    setTimeout(() => {
+      setEnemyAttackAnimation(null);
+    }, 1000);
   };
 
   // --- スペルの発動（シンプル実装） ---

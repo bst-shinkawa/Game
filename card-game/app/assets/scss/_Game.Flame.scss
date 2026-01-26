@@ -11,6 +11,7 @@
     background-size: cover;
     background-position: center;
     background-image: url("/Game/img/field/bg.png");
+    perspective: 1000px;
 
     &.field_local{
         background-image: url("/img/field/bg.png");
@@ -78,7 +79,6 @@
             display: grid;
             grid-template-columns: repeat(5, 1fr);
             gap: 20px;
-            background-image: url("/img/field/enemy_battle_bg.png");
             background-position: center;
             background-size: contain;
             background-repeat: no-repeat;
@@ -306,10 +306,9 @@
             display: grid;
             grid-template-columns: repeat(5, 1fr);
             gap: 20px;
-            background-image: url("/img/field/player_battle_bg.png");
-            background-size: contain;
-            background-repeat: no-repeat;
-            background-position: center;
+            perspective: 1200px;
+            perspective-origin: center center;
+
             &:empty{
                 min-height: 44.5%;
                 min-width: 44.5%;
@@ -606,13 +605,16 @@
     &_card{
         &_description{
             position: absolute;
-            top: 20%;
-            left: 3.5%;
-            width: 330px;
-            height: 210px;
+            top: 0%;
+            left: 1.5%;
+            width: 20%;
+            height: auto;
             background-size: cover;
             padding: 1.5em;
-            background-image: url("/img/field/description_flame.png");
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            border: solid 4px green;
 
             h4{
                 font-size: 25px;
@@ -628,8 +630,14 @@
 
 .card{
     width: clamp(80px, 8vw, 100px);
-    padding-top: 140%;
+    aspect-ratio: 180 / 250;
     position: relative;
+
+    &_on_field{
+        transform: rotateX(30deg) scaleY(1.1);
+        transform-style: preserve-3d;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
 
     &:hover{
         cursor: pointer;
@@ -638,6 +646,7 @@
     img{
         position: absolute;
         width: 100%;
+        height: 100%;
         top: 0;
         right: 0;
     }

@@ -124,7 +124,7 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
 
   return (
     <div
-      className={`${styles.card} ${className || ""}`}
+      className={`${styles.card} ${!inHand ? styles.card_on_field : ''} ${className || ""}`}
       data-uniqueid={uniqueId}
       data-type={type}
       aria-label={name}
