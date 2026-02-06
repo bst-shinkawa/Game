@@ -527,13 +527,7 @@ export async function runEnemyTurn(
                   : c
               )
             );
-          } else {
-            // ダメージを受けたフォロワーがない場合はヒーロー回復
-            setEnemyHeroHp((hp) => Math.min(hp + healAmount, 20));
           }
-        } else {
-          // フォロワーがない場合はヒーロー回復
-          setEnemyHeroHp((hp) => Math.min(hp + healAmount, 20));
         }
         
         await sleep(600);
