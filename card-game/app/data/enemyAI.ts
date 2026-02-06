@@ -258,7 +258,7 @@ export async function runEnemyTurn(
 
     // スペルも複数枚使う（優先度順で使えるだけ使う）
     let spellCandidates = enemyHandCards.filter((c) => c.type === "spell" && c.cost <= remainingMana);
-    const spellPriority = ["poison", "freeze_single", "damage_single", "damage_all", "heal_single"];
+    const spellPriority = ["poison", "freeze_single", "damage_single", "damage_all", "heal_single", "haste"];
     while (remainingMana > 0 && spellCandidates.length > 0) {
       // 50%の確率で優先度順、50%でランダム順
       let priorityOrder = Math.random() < 0.5;
@@ -337,6 +337,21 @@ export async function runEnemyTurn(
             setEnemyHandCards((h) => h.filter((c) => c.uniqueId !== spell!.uniqueId));
             setEnemyGraveyard((g) => [...g, { ...spell!, uniqueId: uuidv4() }]);
             remainingMana -= spell.cost;
+
+            // haste スペル: 敵フォロワーに突進を付与
+            if (spell.effect === "haste" && enemyFieldCards.length > 0) {
+              const targetCard = enemyFieldCards.find(c => c.canAttack === false || !(c as { rush?: boolean }).rush);
+              if (targetCard) {
+                setEnemyFieldCards((list) =>
+                  list.map((c) =>
+                    c.uniqueId === targetCard.uniqueId
+                      ? { ...c, canAttack: true, rush: true, haste: true }
+                      : c
+                  )
+                );
+              }
+            }
+            
             await sleep(600);
             if (cancelRef.current) return;
             break;
@@ -359,19 +374,34 @@ export async function runEnemyTurn(
       setEnemyGraveyard((g) => [...g, { ...damageSingleSpell, uniqueId: uuidv4() }]);
       remainingMana -= damageSingleSpell.cost;
 
-      setEnemySpellAnimation({ targetId: "hero", effect: "damage_single" });
+      // ターゲット選択: プレイヤーフィールドが空ならヒーロー
+      let targetId: string | "hero" = "hero";
+      if (playerFieldCards.length > 0 && Math.random() < 0.4) {
+        targetId = playerFieldCards[0].uniqueId;
+      }
+
+      setEnemySpellAnimation({ targetId, effect: "damage_single" });
       await sleep(300);
 
-      const dmg = (damageSingleSpell.name || "").toLowerCase().includes("lightning") || (damageSingleSpell.name || "").includes("雷") ? 4 : 3;
-      setPlayerHeroHp((hp) => {
-        const next = Math.max(hp - dmg, 0);
-        if (next <= 0) {
-          setGameOver({ over: true, winner: "enemy" });
-          try { stopTimer(); } catch (e) { /* ignore */ }
-          return 0;
-        }
-        return next;
-      });
+      const dmg = damageSingleSpell.effectValue ?? 3;
+      if (targetId === "hero") {
+        setPlayerHeroHp((hp) => {
+          const next = Math.max(hp - dmg, 0);
+          if (next <= 0) {
+            setGameOver({ over: true, winner: "enemy" });
+            try { stopTimer(); } catch (e) { /* ignore */ }
+            return 0;
+          }
+          return next;
+        });
+      } else {
+        setPlayerFieldCards((list) => {
+          const updated = list.map((c) => c.uniqueId === targetId ? { ...c, hp: (c.hp ?? 0) - dmg } : c);
+          const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
+          if (dead.length) setPlayerGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
+          return updated.filter((c) => (c.hp ?? 0) > 0);
+        });
+      }
       setEnemySpellAnimation(null);
       await sleep(600);
       if (cancelRef.current) return;
@@ -391,7 +421,15 @@ export async function runEnemyTurn(
         setEnemySpellAnimation({ targetId: "hero", effect: "damage_all" });
         await sleep(300);
 
-        const dmg = 2;
+        const dmg = damageAllSpell.effectValue ?? 2;
+        // プレイヤーフィールド全体ダメージ
+        setPlayerFieldCards((list) => {
+          const updated = list.map((c) => ({ ...c, hp: (c.hp ?? 0) - dmg }));
+          const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
+          if (dead.length) setPlayerGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
+          return updated.filter((c) => (c.hp ?? 0) > 0);
+        });
+        // プレイヤーヒーロー
         setPlayerHeroHp((hp) => {
           const next = Math.max(hp - dmg, 0);
           if (next <= 0) {
@@ -419,10 +457,12 @@ export async function runEnemyTurn(
         remainingMana -= poisonSpell.cost;
 
         const targetCard = playerFieldCards[0];
+        const poisonDamage = poisonSpell.effectValue ?? 1;
+        const poisonDuration = poisonSpell.statusDuration ?? 3;
         setPlayerFieldCards((list) =>
           list.map((c) =>
             c.uniqueId === targetCard.uniqueId
-              ? { ...c, poison: ((c as { poison?: number }).poison ?? 0) + 2, poisonDamage: 1 }
+              ? { ...c, poison: poisonDuration, poisonDamage }
               : c
           )
         );
@@ -443,10 +483,11 @@ export async function runEnemyTurn(
         remainingMana -= freezeSpell.cost;
 
         const targetCard = playerFieldCards[0];
+        const freezeDuration = freezeSpell.statusDuration ?? 1;
         setPlayerFieldCards((list) =>
           list.map((c) =>
             c.uniqueId === targetCard.uniqueId
-              ? { ...c, frozen: 2, canAttack: false }
+              ? { ...c, frozen: freezeDuration, canAttack: false }
               : c
           )
         );
@@ -465,6 +506,36 @@ export async function runEnemyTurn(
         setEnemyHandCards((h) => h.filter((c) => c.uniqueId !== healSpell.uniqueId));
         setEnemyGraveyard((g) => [...g, { ...healSpell, uniqueId: uuidv4() }]);
         remainingMana -= healSpell.cost;
+
+        // ターゲット選択: HP が低いフォロワーを優先
+        const healAmount = healSpell.effectValue ?? 2;
+        let targetId: string | "hero" = "hero";
+        
+        if (enemyFieldCards.length > 0) {
+          const damagedFollowers = enemyFieldCards.filter((c) => (c.hp ?? 0) < c.maxHp);
+          if (damagedFollowers.length > 0) {
+            const lowestHpCard = damagedFollowers.reduce((best, c) => 
+              (c.hp ?? 0) < (best.hp ?? 0) ? c : best
+            );
+            targetId = lowestHpCard.uniqueId;
+            
+            // フォロワーを回復
+            setEnemyFieldCards((list) =>
+              list.map((c) =>
+                c.uniqueId === targetId
+                  ? { ...c, hp: Math.min((c.hp ?? 0) + healAmount, c.maxHp) }
+                  : c
+              )
+            );
+          } else {
+            // ダメージを受けたフォロワーがない場合はヒーロー回復
+            setEnemyHeroHp((hp) => Math.min(hp + healAmount, 20));
+          }
+        } else {
+          // フォロワーがない場合はヒーロー回復
+          setEnemyHeroHp((hp) => Math.min(hp + healAmount, 20));
+        }
+        
         await sleep(600);
         if (cancelRef.current) return;
       }

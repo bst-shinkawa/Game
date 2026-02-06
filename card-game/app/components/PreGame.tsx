@@ -97,7 +97,7 @@ export const PreGame: React.FC<PreGameProps> = ({
                   maxHp={c.maxHp ?? 0}
                   attack={c.attack ?? 0}
                   inHand
-                  currentMana={currentMana}
+                  currentMana={0}
                   selected={marked}
                   noStatus={true}
                   onClick={() => onSwapToggle(c.uniqueId)}

@@ -245,7 +245,7 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
         <div className={styles.field_player_hero_wrap}>
           <div
             ref={playerHeroRef}
-            className={`${styles.field_player_hero_hp} ${attackTargets.includes('hero') ? styles.attack_highlight : ''}`}
+            className={`${styles.field_player_hero_hp} ${hoverTarget?.type === 'playerHero' && attackTargets.includes('playerHero') ? styles.attack_highlight : ''}`}
             onDragOver={(e) => {
               const handCard = playerHandCards.find((c) => c.uniqueId === draggingCard);
               const isHeal = handCard && handCard.effect === "heal_single";
@@ -299,6 +299,7 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
                 onDragEnd={onDragEnd}
                 onDragOver={onDragOver}
                 onDrop={() => onCardClick(card.uniqueId)}
+                isTarget={attackTargets.includes(card.uniqueId)}
                 className={`${isSummoning ? styles.enemy_follower_summon : ""} ${isHovered ? styles.target_highlight : ''} ${isDropped ? styles.drop_success : ''} ${attackTargets.includes(card.uniqueId) ? styles.attack_highlight : ''}`}
                 style={{
                   opacity: isDragging ? 0.15 : 1,
@@ -335,7 +336,7 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
           return (
             <div
               key={card.uniqueId}
-              className={`${styles.field_player_hand_card} ${isActive ? styles.active : ''}`}
+              className={`${styles.field_player_hand_card} ${isActive ? styles.active : ''} ${isDragging ? styles.dragging : ''}`}
               onClick={(e) => {
                 if (isDragging) return;
                 e.stopPropagation();

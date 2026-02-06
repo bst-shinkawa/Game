@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useContext } from "react";
 import { createPortal } from "react-dom";
 import { TurnTimer } from "@/app/data/turnTimer";
 import { DamageFloater } from "./DamageFloater";
@@ -13,6 +13,7 @@ import type { Card } from "@/app/data/cards";
 import type { DamageFloat } from "@/app/hooks/useGameUI";
 import styles from "@/app/assets/css/Game.Master.module.css";
 import { TimerController } from "./TimerCircle";
+import ViewportContext, { ViewportInfo } from "@/app/context/ViewportContext";
 
 interface GameFieldProps {
   // ゲームロジック
@@ -58,7 +59,7 @@ interface GameFieldProps {
   playCardToField: (card: Card) => void;
   endTurn: () => void;
   attack: (attackerId: string, targetId: string | "hero", isPlayerAttacker?: boolean) => void;
-  castSpell: (cardUniqueId: string, targetId: string | "hero", isPlayer?: boolean) => void;
+  castSpell: (cardUniqueId: string, targetId: string | "hero", isPlayer?: boolean, setAttackTargets?: (targets: string[]) => void) => void;
   resetGame: (mode: "cpu" | "pvp") => void;
   finalizeCoin: (winner: "player" | "enemy") => void;
   doMulligan: (keepIds: string[]) => void;
@@ -171,6 +172,8 @@ export const GameField: React.FC<GameFieldProps> = ({
   const timerRef = useRef<TimerController | null>(null); 
   const enemyTimerRef = useRef<TimerController | null>(null);
 
+  const viewport = useContext(ViewportContext);
+
   // Debugging flag (controlled at runtime via window.__GAME_DRAG_DEBUG__)
   const DEBUG = typeof window !== 'undefined' && (window as any).__GAME_DRAG_DEBUG__ === true;
 
@@ -180,7 +183,8 @@ export const GameField: React.FC<GameFieldProps> = ({
   const isTimeCritical = isPlayerTurn && turnSecondsRemaining <= 20;
 
   // ドラッグ中のマウス座標追跡（mousemove / dragover を rAF でバッファして更新）
-  const dragPendingRef = React.useRef<{ x: number; y: number } | null>(null);
+  const dragPendingRef = React.useRef<{ x: number; y: number; dx?: number; dy?: number } | null>(null);
+  const dragDesignRef = React.useRef<{ x: number; y: number } | null>(null);
   const dragRafRef = React.useRef<number | null>(null);
   const dragOffsetRef = React.useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const [hoverTarget, setHoverTarget] = React.useState<{ type: string | null; id?: string | null }>({ type: null });
@@ -214,6 +218,13 @@ export const GameField: React.FC<GameFieldProps> = ({
     }, 120) as unknown as number;
   };
 
+  const clientToDesign = (cx: number, cy: number) => {
+    if (!viewport || !viewport.scale) return null;
+    const dx = (cx - (viewport.containerLeft || 0)) / (viewport.scale || 1);
+    const dy = (cy - (viewport.containerTop || 0)) / (viewport.scale || 1);
+    return { x: Math.round(dx), y: Math.round(dy) };
+  };
+
   const stopMonitor = () => {
     if (monitorTimerRef.current != null) { clearInterval(monitorTimerRef.current); monitorTimerRef.current = null; }
   };
@@ -226,7 +237,10 @@ export const GameField: React.FC<GameFieldProps> = ({
 
     const flushPending = () => {
       if (dragPendingRef.current) {
-        const pos = { x: dragPendingRef.current.x - dragOffsetRef.current.x, y: dragPendingRef.current.y - dragOffsetRef.current.y };
+        // dragPendingRef stores client coords (x,y) and optionally design coords (dx,dy)
+        const clientX = dragPendingRef.current.x;
+        const clientY = dragPendingRef.current.y;
+        const pos = { x: clientX - dragOffsetRef.current.x, y: clientY - dragOffsetRef.current.y };
         setDragPosition(pos);
         // determine hover target
         try {
@@ -268,8 +282,8 @@ export const GameField: React.FC<GameFieldProps> = ({
           setDragPosition(pos);
           // determine hover target
           try {
-            const p = dragPendingRef.current as { x: number; y: number };
-            const el = document.elementFromPoint(p.x, p.y) as HTMLElement | null;
+            const p = dragPendingRef.current as { x: number; y: number; dx?: number; dy?: number };
+              const el = document.elementFromPoint(p.x, p.y) as HTMLElement | null;
             if (el) {
               const enemyHeroEl = el.closest('.' + styles.field_enemy_hero);
               const playerHeroEl = el.closest('.' + styles.field_player_hero);
@@ -297,13 +311,29 @@ export const GameField: React.FC<GameFieldProps> = ({
     };
 
     const handleMouseMove = (e: MouseEvent) => {
-      dragPendingRef.current = { x: e.clientX, y: e.clientY };
+      const cx = e.clientX;
+      const cy = e.clientY;
+      let dx = undefined;
+      let dy = undefined;
+      if (viewport && viewport.scale) {
+        dx = Math.round((cx - (viewport.containerLeft || 0)) / (viewport.scale || 1));
+        dy = Math.round((cy - (viewport.containerTop || 0)) / (viewport.scale || 1));
+      }
+      dragPendingRef.current = { x: cx, y: cy, dx, dy };
       scheduleFlush();
     };
 
     const handleDragOver = (e: DragEvent) => {
       // dragover provides client coordinates reliably during HTML5 drag
-      dragPendingRef.current = { x: e.clientX, y: e.clientY };
+      const cx = e.clientX;
+      const cy = e.clientY;
+      let dx = undefined;
+      let dy = undefined;
+      if (viewport && viewport.scale) {
+        dx = Math.round((cx - (viewport.containerLeft || 0)) / (viewport.scale || 1));
+        dy = Math.round((cy - (viewport.containerTop || 0)) / (viewport.scale || 1));
+      }
+      dragPendingRef.current = { x: cx, y: cy, dx, dy };
       scheduleFlush();
     };
 
@@ -318,7 +348,7 @@ export const GameField: React.FC<GameFieldProps> = ({
       dragRafRef.current = null;
       setHoverTarget({ type: null });
     };
-  }, [draggingCard, setDragPosition]);
+  }, [draggingCard]);
 
   React.useEffect(() => {
     if (hoverTarget.type && attackTargets.includes(hoverTarget.id || 'hero')) {
@@ -361,7 +391,11 @@ export const GameField: React.FC<GameFieldProps> = ({
                 if (cloneId === idLocal) {
                   const rect = cloneEl.getBoundingClientRect();
                   pointerOffset = { x: pointerX - rect.left, y: pointerY - rect.top };
+                  // update client drag position
                   setDragPosition({ x: pointerX - pointerOffset.x, y: pointerY - pointerOffset.y });
+                  // also store design coords
+                  const d = clientToDesign(pointerX, pointerY);
+                  if (d) dragDesignRef.current = d;
                   if (DEBUG) pushDebug('resyncPointerOffset', { id: idLocal, pointerX, pointerY, rect, pointerOffset });
                   return;
                 } else {
@@ -379,6 +413,8 @@ export const GameField: React.FC<GameFieldProps> = ({
                 const rect = handEl.getBoundingClientRect();
                 pointerOffset = { x: pointerX - rect.left, y: pointerY - rect.top };
                 setDragPosition({ x: pointerX - pointerOffset.x, y: pointerY - pointerOffset.y });
+                const d = clientToDesign(pointerX, pointerY);
+                if (d) dragDesignRef.current = d;
                 if (DEBUG) pushDebug('resyncPointerOffset-hand', { id: idLocal, pointerX, pointerY, rect, pointerOffset });
               } else {
                 if (DEBUG) pushDebug('resyncPointerOffset-no-anchor', { id: idLocal, pointerX, pointerY });
@@ -401,6 +437,8 @@ export const GameField: React.FC<GameFieldProps> = ({
         setDraggingCard(id);
         arrowStartPos.current = { x: startRect!.left + startRect!.width / 2, y: startRect!.top + startRect!.height / 2 };
         setDragPosition({ x: startX - pointerOffset.x, y: startY - pointerOffset.y });
+        const d0 = clientToDesign(startX, startY);
+        if (d0) dragDesignRef.current = d0;
         // prevent browser touch gestures from stealing moves
         try { document.body.style.touchAction = 'none'; if (DEBUG) pushDebug('set body.touchAction none'); } catch (e) {}
         // update last pointer and start monitor and attempt to resync in case DOM layout changed
@@ -426,6 +464,8 @@ export const GameField: React.FC<GameFieldProps> = ({
             setDraggingCard(id);
             arrowStartPos.current = { x: startRect!.left + startRect!.width / 2, y: startRect!.top + startRect!.height / 2 };
             setDragPosition({ x: x - pointerOffset.x, y: y - pointerOffset.y });
+            const d1 = clientToDesign(x, y);
+            if (d1) dragDesignRef.current = d1;
             // update last pointer, start monitor and attempt resync
             lastPointer = { x, y };
             lastPointerRef.current = { x, y };
@@ -439,6 +479,8 @@ export const GameField: React.FC<GameFieldProps> = ({
           lastPointerRef.current = { x, y };
           if (DEBUG) { console.debug('[drag-debug] dragMove', { id, x, y }); pushDebug('dragMove', { id, x, y }); }
           setDragPosition({ x: x - pointerOffset.x, y: y - pointerOffset.y });
+          const d2 = clientToDesign(x, y);
+          if (d2) dragDesignRef.current = d2;
           return true;
         }
       };
@@ -530,10 +572,10 @@ export const GameField: React.FC<GameFieldProps> = ({
 
         if (handCard) {
           if (isDropOnEnemyHero) {
-            if (handCard.type === 'spell') castSpell(handCard.uniqueId, 'hero', true);
+            if (handCard.type === 'spell') castSpell(handCard.uniqueId, 'hero', true, setAttackTargets);
             else attack(handCard.uniqueId, 'hero', true);
           } else if (dropFieldCardId && enemyFieldCards.some(c => c.uniqueId === dropFieldCardId)) {
-            if (handCard.type === 'spell') castSpell(handCard.uniqueId, dropFieldCardId, true);
+            if (handCard.type === 'spell') castSpell(handCard.uniqueId, dropFieldCardId, true, setAttackTargets);
             else attack(handCard.uniqueId, dropFieldCardId, true);
           } else if (dropEl && playerBattleRef.current && (playerBattleRef.current === dropEl || playerBattleRef.current.contains(dropEl))) {
             if (preGame && coinResult !== 'deciding') {
@@ -649,10 +691,10 @@ export const GameField: React.FC<GameFieldProps> = ({
 
         if (handCard) {
           if (isDropOnEnemyHero) {
-            if (handCard.type === 'spell') castSpell(handCard.uniqueId, 'hero', true);
+            if (handCard.type === 'spell') castSpell(handCard.uniqueId, 'hero', true, setAttackTargets);
             else attack(handCard.uniqueId, 'hero', true);
           } else if (dropFieldCardId && enemyFieldCards.some(c => c.uniqueId === dropFieldCardId)) {
-            if (handCard.type === 'spell') castSpell(handCard.uniqueId, dropFieldCardId, true);
+            if (handCard.type === 'spell') castSpell(handCard.uniqueId, dropFieldCardId, true, setAttackTargets);
             else attack(handCard.uniqueId, dropFieldCardId, true);
           } else if (dropEl && playerBattleRef.current && (playerBattleRef.current === dropEl || playerBattleRef.current.contains(dropEl))) {
             if (preGame && coinResult !== 'deciding') {
@@ -1109,12 +1151,19 @@ export const GameField: React.FC<GameFieldProps> = ({
           onMulliganSubmit={() => {
             // マリガン実行
             const keep = playerHandCards.filter(c => !swapIds.includes(c.uniqueId)).map(c => c.uniqueId);
+            // Call doMulligan first, then immediately clear swapIds to batch state updates
             doMulligan(keep);
+            setSwapIds([]);
             setShowCoinPopup(false);
+            // Use a longer delay and double rAF to ensure React has flushed all state updates to DOM
             setTimeout(() => {
-              startMatch();
-              setShowGameStart(true);
-              setTimeout(() => setShowGameStart(false), 1400);
+              requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                  startMatch();
+                  setShowGameStart(true);
+                  setTimeout(() => setShowGameStart(false), 1400);
+                });
+              });
             }, 2000);
           }}
           onMulliganSkip={() => {
@@ -1139,12 +1188,7 @@ export const GameField: React.FC<GameFieldProps> = ({
         const cardHeight = 100;
 
         // scale the drag preview to match viewport scale so it aligns visually with scaled content
-        let s = 1;
-        if (typeof window !== 'undefined') {
-          const DESIGN_W = 1280;
-          const DESIGN_H = 720;
-          s = Math.min(window.innerWidth / DESIGN_W, window.innerHeight / DESIGN_H);
-        }
+          let s = viewport && viewport.scale ? viewport.scale : 1;
         const displayW = Math.max(28, Math.round(cardWidth * s));
         const displayH = Math.max(40, Math.round(cardHeight * s));
 
@@ -1257,7 +1301,7 @@ export const GameField: React.FC<GameFieldProps> = ({
       {/* 敵エリア */}
       <EnemyArea
         enemyHeroHp={enemyHeroHp}
-        enemyHandCards={enemyHandCards}
+        enemyHandCards={preGame ? [] : enemyHandCards}
         enemyFieldCards={enemyFieldCards}
         enemyDeck={enemyDeck}
         enemyGraveyard={enemyGraveyard}
@@ -1281,7 +1325,7 @@ export const GameField: React.FC<GameFieldProps> = ({
           const handCard = playerHandCards.find((c) => c.uniqueId === draggingCard);
           if (handCard && handCard.type === "spell") {
             setAttackTargets([]);
-            castSpell(draggingCard, targetId, true);
+            castSpell(draggingCard, targetId, true, setAttackTargets);
           } else {
             attack(draggingCard, targetId, true);
           }
@@ -1309,7 +1353,7 @@ export const GameField: React.FC<GameFieldProps> = ({
       {/* プレイヤーエリア */}
       <PlayerArea
         playerHeroHp={playerHeroHp}
-        playerHandCards={playerHandCards}
+        playerHandCards={preGame ? [] : playerHandCards}
         playerFieldCards={playerFieldCards}
         playerDeck={deck}
         playerGraveyard={playerGraveyard}
@@ -1324,8 +1368,6 @@ export const GameField: React.FC<GameFieldProps> = ({
         descCardId={descCardId}
         enemyAttackAnimation={enemyAttackAnimation}
         enemySpellAnimation={enemySpellAnimation}
-        hoverTarget={hoverTarget}
-        dropSuccess={dropSuccess}
         attackTargets={attackTargets}
         setIsHandExpanded={setIsHandExpanded}
         setActiveHandCardId={setActiveHandCardId}
@@ -1351,6 +1393,8 @@ export const GameField: React.FC<GameFieldProps> = ({
           setDraggingCard(card.uniqueId);
           arrowStartPos.current = startCenter;
           setDragPosition({ x: (e as any).clientX - offset.x, y: (e as any).clientY - offset.y });
+          const d = clientToDesign((e as any).clientX, (e as any).clientY);
+          if (d) dragDesignRef.current = d;
         }}
         onDragEnd={() => {
           setDraggingCard(null);
@@ -1369,7 +1413,7 @@ export const GameField: React.FC<GameFieldProps> = ({
           const isHeal = handCard && handCard.effect === "heal_single";
           if (handCard && handCard.type === "spell" && isHeal) {
             setAttackTargets([]);
-            castSpell(draggingCard, card?.uniqueId || "hero", true);
+            castSpell(draggingCard, card?.uniqueId || "hero", true, setAttackTargets);
           }
           setDraggingCard(null);
           arrowStartPos.current = null;

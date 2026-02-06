@@ -82,6 +82,10 @@
             background-position: center;
             background-size: contain;
             background-repeat: no-repeat;
+
+            perspective: 1200px;
+            perspective-origin: center center;
+
             &:empty{
                 min-height: 44.5%;
                 min-width: 44.5%;
@@ -493,6 +497,36 @@
 
     }
 
+    /* ターゲットハイライト */
+    .attack_highlight {
+        box-sizing: border-box;
+        outline: 4px solid #ff4444;
+        outline-offset: -4px;
+        box-shadow: 0 0 20px #ff4444, 0 0 40px rgba(255, 68, 68, 0.5);
+        animation: pulse 1s infinite;
+    }
+
+    /* ドラッグ中のカード */
+    .dragging {
+        transform: scale(1.1);
+        box-shadow: 0 0 20px rgba(0, 255, 0, 0.8);
+        z-index: 1000;
+    }
+
+    /* 脈動アニメーション */
+    @keyframes pulse {
+        0% {
+            /* avoid transform changes to prevent layout/bounding rect shifts */
+            box-shadow: 0 0 20px #ff4444, 0 0 40px rgba(255, 68, 68, 0.5);
+        }
+        50% {
+            box-shadow: 0 0 30px #ff4444, 0 0 60px rgba(255, 68, 68, 0.7);
+        }
+        100% {
+            box-shadow: 0 0 20px #ff4444, 0 0 40px rgba(255, 68, 68, 0.5);
+        }
+    }
+
     &_turn{
         &_wrapper {
             position: fixed;
@@ -624,6 +658,30 @@
             }
         }
     }
+    &_slot {
+        width: clamp(80px, 8vw, 100px);
+        aspect-ratio: 180/250;
+        border: 2px dashed #ccc;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #333;
+        font-weight: bold;
+        font-size: 12px;
+        transition: background-color 0.2s ease, border-color 0.2s ease, opacity 0.2s ease;
+        transform: rotateX(30deg) scaleY(1.1);
+        transform-style: preserve-3d;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+    &_slot_highlight {
+        background-color: yellow;
+        opacity: 0.5;
+        border-color: gold;
+    }
+    .target_highlight {
+    box-shadow: 0 0 10px limegreen;
+    }
 
     
 }
@@ -632,6 +690,7 @@
     width: clamp(80px, 8vw, 100px);
     aspect-ratio: 180 / 250;
     position: relative;
+    box-sizing: border-box;
 
     &_on_field{
         transform: rotateX(30deg) scaleY(1.1);
@@ -694,6 +753,7 @@
     display: flex;
     align-items:center;
     justify-content: center;
+    background-color: rgba(0, 0, 0, 0.7);
 
     &_wrap{
         background-color: #333;
@@ -706,7 +766,7 @@
 
     &_card{
         display: flex;
-        gap: 12;
+        gap: 12px;
         margin-top: 15px;
         align-items: center;
         justify-content: center;

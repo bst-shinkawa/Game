@@ -124,7 +124,7 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
               }}
               onDragOver={onDragOver}
               onDrop={() => onDrop(card.uniqueId)}
-              isTarget={false}
+              isTarget={attackTargets.includes(card.uniqueId)}
               ref={(el: HTMLDivElement | null) => {
                 enemyFieldRefs.current[card.uniqueId] = el;
               }}
