@@ -35,6 +35,7 @@ interface GameFieldProps {
   preGame: boolean;
   coinResult: "deciding" | "player" | "enemy";
   aiRunning: boolean;
+  destroyingCards: Set<string>;
 
   // UI状態
   damageFloats: DamageFloat[];
@@ -111,6 +112,7 @@ export const GameField: React.FC<GameFieldProps> = ({
   preGame,
   coinResult,
   aiRunning,
+  destroyingCards,
   // UI状態
   damageFloats,
   draggingCard,
@@ -1315,6 +1317,7 @@ export const GameField: React.FC<GameFieldProps> = ({
         hoverTarget={hoverTarget}
         dropSuccess={dropSuccess}
         attackTargets={attackTargets}
+        destroyingCards={destroyingCards}
         onDragOver={(e) => {
           const handCard = playerHandCards.find((c) => c.uniqueId === draggingCard);
           const isHeal = handCard && handCard.effect === "heal_single";
@@ -1369,6 +1372,7 @@ export const GameField: React.FC<GameFieldProps> = ({
         enemyAttackAnimation={enemyAttackAnimation}
         enemySpellAnimation={enemySpellAnimation}
         attackTargets={attackTargets}
+        destroyingCards={destroyingCards}
         setIsHandExpanded={setIsHandExpanded}
         setActiveHandCardId={setActiveHandCardId}
         setDescCardId={setDescCardId}

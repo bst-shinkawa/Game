@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useContext } from "react";
 import CardItem from "./CardItem";
 import ManaBar from "./ManaBar";
 import Image from "next/image";
@@ -11,6 +11,7 @@ import deckIcon from "@/public/img/field/deck-icon.png";
 import deathIcon from "@/public/img/field/void-icon.png";
 import TimerCircle, { TimerController } from "./TimerCircle";
 import { TurnTimer } from "@/app/data/turnTimer";
+import ViewportContext from "@/app/context/ViewportContext";
 
 interface PlayerAreaProps {
   playerHeroHp: number;
@@ -30,6 +31,7 @@ interface PlayerAreaProps {
   enemyAttackAnimation: { sourceCardId: string | null; targetId: string | "hero" } | null;
   enemySpellAnimation: { targetId: string | "hero"; effect: string } | null;
   attackTargets: string[];
+  destroyingCards: Set<string>;
   // UI状態
   setIsHandExpanded: (expanded: boolean) => void;
   setActiveHandCardId: (id: string | null) => void;
@@ -75,6 +77,7 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
   descCardId,
   enemyAttackAnimation,
   enemySpellAnimation,
+  destroyingCards,
   setIsHandExpanded,
   setActiveHandCardId,
   setDescCardId,
@@ -139,11 +142,12 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
     return styles.hpRed;
   };
 
+  // ViewportContext を使用
+  const viewport = useContext(ViewportContext);
+
   // 敵の攻撃アニメーション
   useEffect(() => {
     if (!enemyAttackAnimation) return;
-
-    console.log('[PlayerArea] Enemy attack animation triggered:', enemyAttackAnimation);
 
     const targetId = enemyAttackAnimation.targetId;
     let targetElement: HTMLElement | null = null;
@@ -154,10 +158,8 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
       targetElement = playerFieldRefs.current[targetId] || null;
     }
 
-    console.log('[PlayerArea] Target element:', targetElement, 'targetId:', targetId);
-
     if (!targetElement) {
-      console.warn('[PlayerArea] Target element not found!');
+      console.log('[PlayerArea] Target element not found for attack! (card destroyed):', targetId);
       return;
     }
 
@@ -165,11 +167,9 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
     const targetX = targetRect.left + targetRect.width / 2;
     const targetY = targetRect.top + targetRect.height / 2;
 
-    // 敵フィールドの中央から開始
-    const startX = window.innerWidth / 2;
-    const startY = window.innerHeight * 0.25;
-
-    console.log('[PlayerArea] Projectile animation:', { startX, startY, targetX, targetY });
+    // 敵フィールドの中央から開始（ViewportContext のスケール・オフセットを適用）
+    const startX = viewport.containerLeft + (viewport.containerWidth / 2);
+    const startY = viewport.containerTop + (viewport.containerHeight * 0.25);
 
     // プロジェクタイルを作成
     const projectile = document.createElement('div');
@@ -204,7 +204,7 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
         clearTimeout(timeout);
         projectile.remove();
       };
-    }, [enemyAttackAnimation, styles]);
+    }, [enemyAttackAnimation, styles, viewport]);
 
   // 敵のスペルアニメーション
   useEffect(() => {
@@ -305,6 +305,9 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
                   opacity: isDragging ? 0.15 : 1,
                   transition: 'opacity 0.1s ease',
                   ...((card as { isAnimating?: boolean }).isAnimating ? { transform: "translateY(-40px)", opacity: 0 } : {}),
+                  ...(destroyingCards.has(card.uniqueId) ? { 
+                    animation: "cardDestroy 0.6s ease-in forwards"
+                  } : {}),
                 }}
                 ref={(el: HTMLDivElement | null) => { playerFieldRefs.current[card.uniqueId] = el; }}
                 onClick={() => onCardClick(card.uniqueId)}

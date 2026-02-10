@@ -36,6 +36,7 @@ interface EnemyAreaProps {
   enemyTimerRef: React.MutableRefObject<TimerController | null>;
   isTimerActive: boolean;
   enemyTurnTimer?: TurnTimer | null;
+  destroyingCards: Set<string>;
 }
 
 export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string | null; id?: string | null }, dropSuccess?: { type: string | null; id?: string | null }, attackTargets?: string[] }> = ({
@@ -63,8 +64,8 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
   hoverTarget,
   dropSuccess,
   attackTargets = [],
+  destroyingCards,
 }) => {
-  console.log('EnemyArea attackTargets:', attackTargets);
   const getHpClass = (hp: number) => {
     if (hp === 20) return styles.hpWhite;
     if (hp >= 11) return styles.hpYellow;
@@ -108,7 +109,6 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
           const isSpellTarget = enemySpellAnimation?.targetId === card.uniqueId;
           const isHovered = hoverTarget?.id === card.uniqueId && hoverTarget?.type === 'enemyCard';
           const isDropped = dropSuccess?.id === card.uniqueId && dropSuccess?.type === 'enemyCard';
-          console.log('enemy card', card.uniqueId, 'attackTargets', attackTargets, 'includes', attackTargets.includes(card.uniqueId));
           return (
             <CardItem
               key={card.uniqueId}
@@ -121,6 +121,9 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
                 ...((card as { isAnimating?: boolean }).isAnimating ? { transform: "translateY(-40px)", opacity: 0 } : {}),
                 ...(isAttacking ? { animation: "enemyCardAttack 0.9s ease-in-out forwards" } : {}),
                 ...(isSpellTarget ? { animation: "spellTargetFlash 0.6s ease-out" } : {}),
+                ...(destroyingCards.has(card.uniqueId) ? { 
+                  animation: "cardDestroy 0.6s ease-in forwards"
+                } : {}),
               }}
               onDragOver={onDragOver}
               onDrop={() => onDrop(card.uniqueId)}

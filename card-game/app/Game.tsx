@@ -56,6 +56,7 @@ export function useGame(): {
   playerTurnTimer: TurnTimer | null;
   enemyTurnTimer: TurnTimer | null;
   setPauseTimer: (pause: boolean) => void;
+  destroyingCards: Set<string>;
 } {
   // --- プレイヤー状態 ---
   const [deck, setDeck] = useState<Card[]>([...initialDeck]);
@@ -70,6 +71,43 @@ export function useGame(): {
   const [enemyFieldCards, setEnemyFieldCards] = useState<(Card & { maxHp: number; canAttack?: boolean })[]>([]);
   const [enemyGraveyard, setEnemyGraveyard] = useState<Card[]>([]);
   const [enemyHeroHp, setEnemyHeroHp] = useState<number>(MAX_HERO_HP);
+
+  // --- 破壊アニメーション ---
+  const [destroyingCards, setDestroyingCards] = useState<Set<string>>(new Set());
+
+  // --- 破壊アニメーション管理 ---
+  // カードが破壊される時に呼び出す
+  const addCardToDestroying = (cardIds: string[]) => {
+    const newSet = new Set(destroyingCards);
+    cardIds.forEach(id => newSet.add(id));
+    setDestroyingCards(newSet);
+    
+    // 600ms後に削除（CSS アニメーション時間に合わせる）
+    setTimeout(() => {
+      setDestroyingCards(prev => {
+        const next = new Set(prev);
+        cardIds.forEach(id => next.delete(id));
+        return next;
+      });
+    }, 600);
+  };
+
+  // --- アニメーション中の状態フィルター （破壊カードはアニメーション中でも残す） ---
+  const getPlayerFieldCards = () => {
+    return playerFieldCards.filter((c) => {
+      // 破壊アニメーション中は残す
+      if (destroyingCards.has(c.uniqueId)) return true;
+      return (c.hp ?? 0) > 0;
+    });
+  };
+
+  const getEnemyFieldCards = () => {
+    return enemyFieldCards.filter((c) => {
+      // 破壊アニメーション中は残す
+      if (destroyingCards.has(c.uniqueId)) return true;
+      return (c.hp ?? 0) > 0;
+    });
+  };
 
   // --- DnD ---
   const [draggingCard, setDraggingCard] = useState<string | null>(null);
@@ -156,7 +194,10 @@ export function useGame(): {
           return card;
         });
         const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
-        if (dead.length) setPlayerGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
+        if (dead.length) {
+          addCardToDestroying(dead.map(d => d.uniqueId));
+          setPlayerGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
+        }
         return updated.filter((c) => (c.hp ?? 0) > 0);
       });
 
@@ -176,7 +217,10 @@ export function useGame(): {
           return card;
         });
         const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
-        if (dead.length) setEnemyGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
+        if (dead.length) {
+          addCardToDestroying(dead.map(d => d.uniqueId));
+          setEnemyGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
+        }
         return updated.filter((c) => (c.hp ?? 0) > 0);
       });
     })();
@@ -549,7 +593,10 @@ export function useGame(): {
         setEnemyFieldCards((list) => {
           const updated = list.map((c) => ({ ...c, hp: (c.hp ?? 0) - dmg }));
           const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
-          if (dead.length) setEnemyGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
+          if (dead.length) {
+            addCardToDestroying(dead.map(d => d.uniqueId));
+            setEnemyGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
+          }
           return updated.filter((c) => (c.hp ?? 0) > 0);
         });
         setEnemyHeroHp((h) => {
@@ -712,6 +759,7 @@ export function useGame(): {
       // HP0以下のカードを墓地へ
   const deadTargets = newTargetList.filter((c) => (c.hp ?? 0) <= 0);
   if (deadTargets.length) {
+    addCardToDestroying(deadTargets.map(d => d.uniqueId));
     const setTargetGrave = isPlayerAttacker ? setEnemyGraveyard : setPlayerGraveyard;
     setTargetGrave((g) => {
       const added = deadTargets.filter(d => !g.some(x => x.uniqueId === d.uniqueId));
@@ -743,6 +791,7 @@ export function useGame(): {
 
       const deadAttackers = newAttackerList.filter((c) => (c.hp ?? 0) <= 0);
       if (deadAttackers.length) {
+        addCardToDestroying(deadAttackers.map(d => d.uniqueId));
         const setAttackerGrave = isPlayerAttacker ? setPlayerGraveyard : setEnemyGraveyard;
         setAttackerGrave((g) => [...g, ...deadAttackers.filter(d => !g.some(x => x.uniqueId === d.uniqueId))]);
         setAttackerList((list) => list.filter((c) => (c.hp ?? 0) > 0));
@@ -833,7 +882,10 @@ export function useGame(): {
         setEnemyFieldCards((list) => {
           const updated = list.map((c) => ({ ...c, hp: (c.hp ?? 0) - dmg }));
           const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
-          if (dead.length) setEnemyGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
+          if (dead.length) {
+            addCardToDestroying(dead.map(d => d.uniqueId));
+            setEnemyGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
+          }
           return updated.filter((c) => (c.hp ?? 0) > 0);
         });
 
@@ -871,7 +923,10 @@ export function useGame(): {
           setEnemyFieldCards((list) => {
             const updated = list.map((c) => (c.uniqueId === targetId ? { ...c, hp: (c.hp ?? 0) - dmg } : c));
             const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
-            if (dead.length) setEnemyGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
+            if (dead.length) {
+              addCardToDestroying(dead.map(d => d.uniqueId));
+              setEnemyGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
+            }
             return updated.filter((c) => (c.hp ?? 0) > 0);
           });
         }
@@ -958,12 +1013,12 @@ export function useGame(): {
   return {
     deck,
     playerHandCards,
-    playerFieldCards,
+    playerFieldCards: getPlayerFieldCards(),
     playerGraveyard,
     playerHeroHp,
     enemyDeck,
     enemyHandCards,
-    enemyFieldCards,
+    enemyFieldCards: getEnemyFieldCards(),
     enemyGraveyard,
     enemyHeroHp,
     draggingCard,
@@ -998,6 +1053,7 @@ export function useGame(): {
     playerTurnTimer: playerTurnTimerRef.current,
     enemyTurnTimer: enemyTurnTimerRef.current,
     setPauseTimer,
+    destroyingCards,
   };
 }
 

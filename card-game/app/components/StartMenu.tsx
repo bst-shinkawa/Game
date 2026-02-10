@@ -13,7 +13,7 @@ const StartMenu: React.FC<Props> = ({ onSelectMode, onDeck }) => {
       <h1 style={{ color: "#fff", fontSize: 48 }}>Card Game</h1>
       <div style={{ display: "flex", gap: 12, color: "#fff" }}>
         <button className={styles.field_turn ? "" : ""} onClick={() => onSelectMode("cpu")}>CPU対戦</button>
-        <button onClick={() => onSelectMode("pvp")}>プレイヤー対戦</button>
+        <button onClick={() => onSelectMode("pvp")}>ネット対戦</button>
         <button onClick={onDeck}>デッキ作成</button>
       </div>
       <p style={{ color: "#d0d0d0", maxWidth: 600, textAlign: "center" }}>

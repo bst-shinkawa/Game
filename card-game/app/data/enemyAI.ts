@@ -581,17 +581,20 @@ export async function runEnemyTurn(
 
         let target: string | "hero" | null = null;
 
+        // HP が 0 以下のカードを除外（破壊アニメーション中のカードは選ばない）
+        const validTargets = playerFieldCards.filter((c) => (c.hp ?? 0) > 0);
+
         // まずプレイヤーフィールドをターゲット候補にする（ある場合は優先でフォロワーを殴る）
-        if (playerFieldCards.length > 0) {
+        if (validTargets.length > 0) {
           if (Math.random() < 0.6) {
-            const mostThreatened = playerFieldCards.reduce((best, c) => {
+            const mostThreatened = validTargets.reduce((best, c) => {
               const bestScore = ((best.attack ?? 0) * 2 + (best.hp ?? 0)) + (best.effect ? 1.5 : 0);
               const cScore = ((c.attack ?? 0) * 2 + (c.hp ?? 0)) + (c.effect ? 1.5 : 0);
               return cScore > bestScore ? c : best;
             });
             target = mostThreatened.uniqueId;
           } else {
-            target = playerFieldCards[Math.floor(Math.random() * playerFieldCards.length)].uniqueId;
+            target = validTargets[Math.floor(Math.random() * validTargets.length)].uniqueId;
           }
         }
 
@@ -605,8 +608,8 @@ export async function runEnemyTurn(
         } else {
           // もし選ばれたターゲットがヒーロー（ここで可能性は低いが）で、攻撃不可ならフォロワーにフォールバック
           if (target === 'hero' && !allowHeroTarget) {
-            if (playerFieldCards.length > 0) {
-              target = playerFieldCards[Math.floor(Math.random() * playerFieldCards.length)].uniqueId;
+            if (validTargets.length > 0) {
+              target = validTargets[Math.floor(Math.random() * validTargets.length)].uniqueId;
             } else {
               console.log('[Enemy AI] Skipping attack - Card', enemyCard.name, 'cannot target hero and no followers available');
               continue;

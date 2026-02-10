@@ -1059,3 +1059,23 @@
   filter: brightness(1);
   transition: filter 0.3s ease;
 }
+
+/* カード破壊アニメーション */
+.card_destroying {
+  animation: cardDestroy 0.6s ease-in forwards !important;
+}
+
+@keyframes cardDestroy {
+  0% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.1) rotate(5deg);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.3) rotate(360deg);
+  }
+}
