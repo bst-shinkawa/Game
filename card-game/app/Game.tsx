@@ -225,6 +225,9 @@ export function useGame(): {
       });
     })();
 
+
+    
+
     // ターン開始時のマナ増加処理：先行プレイヤーが毎ターン1マナ増加（最大10）
     const isPlayerTurn = turn % 2 === 1;
     const isPlayerFirst = coinResult === 'player';
