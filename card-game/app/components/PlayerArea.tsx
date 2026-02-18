@@ -300,14 +300,11 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
                 onDragOver={onDragOver}
                 onDrop={() => onCardClick(card.uniqueId)}
                 isTarget={attackTargets.includes(card.uniqueId)}
-                className={`${isSummoning ? styles.enemy_follower_summon : ""} ${isHovered ? styles.target_highlight : ''} ${isDropped ? styles.drop_success : ''} ${attackTargets.includes(card.uniqueId) ? styles.attack_highlight : ''}`}
+                className={`${isSummoning ? styles.enemy_follower_summon : ""} ${isHovered ? styles.target_highlight : ''} ${isDropped ? styles.drop_success : ''} ${attackTargets.includes(card.uniqueId) ? styles.attack_highlight : ''} ${destroyingCards.has(card.uniqueId) ? styles.card_destroying : ""}`}
                 style={{
                   opacity: isDragging ? 0.15 : 1,
                   transition: 'opacity 0.1s ease',
                   ...((card as { isAnimating?: boolean }).isAnimating ? { transform: "translateY(-40px)", opacity: 0 } : {}),
-                  ...(destroyingCards.has(card.uniqueId) ? { 
-                    animation: "cardDestroy 0.6s ease-in forwards"
-                  } : {}),
                 }}
                 ref={(el: HTMLDivElement | null) => { playerFieldRefs.current[card.uniqueId] = el; }}
                 onClick={() => onCardClick(card.uniqueId)}

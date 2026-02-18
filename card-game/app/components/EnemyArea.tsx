@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useRef, useEffect } from "react";
 import CardItem from "./CardItem";
 import ManaBar from "./ManaBar";
 import Image from "next/image";
@@ -12,7 +12,6 @@ import deathIcon from "@/public/img/field/void-icon.png";
 import cardBack from "@/public/img/field/card_back.png";
 import TimerCircle, { TimerController } from "./TimerCircle";
 import { TurnTimer } from "@/app/data/turnTimer";
-
 interface EnemyAreaProps {
   enemyHeroHp: number;
   enemyHandCards: Card[];
@@ -24,6 +23,7 @@ interface EnemyAreaProps {
   isPlayerTurn: boolean;
   draggingCard: string | null;
   playerHandCards: Card[];
+  playerAttackAnimation: { sourceCardId: string; targetId: string | "hero" } | null;
   enemyAttackAnimation: { sourceCardId: string | null; targetId: string | "hero" } | null;
   enemySpellAnimation: { targetId: string | "hero"; effect: string } | null;
   onDragOver: (e: React.DragEvent<HTMLDivElement>) => void;
@@ -50,6 +50,7 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
   isPlayerTurn,
   draggingCard,
   playerHandCards,
+  playerAttackAnimation,
   enemyAttackAnimation,
   enemySpellAnimation,
   onDragOver,
@@ -66,6 +67,30 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
   attackTargets = [],
   destroyingCards,
 }) => {
+  // プレイヤー→敵への攻撃アニメーション（プレイヤーフィールドから敵ヒーロー/敵フォロワーへ）
+  useEffect(() => {
+    if (!playerAttackAnimation) return;
+    const { sourceCardId, targetId } = playerAttackAnimation;
+    const sourceEl = document.querySelector(`[data-uniqueid="${sourceCardId}"]`) as HTMLElement | null;
+    const targetEl = targetId === "hero" ? enemyHeroRef.current : enemyFieldRefs.current[targetId];
+    if (!sourceEl || !targetEl) return;
+    const start = sourceEl.getBoundingClientRect();
+    const end = targetEl.getBoundingClientRect();
+    const startX = start.left + start.width / 2;
+    const startY = start.top + start.height / 2;
+    const endX = end.left + end.width / 2;
+    const endY = end.top + end.height / 2;
+    const projectile = document.createElement("div");
+    projectile.className = styles.enemy_attack_projectile;
+    projectile.style.setProperty("--end-x", `${endX - startX}px`);
+    projectile.style.setProperty("--end-y", `${endY - startY}px`);
+    projectile.style.left = `${startX}px`;
+    projectile.style.top = `${startY}px`;
+    document.body.appendChild(projectile);
+    const t = setTimeout(() => projectile.remove(), 700);
+    return () => clearTimeout(t);
+  }, [playerAttackAnimation, enemyHeroRef, enemyFieldRefs]);
+
   const getHpClass = (hp: number) => {
     if (hp === 20) return styles.hpWhite;
     if (hp >= 11) return styles.hpYellow;
@@ -116,14 +141,11 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
               hp={card.hp ?? 0}
               maxHp={card.maxHp ?? 0}
               attack={card.attack ?? 0}
-              className={`${isSummoning ? styles.enemy_follower_summon : ""} ${isHovered ? styles.target_highlight : ''} ${isDropped ? styles.drop_success : ''} ${attackTargets.includes(card.uniqueId) ? styles.attack_highlight : ''}`}
+              className={`${isSummoning ? styles.enemy_follower_summon : ""} ${isHovered ? styles.target_highlight : ''} ${isDropped ? styles.drop_success : ''} ${attackTargets.includes(card.uniqueId) ? styles.attack_highlight : ''} ${destroyingCards.has(card.uniqueId) ? styles.card_destroying : ""}`}
               style={{
                 ...((card as { isAnimating?: boolean }).isAnimating ? { transform: "translateY(-40px)", opacity: 0 } : {}),
                 ...(isAttacking ? { animation: "enemyCardAttack 0.9s ease-in-out forwards" } : {}),
                 ...(isSpellTarget ? { animation: "spellTargetFlash 0.6s ease-out" } : {}),
-                ...(destroyingCards.has(card.uniqueId) ? { 
-                  animation: "cardDestroy 0.6s ease-in forwards"
-                } : {}),
               }}
               onDragOver={onDragOver}
               onDrop={() => onDrop(card.uniqueId)}

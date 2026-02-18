@@ -7,12 +7,17 @@ import type { Card } from "./data/cards";
 import { cards } from "./data/cards";
 import { deck as initialDeck, drawInitialHand } from "./data/game";
 import { createDeck } from "./data/deck";
-import { startEnemyTurn, runEnemyTurn } from "./data/enemyAI";
+import { runEnemyTurn } from "./data/enemyAI";
 import { TurnTimer } from "./data/turnTimer";
+import { MAX_HAND, MAX_MANA, MAX_HERO_HP, MAX_FIELD_SIZE, TURN_DURATION_SECONDS } from "./constants/gameConstants";
+import { addCardToHand, createUniqueCard, createFieldCard } from "./services/cardService";
+import { processStatusEffects } from "./services/statusEffectService";
+import { executeAttack } from "./services/attackService";
+import { castSpell as executeSpell } from "./services/spellService";
+import type { RuntimeCard } from "./types/gameTypes";
 
-const MAX_HAND = 10;
-const MAX_MANA = 10;
-const MAX_HERO_HP = 20;
+// ターン開始処理の重複実行を防ぐ（React Strict Mode の二重マウント対策）
+let turnProcessedKeys = new Set<string>();
 
 export function useGame(): {
   deck: Card[];
@@ -43,6 +48,7 @@ export function useGame(): {
   turnSecondsRemaining: number;
   aiRunning: boolean;
   movingAttack: { attackerId: string; targetId: string | "hero" } | null;
+  playerAttackAnimation: { sourceCardId: string; targetId: string | "hero" } | null;
   enemyAttackAnimation: { sourceCardId: string | null; targetId: string | "hero" } | null;
   enemySpellAnimation: { targetId: string | "hero"; effect: string } | null;
   gameOver: { over: boolean; winner: null | "player" | "enemy" };
@@ -61,14 +67,14 @@ export function useGame(): {
   // --- プレイヤー状態 ---
   const [deck, setDeck] = useState<Card[]>([...initialDeck]);
   const [playerHandCards, setPlayerHandCards] = useState<Card[]>([]);
-  const [playerFieldCards, setPlayerFieldCards] = useState<(Card & { maxHp: number; canAttack?: boolean })[]>([]);
+  const [playerFieldCards, setPlayerFieldCards] = useState<RuntimeCard[]>([]);
   const [playerGraveyard, setPlayerGraveyard] = useState<Card[]>([]);
   const [playerHeroHp, setPlayerHeroHp] = useState<number>(MAX_HERO_HP);
 
   // --- 敵状態 ---
   const [enemyDeck, setEnemyDeck] = useState<Card[]>([...initialDeck]);
   const [enemyHandCards, setEnemyHandCards] = useState<Card[]>([]);
-  const [enemyFieldCards, setEnemyFieldCards] = useState<(Card & { maxHp: number; canAttack?: boolean })[]>([]);
+  const [enemyFieldCards, setEnemyFieldCards] = useState<RuntimeCard[]>([]);
   const [enemyGraveyard, setEnemyGraveyard] = useState<Card[]>([]);
   const [enemyHeroHp, setEnemyHeroHp] = useState<number>(MAX_HERO_HP);
 
@@ -76,20 +82,24 @@ export function useGame(): {
   const [destroyingCards, setDestroyingCards] = useState<Set<string>>(new Set());
 
   // --- 破壊アニメーション管理 ---
-  // カードが破壊される時に呼び出す
-  const addCardToDestroying = (cardIds: string[]) => {
-    const newSet = new Set(destroyingCards);
-    cardIds.forEach(id => newSet.add(id));
-    setDestroyingCards(newSet);
-    
-    // 600ms後に削除（CSS アニメーション時間に合わせる）
+  // カードが破壊される時に呼び出す。アニメーション後にフィールドから除外する場合は onAfterAnimation で setter を渡す
+  const addCardToDestroying = (cardIds: string[], onAfterAnimation?: (ids: string[]) => void) => {
+    if (cardIds.length === 0) return;
+    setDestroyingCards((prev) => {
+      const next = new Set(prev);
+      cardIds.forEach((id) => next.add(id));
+      return next;
+    });
+
+    const duration = 500;
     setTimeout(() => {
       setDestroyingCards(prev => {
         const next = new Set(prev);
         cardIds.forEach(id => next.delete(id));
         return next;
       });
-    }, 600);
+      onAfterAnimation?.(cardIds);
+    }, duration);
   };
 
   // --- アニメーション中の状態フィルター （破壊カードはアニメーション中でも残す） ---
@@ -114,8 +124,14 @@ export function useGame(): {
   const [dragPosition, setDragPosition] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const playerBattleRef = useRef<HTMLDivElement>(null);
   // Refs to hold latest field arrays so async callers (AI) can read current values
-  const playerFieldRef = useRef<(Card & { maxHp: number; canAttack?: boolean })[]>([]);
-  const enemyFieldRef = useRef<(Card & { maxHp: number; canAttack?: boolean })[]>([]);
+  const playerFieldRef = useRef<RuntimeCard[]>([]);
+  const enemyFieldRef = useRef<RuntimeCard[]>([]);
+  const enemyHandCardsRef = useRef<Card[]>([]);
+  const enemyFieldCardsRef = useRef<RuntimeCard[]>([]);
+  const enemyCurrentManaRef = useRef<number>(1);
+  const enemyHeroHpRef = useRef<number>(MAX_HERO_HP);
+  const playerFieldCardsRef = useRef<RuntimeCard[]>([]);
+  const playerHeroHpRef = useRef<number>(MAX_HERO_HP);
 
   // --- マナ・ターン ---
   const [turn, setTurn] = useState(1);
@@ -150,14 +166,18 @@ export function useGame(): {
   // 視覚用：AIが攻撃を行うときの移動表示を通知する
   const [movingAttack, setMovingAttack] = useState<{ attackerId: string; targetId: string | "hero" } | null>(null);
   
+  // プレイヤーが攻撃するときのアニメーション（プレイヤー→敵）
+  const [playerAttackAnimation, setPlayerAttackAnimation] = useState<{ sourceCardId: string; targetId: string | "hero" } | null>(null);
   // 敵の攻撃アニメーション用（敵がプレイヤーを攻撃する場合）
   const [enemyAttackAnimation, setEnemyAttackAnimation] = useState<{ sourceCardId: string | null; targetId: string | "hero" } | null>(null);
-  
   // 敵のスペル使用アニメーション用
   const [enemySpellAnimation, setEnemySpellAnimation] = useState<{ targetId: string | "hero"; effect: string } | null>(null);
 
   // --- 初期手札 ---
+  const initializedRef = useRef<boolean>(false);
   useEffect(() => {
+    if (initializedRef.current) return;
+    initializedRef.current = true;
     const initialPlayerHand = drawInitialHand(deck, 5).map((c) => ({ ...c, uniqueId: uuidv4() }));
     const initialEnemyHand = drawInitialHand(enemyDeck, 5).map((c) => ({ ...c, uniqueId: uuidv4() }));
     setPlayerHandCards(initialPlayerHand);
@@ -166,107 +186,130 @@ export function useGame(): {
     setEnemyDeck((prev) => prev.slice(5));
   }, []);
 
-  // --- ターン開始 ---
+  const gameSessionRef = useRef(0);
+
+  // --- ターン開始 ---（ポップアップ表示中でもマナ・ドローを先に反映するため pauseTimer で止めない）
   useEffect(() => {
-    // プリゲーム中はターン開始処理を走らせない
     if (preGame) return;
-    // ターン開始時に UI 側が一時停止を要求している場合、マナ増加等の処理は遅延させる
-    // 初回ターンのスキップフラグは initialTurnRef
-    if (pauseTimer) return;
+    const key = `${gameSessionRef.current}-${turn}`;
+    if (turnProcessedKeys.has(key)) return;
+    turnProcessedKeys.add(key);
+
     // --- 状態効果の処理（ターンごとに毒ダメージや凍結のデクリメントを行う） ---
-    // 簡易実装: フィールドの各フォロワーに poison / frozen があれば処理し、死亡したら墓地へ移す
-    (function processStatusEffects() {
-      // プレイヤーフィールド
-      setPlayerFieldCards((prev) => {
-        const updated = prev.map((c) => {
-          let card = { ...c } as any;
-          // 毒ダメージ
-          if (card.poison && card.poison > 0) {
-            const dmg = card.poisonDamage ?? 1;
-            card.hp = (card.hp ?? 0) - dmg;
-            card.poison = Math.max(0, card.poison - 1);
-          }
-          // 凍結ターンをデクリメント
-          if (card.frozen && card.frozen > 0) {
-            card.frozen = Math.max(0, card.frozen - 1);
-            if (card.frozen === 0) card.canAttack = true;
-          }
-          return card;
+    setPlayerFieldCards((prev) => {
+      const result = processStatusEffects(prev);
+      if (result.dead.length > 0) {
+        const deadIds = result.dead.map(d => d.uniqueId);
+        setPlayerGraveyard((g) => [...g, ...result.dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
+        addCardToDestroying(deadIds, (ids) => {
+          setPlayerFieldCards((list) => list.filter((c) => !ids.includes(c.uniqueId)));
         });
-        const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
-        if (dead.length) {
-          addCardToDestroying(dead.map(d => d.uniqueId));
-          setPlayerGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
-        }
-        return updated.filter((c) => (c.hp ?? 0) > 0);
-      });
+      }
+      return result.updated;
+    });
 
-      // 敵フィールド
-      setEnemyFieldCards((prev) => {
-        const updated = prev.map((c) => {
-          let card = { ...c } as any;
-          if (card.poison && card.poison > 0) {
-            const dmg = card.poisonDamage ?? 1;
-            card.hp = (card.hp ?? 0) - dmg;
-            card.poison = Math.max(0, card.poison - 1);
-          }
-          if (card.frozen && card.frozen > 0) {
-            card.frozen = Math.max(0, card.frozen - 1);
-            if (card.frozen === 0) card.canAttack = true;
-          }
-          return card;
+    setEnemyFieldCards((prev) => {
+      const result = processStatusEffects(prev);
+      if (result.dead.length > 0) {
+        const deadIds = result.dead.map(d => d.uniqueId);
+        setEnemyGraveyard((g) => [...g, ...result.dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
+        addCardToDestroying(deadIds, (ids) => {
+          setEnemyFieldCards((list) => list.filter((c) => !ids.includes(c.uniqueId)));
         });
-        const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
-        if (dead.length) {
-          addCardToDestroying(dead.map(d => d.uniqueId));
-          setEnemyGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
-        }
-        return updated.filter((c) => (c.hp ?? 0) > 0);
-      });
-    })();
+      }
+      return result.updated;
+    });
 
-
-    
-
-    // ターン開始時のマナ増加処理：先行プレイヤーが毎ターン1マナ増加（最大10）
-    const isPlayerTurn = turn % 2 === 1;
-    const isPlayerFirst = coinResult === 'player';
-    
-    // 先行がプレイヤーの場合：プレイヤーが奇数ターンで常にマナ増加
-    // 先行が敵の場合：敵が偶数ターンで常にマナ増加
-    if (isPlayerFirst && isPlayerTurn) {
-      // プレイヤーが先行：プレイヤーターン（奇数）で毎回マナ増加
-      setMaxMana((prevMax) => Math.min(prevMax + 1, MAX_MANA));
-    } else if (!isPlayerFirst && !isPlayerTurn) {
-      // 敵が先行：敵ターン（偶数）で毎回マナ増加
-      setEnemyMaxMana((prevMax) => Math.min(prevMax + 1, MAX_MANA));
-    }
-
-
-    // ターン開始ごとの共通処理：canAttack をリセット
     setPlayerFieldCards((prev) => prev.map((c) => ({ ...c, canAttack: false, rushInitialTurn: undefined })));
     setEnemyFieldCards((prev) => prev.map((c) => ({ ...c, canAttack: false, rushInitialTurn: undefined })));
 
-    if (turn % 2 === 1) {
-      // プレイヤーターン開始
-      drawPlayerCard();
-      // プレイヤーフィールドのフォロワーが攻撃可能に
-      setPlayerFieldCards((prev) => prev.map((c) => ({ ...c, canAttack: true })));
-      setCurrentMana((_) => Math.min(maxMana, MAX_MANA));
-    } else {
-      // 敵ターン開始
-      drawEnemyCard();
-      // 敵フィールドのフォロワーが攻撃可能に
-      setEnemyFieldCards((prev) => prev.map((c) => ({ ...c, canAttack: true })));
-      setEnemyCurrentMana((_) => Math.min(enemyMaxMana, MAX_MANA));
+    // マナ: 先行・後攻とも1ターン目・2ターン目は1マナのまま。3ターン目で先行のマナ上限+1、4ターン目で後攻のマナ上限+1。
+    if (turn >= 3) {
+      if (turn % 2 === 1) {
+        if (coinResult === "player") setMaxMana((prevMax) => Math.min(prevMax + 1, MAX_MANA));
+        else setEnemyMaxMana((prevMax) => Math.min(prevMax + 1, MAX_MANA));
+      } else {
+        if (coinResult === "player") setEnemyMaxMana((prevMax) => Math.min(prevMax + 1, MAX_MANA));
+        else setMaxMana((prevMax) => Math.min(prevMax + 1, MAX_MANA));
+      }
     }
-  }, [turn, preGame]);
 
-  // ターンタイマー（60秒）
-  const isPlayerTurn = turn % 2 === 1;
+    if (turn % 2 === 1) {
+      setPlayerFieldCards((prev) => prev.map((c) => ({ ...c, canAttack: true })));
+    } else {
+      setEnemyFieldCards((prev) => prev.map((c) => ({ ...c, canAttack: true })));
+    }
+  }, [turn, preGame, coinResult]);
+
+  // ドローはポップアップが閉まった後に1回だけ実行（同じターンで二重ドロー・二重カードを防ぐため ref でガード）
+  const lastTurnDrawnRef = useRef<number | null>(null);
+  const drewCardForTurnRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (preGame || pauseTimer) return;
+    if (lastTurnDrawnRef.current === turn) return;
+    lastTurnDrawnRef.current = turn;
+
+    if (turn % 2 === 1) {
+      setDeck((prev) => {
+        if (prev.length === 0) return prev;
+        if (drewCardForTurnRef.current === turn) return prev.slice(1);
+        drewCardForTurnRef.current = turn;
+        const card = createUniqueCard(prev[0]);
+        setPlayerHandCards((h) => {
+          if (h.length >= MAX_HAND) {
+            setPlayerGraveyard((g) => [...g, card]);
+            return h;
+          }
+          return [...h, card];
+        });
+        return prev.slice(1);
+      });
+    } else {
+      setEnemyDeck((prev) => {
+        if (prev.length === 0) return prev;
+        if (drewCardForTurnRef.current === turn) return prev.slice(1);
+        drewCardForTurnRef.current = turn;
+        const card = createUniqueCard(prev[0]);
+        setEnemyHandCards((h) => {
+          if (h.length >= MAX_HAND) {
+            setEnemyGraveyard((g) => [...g, card]);
+            return h;
+          }
+          return [...h, card];
+        });
+        return prev.slice(1);
+      });
+    }
+  }, [turn, preGame, pauseTimer]);
+
+  // マナを現在マナに同期（ターン開始時に実行）
+  const maxManaRef = useRef<number>(maxMana);
+  const enemyMaxManaRef = useRef<number>(enemyMaxMana);
+  useEffect(() => {
+    maxManaRef.current = maxMana;
+  }, [maxMana]);
+  useEffect(() => {
+    enemyMaxManaRef.current = enemyMaxMana;
+  }, [enemyMaxMana]);
+
+  useEffect(() => {
+    if (preGame) return;
+    const isPlayerTurn = turn % 2 === 1;
+    if (isPlayerTurn) {
+      setCurrentMana(Math.min(maxManaRef.current, MAX_MANA));
+    } else {
+      setEnemyCurrentMana(Math.min(enemyMaxManaRef.current, MAX_MANA));
+    }
+  }, [turn, preGame, maxMana, enemyMaxMana]);
 
   // ターン変更時のリセット・イベント登録（プレイヤー/敵で独立）
   const modalPauseRef = useRef<boolean>(false);
+  const turnRef = useRef<number>(turn);
+  useEffect(() => {
+    turnRef.current = turn;
+  }, [turn]);
+
   useEffect(() => {
     if (preGame) return;
 
@@ -282,35 +325,35 @@ export function useGame(): {
     }, modalDuration);
 
     // 両タイマーをリセット
-    playerTurnTimerRef.current?.setDuration(60);
+    playerTurnTimerRef.current?.setDuration(TURN_DURATION_SECONDS);
     playerTurnTimerRef.current?.reset();
-    enemyTurnTimerRef.current?.setDuration(60);
+    enemyTurnTimerRef.current?.setDuration(TURN_DURATION_SECONDS);
     enemyTurnTimerRef.current?.reset();
 
     // 現在のターン側の残りを表示
-    const activeRemaining = (turn % 2 === 1 ? playerTurnTimerRef.current?.getRemaining() : enemyTurnTimerRef.current?.getRemaining()) ?? 60;
+    const activeRemaining = (turn % 2 === 1 ? playerTurnTimerRef.current?.getRemaining() : enemyTurnTimerRef.current?.getRemaining()) ?? TURN_DURATION_SECONDS;
     setTurnSecondsRemaining(activeRemaining);
 
     const playerTick = (remaining: number) => {
-      if (turn % 2 === 1) {
+      if (turnRef.current % 2 === 1) {
         setTurnSecondsRemaining(remaining);
-        console.debug(`[Timer][player] turn=${turn} secondsRemaining -> ${remaining}`);
+        console.debug(`[Timer][player] turn=${turnRef.current} secondsRemaining -> ${remaining}`);
       }
     };
     const enemyTick = (remaining: number) => {
-      if (turn % 2 === 0) {
+      if (turnRef.current % 2 === 0) {
         setTurnSecondsRemaining(remaining);
-        console.debug(`[Timer][enemy] turn=${turn} secondsRemaining -> ${remaining}`);
+        console.debug(`[Timer][enemy] turn=${turnRef.current} secondsRemaining -> ${remaining}`);
       }
     };
 
     const playerEnd = () => {
-      console.debug(`[Timer][player] timeup on turn=${turn}, calling endTurn()`);
-      endTurn();
+      console.debug(`[Timer][player] timeup on turn=${turnRef.current}, calling endTurn()`);
+      setTurn((t) => t + 1);
     };
     const enemyEnd = () => {
-      console.debug(`[Timer][enemy] timeup on turn=${turn}, calling endTurn()`);
-      endTurn();
+      console.debug(`[Timer][enemy] timeup on turn=${turnRef.current}, calling endTurn()`);
+      setTurn((t) => t + 1);
     };
 
     const offPlayerTick = playerTurnTimerRef.current?.onTick(playerTick);
@@ -318,14 +361,21 @@ export function useGame(): {
     const offEnemyTick = enemyTurnTimerRef.current?.onTick(enemyTick);
     const offEnemyEnd = enemyTurnTimerRef.current?.onEnd(enemyEnd);
 
-    // モーダル表示中は pauseTimer=true にしているため、開始は pause が解除されるまで行わない
-    if (!pauseTimer) {
-      if (turn % 2 === 1) playerTurnTimerRef.current?.start();
-      else enemyTurnTimerRef.current?.start();
-    }
+    // モーダル終了後にタイマーを開始
+    const startTimerTimeout = setTimeout(() => {
+      // pauseTimerがfalseになったことを確認してからタイマーを開始
+      if (!modalPauseRef.current) {
+        if (turnRef.current % 2 === 1) {
+          playerTurnTimerRef.current?.start();
+        } else {
+          enemyTurnTimerRef.current?.start();
+        }
+      }
+    }, modalDuration);
 
     return () => {
       clearTimeout(modalTimer);
+      clearTimeout(startTimerTimeout);
       modalPauseRef.current = false;
       if (offPlayerTick) offPlayerTick();
       if (offPlayerEnd) offPlayerEnd();
@@ -339,6 +389,7 @@ export function useGame(): {
 
   // UI の一時停止要求に応じて pause/resume を行う（モーダル表示中など）
   useEffect(() => {
+    if (preGame) return;
     if (pauseTimer) {
       playerTurnTimerRef.current?.pause();
       enemyTurnTimerRef.current?.pause();
@@ -352,7 +403,7 @@ export function useGame(): {
         if (e && !e.isRunning() && e.getRemaining() > 0) e.start();
       }
     }
-  }, [pauseTimer, turn]);
+  }, [pauseTimer, turn, preGame]);
 
   // --- 敵AI: 簡易ターン処理 ---
   useEffect(() => {
@@ -371,15 +422,15 @@ export function useGame(): {
         if (turn !== scheduledTurn) return;
         if (!aiRunning) {
           runEnemyTurn(
-            enemyHandCards,
+            enemyHandCardsRef.current,
             setEnemyHandCards,
-            enemyFieldCards,
+            enemyFieldCardsRef.current,
             setEnemyFieldCards,
-            enemyCurrentMana,
+            enemyCurrentManaRef.current,
             setEnemyCurrentMana,
-            enemyHeroHp,
-            playerFieldCards,
-            playerHeroHp,
+            enemyHeroHpRef.current,
+            playerFieldCardsRef.current,
+            playerHeroHpRef.current,
             setPlayerHeroHp,
             setPlayerFieldCards,
             setPlayerGraveyard,
@@ -406,10 +457,24 @@ export function useGame(): {
   // keep refs in sync with state so async callers (AI, logs) can read latest
   useEffect(() => {
     playerFieldRef.current = playerFieldCards;
+    playerFieldCardsRef.current = playerFieldCards;
   }, [playerFieldCards]);
   useEffect(() => {
     enemyFieldRef.current = enemyFieldCards;
+    enemyFieldCardsRef.current = enemyFieldCards;
   }, [enemyFieldCards]);
+  useEffect(() => {
+    enemyHandCardsRef.current = enemyHandCards;
+  }, [enemyHandCards]);
+  useEffect(() => {
+    enemyCurrentManaRef.current = enemyCurrentMana;
+  }, [enemyCurrentMana]);
+  useEffect(() => {
+    enemyHeroHpRef.current = enemyHeroHp;
+  }, [enemyHeroHp]);
+  useEffect(() => {
+    playerHeroHpRef.current = playerHeroHp;
+  }, [playerHeroHp]);
 
   // ゲーム終了時の完全停止: タイマーをクリアし、AI を中断・停止する
   useEffect(() => {
@@ -423,34 +488,16 @@ export function useGame(): {
   }, [gameOver]);
 
   // --- ドロー ---
-  const addCardToHand = (
-    card: Card,
-    handList: Card[],
-    setHandList: React.Dispatch<React.SetStateAction<Card[]>>,
-    graveyardList: Card[],
-    setGraveyardList: React.Dispatch<React.SetStateAction<Card[]>>
-  ) => {
-    // use functional updates to avoid stale snapshot issues
-    setHandList((prev) => {
-      if (prev.length >= MAX_HAND) {
-        // push to graveyard instead
-        setGraveyardList((gPrev) => [...gPrev, card]);
-        console.log(`${card.name} は手札があふれたため破棄されました`);
-        return prev;
-      }
-      return [...prev, card];
-    });
-  };
   const drawPlayerCard = () => {
     if (deck.length === 0) return;
-    const card = { ...deck[0], uniqueId: uuidv4() };
+    const card = createUniqueCard(deck[0]);
     setDeck((prev) => prev.slice(1));
     addCardToHand(card, playerHandCards, setPlayerHandCards, playerGraveyard, setPlayerGraveyard);
   };
 
   const drawEnemyCard = () => {
     if (enemyDeck.length === 0) return;
-    const card = { ...enemyDeck[0], uniqueId: uuidv4() };
+    const card = createUniqueCard(enemyDeck[0]);
     setEnemyDeck((prev) => prev.slice(1));
     addCardToHand(card, enemyHandCards, setEnemyHandCards, enemyGraveyard, setEnemyGraveyard);
   };
@@ -469,6 +516,7 @@ export function useGame(): {
     setMovingAttack(null);
     // 敵AI 中断フラグを立てる
     aiCancelRef.current = true;
+    initializedRef.current = false;
 
     // 新しいデッキを作成して初期手札を配る
     const newDeck = createDeck();
@@ -491,10 +539,10 @@ export function useGame(): {
     setCurrentMana(1);
     setEnemyMaxMana(1);
     setEnemyCurrentMana(1);
-    setTurnSecondsRemaining(60);
-    playerTurnTimerRef.current?.setDuration(60);
+    setTurnSecondsRemaining(TURN_DURATION_SECONDS);
+    playerTurnTimerRef.current?.setDuration(TURN_DURATION_SECONDS);
     playerTurnTimerRef.current?.reset();
-    enemyTurnTimerRef.current?.setDuration(60);
+    enemyTurnTimerRef.current?.setDuration(TURN_DURATION_SECONDS);
     enemyTurnTimerRef.current?.reset();
     setGameOver({ over: false, winner: null });
     // プリゲーム（先攻/後攻決めとマリガン）を開始
@@ -503,6 +551,10 @@ export function useGame(): {
     // 初回ターンは特別扱い（プリゲーム直後の最初のターンはマナ増加を行わない）
     initialTurnRef.current = true;
     lastRoundIncreasedRef.current = null;
+    gameSessionRef.current += 1;
+    turnProcessedKeys.clear();
+    lastTurnDrawnRef.current = null;
+    drewCardForTurnRef.current = null;
   };
 
   // コイントスの結果確定（'player' が先攻、'enemy' が後攻）
@@ -556,7 +608,7 @@ export function useGame(): {
     }
 
     // フィールドには最大5体まで
-    if (playerFieldCards.length >= 5) {
+    if (playerFieldCards.length >= MAX_FIELD_SIZE) {
       console.log("フィールドは最大5体までです。");
       return;
     }
@@ -569,16 +621,8 @@ export function useGame(): {
 
     // canAttack: rush または superHaste がある場合は出したターンから攻撃可能
     const canAttack = !!(card.rush || card.superHaste);
-    setPlayerFieldCards((f) => [
-      ...f,
-      {
-        ...card,
-        maxHp: card.hp ?? 0,
-        canAttack,
-        rushInitialTurn: card.rush ? true : undefined, // rush の初回ターンかどうかをマーク
-        isAnimating: true,
-      },
-    ]);
+    const fieldCard = createFieldCard(card, canAttack);
+    setPlayerFieldCards((f) => [...f, fieldCard]);
 
     setPlayerHandCards((h) => h.filter((c) => c.uniqueId !== card.uniqueId));
 
@@ -597,10 +641,13 @@ export function useGame(): {
           const updated = list.map((c) => ({ ...c, hp: (c.hp ?? 0) - dmg }));
           const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
           if (dead.length) {
-            addCardToDestroying(dead.map(d => d.uniqueId));
+            const deadIds = dead.map(d => d.uniqueId);
             setEnemyGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
+            addCardToDestroying(deadIds, (ids) => {
+              setEnemyFieldCards((prev) => prev.filter((c) => !ids.includes(c.uniqueId)));
+            });
           }
-          return updated.filter((c) => (c.hp ?? 0) > 0);
+          return updated;
         });
         setEnemyHeroHp((h) => {
           const next = Math.max(h - dmg, 0);
@@ -647,178 +694,31 @@ export function useGame(): {
     targetId: string | "hero",
     isPlayerAttacker: boolean = true
   ) => {
-    // アニメーション開始
     if (isPlayerAttacker) {
-      setEnemyAttackAnimation({ sourceCardId: attackerId, targetId });
+      setPlayerAttackAnimation({ sourceCardId: attackerId, targetId });
+      setTimeout(() => setPlayerAttackAnimation(null), 1000);
     } else {
       setEnemyAttackAnimation({ sourceCardId: attackerId, targetId });
-    }
-    const attackerList = isPlayerAttacker ? playerFieldRef.current : enemyFieldRef.current;
-    const targetList = isPlayerAttacker ? enemyFieldRef.current : playerFieldRef.current;
-    const setAttackerList = isPlayerAttacker ? setPlayerFieldCards : setEnemyFieldCards;
-    const setTargetList = isPlayerAttacker ? setEnemyFieldCards : setPlayerFieldCards;
-    const setTargetHeroHp = isPlayerAttacker ? setEnemyHeroHp : setPlayerHeroHp;
-    const setGraveyard = isPlayerAttacker ? setEnemyGraveyard : setPlayerGraveyard;
-
-    // デバッグ: 呼び出し時点の攻撃者リストと防御者リストを出力
-    console.log('[Game] attack() invoked with attackerId:', attackerId, 'targetId:', targetId, 'isPlayerAttacker:', isPlayerAttacker);
-    console.log('[Game] attackerList snapshot:', attackerList.map(a => ({ uniqueId: a.uniqueId, name: a.name, hp: a.hp, canAttack: a.canAttack })));
-    console.log('[Game] targetList snapshot:', targetList.map(t => ({ uniqueId: t.uniqueId, name: t.name, hp: t.hp, stealth: (t as any).stealth })));
-
-    const attacker = attackerList.find((c) => c.uniqueId === attackerId);
-    if (!attacker) {
-      console.log('[Game] attack aborted - attacker not found in attackerList', attackerId);
-      return;
-    }
-    if (!attacker.canAttack) {
-      console.log('[Game] attack aborted - attacker cannot attack (canAttack=false)', attackerId, attacker.name);
-      return;
+      setTimeout(() => setEnemyAttackAnimation(null), 1000);
     }
 
-    console.log('[Game] Attack START -', { attacker: { name: attacker.name, hp: attacker.hp, attack: attacker.attack, canAttack: attacker.canAttack }, targetId, isPlayerAttacker });
-
-    // rush カードの場合、出したターンは相手フォロワーのみ攻撃可能
-    if ((attacker as { rushInitialTurn?: boolean }).rushInitialTurn && targetId === "hero") {
-      console.log("突撃はこのターン、相手フォロワーのみ攻撃可能です");
-      return;
-    }
-
-    // wallGuard チェック（敵フィールドに鉄壁持ちがいる場合、相手フォロワー以外は攻撃できない）
-    const defendList = isPlayerAttacker ? enemyFieldCards : playerFieldCards;
-    const hasWallGuard = defendList.some((c) => (c as { wallGuard?: boolean }).wallGuard);
-    if (hasWallGuard && targetId === "hero") {
-      console.log("相手は鉄壁を持っているため、ヒーローは攻撃できません");
-      return;
-    }
-
-    if (targetId === "hero") {
-      // ユニット固有の onAttackEffect を考慮（槍兵のヒーロー攻撃ボーナス等）
-      const base = attacker.attack ?? 0;
-      const extra = attacker.onAttackEffect === "bonus_vs_hero" ? (attacker.attack ?? 0) : 0;
-      const total = base + extra;
-      // ヒーローにまとめてダメージを与える
-      setTargetHeroHp((hp) => {
-        const next = Math.max(hp - total, 0);
-        console.log('[Game] Hero HP before:', hp, 'after attack by', attacker.name, '->', next);
-        if (next <= 0) {
-          setGameOver({ over: true, winner: isPlayerAttacker ? "player" : "enemy" });
-          try { playerTurnTimerRef.current?.stop(); enemyTurnTimerRef.current?.stop(); } catch (e) { /* ignore */ }
-          setAiRunning(false);
-        }
-        return next;
-      });
-
-      // ヒーローを攻撃した場合でも攻撃済みにする & stealth を解除、rush 初回ターン フラグも解除
-      setAttackerList((list) => {
-        const updated = list.map((c) => (c.uniqueId === attackerId ? { ...c, canAttack: false, stealth: false, rushInitialTurn: undefined } : c));
-        console.log('[Game] Attacker list after hero attack (attacker marked used):', updated.map(a => ({ name: a.name, hp: a.hp, canAttack: a.canAttack })));
-        return updated;
-      });
-
-      // 攻撃時効果: 自分にダメージを受ける等
-      if (attacker.onAttackEffect === "self_damage_1") {
-        setAttackerList((list) => {
-          const updated = list.map((c) => (c.uniqueId === attackerId ? { ...c, hp: (c.hp ?? 0) - 1 } : c));
-          const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
-          if (dead.length) {
-            const setAttackerGrave = isPlayerAttacker ? setPlayerGraveyard : setEnemyGraveyard;
-            setAttackerGrave((g) => [...g, ...dead.filter((d) => !g.some(x => x.uniqueId === d.uniqueId))]);
-            return updated.filter((c) => (c.hp ?? 0) > 0);
-          }
-          return updated;
-        });
-      }
-    } else {
-      const target = targetList.find((c) => c.uniqueId === targetId);
-      if (!target) {
-        console.log('[Game] attack aborted - target not found', targetId);
-        return;
-      }
-
-      // ターゲットが隠密状態であれば攻撃不能
-      if ((target as { stealth?: boolean }).stealth) {
-        console.log("そのフォロワーは隠密状態でターゲットにできません");
-        return;
-      }
-
-      // 双方にダメージ
-      const newTargetList = targetList.map((c) =>
-        c.uniqueId === targetId ? { ...c, hp: (c.hp ?? 0) - (attacker.attack ?? 0) } : c
-      );
-      console.log('[Game] Target list before update (target hp):', target.name, target.hp);
-      setTargetList((prev) => {
-        console.log('[Game] Target list after attack by', attacker.name, '->', newTargetList.map(t => ({ name: t.name, hp: t.hp })));
-        return newTargetList;
-      });
-
-      const newAttackerList = attackerList.map((c) =>
-        c.uniqueId === attackerId ? { ...c, hp: (c.hp ?? 0) - (target.attack ?? 0), canAttack: false, rushInitialTurn: undefined } : c
-      );
-      setAttackerList((prev) => {
-        console.log('[Game] Attacker list after reciprocal damage:', newAttackerList.map(a => ({ name: a.name, hp: a.hp, canAttack: a.canAttack })));
-        return newAttackerList;
-      });
-
-      // HP0以下のカードを墓地へ
-  const deadTargets = newTargetList.filter((c) => (c.hp ?? 0) <= 0);
-  if (deadTargets.length) {
-    addCardToDestroying(deadTargets.map(d => d.uniqueId));
-    const setTargetGrave = isPlayerAttacker ? setEnemyGraveyard : setPlayerGraveyard;
-    setTargetGrave((g) => {
-      const added = deadTargets.filter(d => !g.some(x => x.uniqueId === d.uniqueId));
-      console.log('[Game] Moving to target graveyard:', added.map(a=>a.name));
-      return [...g, ...added];
-    });
-    
-    // 倒されたカードの death trigger を発動（例: 斥候が倒されたら兵士を手札に加える）
-    deadTargets.forEach((deadCard: any) => {
-      if (deadCard.deathTrigger) {
-        const trigger = deadCard.deathTrigger;
-        if (trigger.type === "add_card_hand" && trigger.cardId) {
-          const addCard = cards.find((c) => c.id === trigger.cardId);
-          if (addCard) {
-            const newCard = { ...addCard, uniqueId: crypto.randomUUID() };
-            if (isPlayerAttacker) {
-              // 敵カードが倒されたので、敵の手札に加える
-              setEnemyHandCards((h) => (h.length < MAX_HAND ? [...h, newCard] : h));
-            } else {
-              // プレイヤーカードが倒されたので、プレイヤーの手札に加える
-              setPlayerHandCards((h) => (h.length < MAX_HAND ? [...h, newCard] : h));
-            }
-          }
-        }
-      }
-    });
-  }
-      setTargetList((list) => list.filter((c) => (c.hp ?? 0) > 0));
-
-      const deadAttackers = newAttackerList.filter((c) => (c.hp ?? 0) <= 0);
-      if (deadAttackers.length) {
-        addCardToDestroying(deadAttackers.map(d => d.uniqueId));
-        const setAttackerGrave = isPlayerAttacker ? setPlayerGraveyard : setEnemyGraveyard;
-        setAttackerGrave((g) => [...g, ...deadAttackers.filter(d => !g.some(x => x.uniqueId === d.uniqueId))]);
-        setAttackerList((list) => list.filter((c) => (c.hp ?? 0) > 0));
-      }
-
-      // 攻撃時効果（例: 剣士の自己ダメージ）
-      if (attacker.onAttackEffect === "self_damage_1") {
-        setAttackerList((list) => {
-          const updated = list.map((c) => (c.uniqueId === attackerId ? { ...c, hp: (c.hp ?? 0) - 1 } : c));
-          const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
-          if (dead.length) {
-            const setAttackerGrave = isPlayerAttacker ? setPlayerGraveyard : setEnemyGraveyard;
-            setAttackerGrave((g) => [...g, ...dead.filter(d => !g.some(x => x.uniqueId === d.uniqueId))]);
-            return updated.filter((c) => (c.hp ?? 0) > 0);
-          }
-          return updated;
-        });
-      }
-    }
-
-    // アニメーションクリア
-    setTimeout(() => {
-      setEnemyAttackAnimation(null);
-    }, 1000);
+    executeAttack(attackerId, targetId, {
+      attackerList: isPlayerAttacker ? playerFieldRef.current : enemyFieldRef.current,
+      targetList: isPlayerAttacker ? enemyFieldRef.current : playerFieldRef.current,
+      setAttackerList: isPlayerAttacker ? setPlayerFieldCards : setEnemyFieldCards,
+      setTargetList: isPlayerAttacker ? setEnemyFieldCards : setPlayerFieldCards,
+      setTargetHeroHp: isPlayerAttacker ? setEnemyHeroHp : setPlayerHeroHp,
+      setAttackerGraveyard: isPlayerAttacker ? setPlayerGraveyard : setEnemyGraveyard,
+      setTargetGraveyard: isPlayerAttacker ? setEnemyGraveyard : setPlayerGraveyard,
+      setAttackerHandCards: isPlayerAttacker ? setPlayerHandCards : setEnemyHandCards,
+      setTargetHandCards: isPlayerAttacker ? setEnemyHandCards : setPlayerHandCards,
+      setGameOver,
+      stopTimer: () => {
+        try { playerTurnTimerRef.current?.stop(); enemyTurnTimerRef.current?.stop(); } catch (e) { /* ignore */ }
+      },
+      setAiRunning,
+      isPlayerAttacker,
+    }, addCardToDestroying);
   };
 
   // --- スペルの発動 ---
@@ -843,169 +743,32 @@ export function useGame(): {
       setEnemyCurrentMana((m) => m - card.cost);
     }
 
-    const effect = card.effect || "";
-
-    switch (effect) {
-      case "heal_single": {
-        // 回復：ヒーロー or フォロワー
-        const healAmount = card.effectValue ?? 2;
-        if (targetId === "hero") {
-          if (isPlayer) {
-            setEnemyHeroHp((hp) => Math.min(hp + healAmount, MAX_HERO_HP));
-          } else {
-            setEnemyHeroHp((hp) => Math.min(hp + healAmount, MAX_HERO_HP));
-          }
-        } else {
-          // フォロワーの回復：敵側のみ（プレイヤーがフォロワーを回復するケースは未実装）
-          if (isPlayer) {
-            setEnemyFieldCards((list) =>
-              list.map((c) => 
-                c.uniqueId === targetId 
-                  ? { ...c, hp: Math.min((c.hp ?? 0) + healAmount, c.maxHp) } 
-                  : c
-              )
-            );
-          } else {
-            setEnemyFieldCards((list) =>
-              list.map((c) => 
-                c.uniqueId === targetId 
-                  ? { ...c, hp: Math.min((c.hp ?? 0) + healAmount, c.maxHp) } 
-                  : c
-              )
-            );
-          }
-        }
-        break;
-      }
-      case "damage_all": {
-        // 全体ダメージ：敵フォールドと敵ヒーロー
-        const dmg = card.effectValue ?? 2;
-        
-        // 敵フィールドのダメージ
-        setEnemyFieldCards((list) => {
-          const updated = list.map((c) => ({ ...c, hp: (c.hp ?? 0) - dmg }));
-          const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
-          if (dead.length) {
-            addCardToDestroying(dead.map(d => d.uniqueId));
-            setEnemyGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
-          }
-          return updated.filter((c) => (c.hp ?? 0) > 0);
-        });
-
-        // 敵ヒーローのダメージ（wallGuard がない場合のみ）
-        setEnemyHeroHp((h) => {
-          const hasWallGuard = enemyFieldCards.some((c) => (c as { wallGuard?: boolean }).wallGuard);
-          if (hasWallGuard) {
-            console.log("敵は鉄壁を持っているため、全体ダメージからヒーローは保護されます");
-            return h;
-          }
-          const next = Math.max(h - dmg, 0);
-          if (next <= 0) {
-            setGameOver({ over: true, winner: isPlayer ? "player" : "enemy" });
-            try { playerTurnTimerRef.current?.stop(); enemyTurnTimerRef.current?.stop(); } catch (e) { /* ignore */ }
-            setAiRunning(false);
-          }
-          return next;
-        });
-        break;
-      }
-      case "damage_single": {
-        // 単体ダメージ
-        const dmg = card.effectValue ?? 3;
-        if (targetId === "hero") {
-          setEnemyHeroHp((h) => {
-            const next = Math.max(h - dmg, 0);
-            if (next <= 0) {
-              setGameOver({ over: true, winner: isPlayer ? "player" : "enemy" });
-              try { playerTurnTimerRef.current?.stop(); enemyTurnTimerRef.current?.stop(); } catch (e) { /* ignore */ }
-              setAiRunning(false);
-            }
-            return next;
-          });
-        } else {
-          setEnemyFieldCards((list) => {
-            const updated = list.map((c) => (c.uniqueId === targetId ? { ...c, hp: (c.hp ?? 0) - dmg } : c));
-            const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
-            if (dead.length) {
-              addCardToDestroying(dead.map(d => d.uniqueId));
-              setEnemyGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
-            }
-            return updated.filter((c) => (c.hp ?? 0) > 0);
-          });
-        }
-        break;
-      }
-      case "poison": {
-        // 毒：毎ターンダメージ
-        if (targetId === "hero") {
-          // ヒーローへの毒は即座にダメージ
-          const pdmg = card.effectValue ?? 1;
-          setEnemyHeroHp((h) => Math.max(h - pdmg, 0));
-        } else {
-          // フォロワーへの毒は状態付与
-          const poisonDamage = card.effectValue ?? 1;
-          const poisonDuration = card.statusDuration ?? 3;
-          setEnemyFieldCards((list) =>
-            list.map((c) => 
-              c.uniqueId === targetId 
-                ? { ...c, poison: poisonDuration, poisonDamage } 
-                : c
-            )
-          );
-        }
-        break;
-      }
-      case "freeze_single": {
-        // 凍結：攻撃不可状態に
-        if (targetId !== "hero") {
-          const freezeDuration = card.statusDuration ?? 1;
-          setEnemyFieldCards((list) =>
-            list.map((c) => 
-              c.uniqueId === targetId 
-                ? { ...c, frozen: freezeDuration, canAttack: false } 
-                : c
-            )
-          );
-        } else {
-          console.log("ヒーローは凍結できません");
-        }
-        break;
-      }
-      case "haste": {
-        // 加速：突進付与
-        if (targetId !== "hero") {
-          const targetList = isPlayer ? playerFieldCards : enemyFieldCards;
-          const setTargetList = isPlayer ? setPlayerFieldCards : setEnemyFieldCards;
-          const target = targetList.find((c) => c.uniqueId === targetId);
-          
-          if (target && target.canAttack && !(target as { rush?: boolean }).rush) {
-            setTargetList((list) =>
-              list.map((c) =>
-                c.uniqueId === targetId
-                  ? { ...c, canAttack: true, rush: true, haste: true }
-                  : c
-              )
-            );
-          } else {
-            console.log("加速呪文：攻撃済みまたは既に突進を持っているため付与できません");
-          }
-        }
-        break;
-      }
-      default:
-        console.debug("未対応の spell effect:", effect);
-        break;
-    }
+    executeSpell(card, targetId, isPlayer, {
+      playerFieldCards,
+      enemyFieldCards,
+      setPlayerFieldCards,
+      setEnemyFieldCards,
+      setPlayerHeroHp,
+      setEnemyHeroHp,
+      setPlayerGraveyard,
+      setEnemyGraveyard,
+      setGameOver,
+      stopTimer: () => {
+        try { playerTurnTimerRef.current?.stop(); enemyTurnTimerRef.current?.stop(); } catch (e) { /* ignore */ }
+      },
+      setAiRunning,
+      addCardToDestroying,
+    });
 
     // 手札から除去して墓地へ
     if (isPlayer) {
       setPlayerHandCards((h) => h.filter((c) => c.uniqueId !== cardUniqueId));
-      setPlayerGraveyard((g) => [...g, { ...card, uniqueId: uuidv4() }]);
+      setPlayerGraveyard((g) => [...g, createUniqueCard(card)]);
     } else {
       setEnemyHandCards((h) => h.filter((c) => c.uniqueId !== cardUniqueId));
-      setEnemyGraveyard((g) => [...g, { ...card, uniqueId: uuidv4() }]);
+      setEnemyGraveyard((g) => [...g, createUniqueCard(card)]);
       // 敵がスペルを使ったら視覚的に見えるようにアニメーションをトリガー
-      setEnemySpellAnimation({ targetId, effect });
+      setEnemySpellAnimation({ targetId, effect: card.effect || "" });
       setTimeout(() => setEnemySpellAnimation(null), 600);
     }
 
@@ -1042,6 +805,7 @@ export function useGame(): {
     turnSecondsRemaining,
     aiRunning,
     movingAttack,
+    playerAttackAnimation,
     enemyAttackAnimation,
     enemySpellAnimation,
     gameOver,

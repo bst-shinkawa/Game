@@ -25,18 +25,3 @@ body {
   font-family: Arial, Helvetica, sans-serif;
 }
 
-/* カード破壊アニメーション - グローバルスコープ */
-@keyframes cardDestroy {
-  0% {
-    opacity: 1;
-    transform: scale(1) rotate(0deg);
-  }
-  50% {
-    opacity: 1;
-    transform: scale(1.1) rotate(5deg);
-  }
-  100% {
-    opacity: 0;
-    transform: scale(0.3) rotate(360deg);
-  }
-}

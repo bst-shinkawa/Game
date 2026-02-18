@@ -53,6 +53,7 @@ interface GameFieldProps {
   showGameStart: boolean;
   attackClone: any;
   movingAttack: { attackerId: string; targetId: string | "hero" } | null;
+  playerAttackAnimation: { sourceCardId: string; targetId: string | "hero" } | null;
   enemyAttackAnimation: { sourceCardId: string | null; targetId: string | "hero" } | null;
   enemySpellAnimation: { targetId: string | "hero"; effect: string } | null;
 
@@ -129,6 +130,7 @@ export const GameField: React.FC<GameFieldProps> = ({
   showGameStart,
   attackClone,
   movingAttack,
+  playerAttackAnimation,
   enemyAttackAnimation,
   enemySpellAnimation,
   // ゲーム操作
@@ -1119,8 +1121,8 @@ export const GameField: React.FC<GameFieldProps> = ({
         ></video>
       </div>
 
-      {/* ダメージフロート */}
-      <DamageFloater floats={damageFloats} />
+      {/* ダメージフロート（body に portal して viewport 座標と一致させる） */}
+      {typeof document !== "undefined" && createPortal(<DamageFloater floats={damageFloats} />, document.body)}
 
       {/* プリゲーム */}
       {preGame && (
@@ -1255,8 +1257,8 @@ export const GameField: React.FC<GameFieldProps> = ({
         <button onClick={() => { resetGame('cpu'); }}>リタイア</button>
       </div>
 
-      {/* AI攻撃アニメーション */}
-      {attackClone && (() => {
+      {/* AI攻撃アニメーション（body に portal して viewport 座標で表示） */}
+      {typeof document !== "undefined" && attackClone && createPortal((() => {
         const { start, end, card, started, duration } = attackClone;
         const deltaX = end.left - start.left;
         const deltaY = end.top - start.top;
@@ -1272,7 +1274,6 @@ export const GameField: React.FC<GameFieldProps> = ({
           pointerEvents: "none",
           opacity: started ? 0.95 : 1,
         };
-
         return (
           <div style={baseStyle} className={styles.card}>
             {card.image && <img src={card.image} alt={card.name} />}
@@ -1280,7 +1281,7 @@ export const GameField: React.FC<GameFieldProps> = ({
             <div className={styles.card_attack}><p>{card.attack ?? 0}</p></div>
           </div>
         );
-      })()}
+      })(), document.body)}
 
       {/* ターンモーダル */}
       {showTurnModal && (
@@ -1312,6 +1313,7 @@ export const GameField: React.FC<GameFieldProps> = ({
         isPlayerTurn={isPlayerTurn}
         draggingCard={draggingCard}
         playerHandCards={playerHandCards}
+        playerAttackAnimation={playerAttackAnimation}
         enemyAttackAnimation={enemyAttackAnimation}
         enemySpellAnimation={enemySpellAnimation}
         hoverTarget={hoverTarget}
