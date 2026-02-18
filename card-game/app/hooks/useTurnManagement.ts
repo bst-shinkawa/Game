@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { TurnTimer } from "../data/turnTimer";
 import { TURN_DURATION_SECONDS, MAX_MANA } from "../constants/gameConstants";
 import type { CoinResult } from "../types/gameTypes";
-import type { Card } from "../data/cards";
+import type { RuntimeCard } from "../data/cards";
 
 interface UseTurnManagementProps {
   turn: number;
@@ -19,8 +19,8 @@ interface UseTurnManagementProps {
   pauseTimer: boolean;
   drawPlayerCard: () => void;
   drawEnemyCard: () => void;
-  setPlayerFieldCards: React.Dispatch<React.SetStateAction<Card[]>>;
-  setEnemyFieldCards: React.Dispatch<React.SetStateAction<Card[]>>;
+  setPlayerFieldCards: React.Dispatch<React.SetStateAction<RuntimeCard[]>>;
+  setEnemyFieldCards: React.Dispatch<React.SetStateAction<RuntimeCard[]>>;
   setPauseTimer: React.Dispatch<React.SetStateAction<boolean>>;
   endTurn: () => void;
 }
