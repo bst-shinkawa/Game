@@ -98,6 +98,7 @@ export function useGameLogic() {
     coinResult,
     preGame,
     pauseTimer,
+    setPauseTimer,
     drawPlayerCard: cardOperations.drawPlayerCard,
     drawEnemyCard: () => {
       if (enemyDeck.length === 0) return;
