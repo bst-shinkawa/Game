@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { TurnTimer } from "../data/turnTimer";
 import { TURN_DURATION_SECONDS, MAX_MANA } from "../constants/gameConstants";
 import type { CoinResult } from "../types/gameTypes";
+import type { Card } from "../data/cards";
 
 interface UseTurnManagementProps {
   turn: number;
@@ -16,10 +17,11 @@ interface UseTurnManagementProps {
   coinResult: CoinResult;
   preGame: boolean;
   pauseTimer: boolean;
-  drawPlayerCard: (deck: Card[], setDeck: React.Dispatch<React.SetStateAction<Card[]>>, playerHandCards: Card[], setPlayerHandCards: React.Dispatch<React.SetStateAction<Card[]>>, playerGraveyard: Card[], setPlayerGraveyard: React.Dispatch<React.SetStateAction<Card[]>>) => void;
-  drawEnemyCard: (enemyDeck: Card[], setEnemyDeck: React.Dispatch<React.SetStateAction<Card[]>>, enemyHandCards: Card[], setEnemyHandCards: React.Dispatch<React.SetStateAction<Card[]>>, enemyGraveyard: Card[], setEnemyGraveyard: React.Dispatch<React.SetStateAction<Card[]>>) => void;
-  setPlayerFieldCards: React.Dispatch<React.SetStateAction<any[]>>;
-  setEnemyFieldCards: React.Dispatch<React.SetStateAction<any[]>>;
+  drawPlayerCard: () => void;
+  drawEnemyCard: () => void;
+  setPlayerFieldCards: React.Dispatch<React.SetStateAction<Card[]>>;
+  setEnemyFieldCards: React.Dispatch<React.SetStateAction<Card[]>>;
+  setPauseTimer: React.Dispatch<React.SetStateAction<boolean>>;
   endTurn: () => void;
 }
 
@@ -34,7 +36,7 @@ export function useTurnManagement({
   setEnemyCurrentMana,
   coinResult,
   preGame,
-  pauseTimer,
+  setPauseTimer,
   drawPlayerCard,
   drawEnemyCard,
   setPlayerFieldCards,
@@ -49,7 +51,7 @@ export function useTurnManagement({
   // ターン開始時の処理
   useEffect(() => {
     if (preGame) return;
-    if (pauseTimer) return;
+    if (!setPauseTimer) return;
 
     // ターン開始ごとの共通処理：canAttack をリセット
     setPlayerFieldCards((prev) => prev.map((c) => ({ ...c, canAttack: false, rushInitialTurn: undefined })));
@@ -76,7 +78,7 @@ export function useTurnManagement({
       setEnemyFieldCards((prev) => prev.map((c) => ({ ...c, canAttack: true })));
       setEnemyCurrentMana((_) => Math.min(enemyMaxMana, MAX_MANA));
     }
-  }, [turn, preGame, pauseTimer, coinResult, maxMana, enemyMaxMana, drawPlayerCard, drawEnemyCard, setPlayerFieldCards, setEnemyFieldCards, setMaxMana, setEnemyMaxMana, setCurrentMana, setEnemyCurrentMana]);
+  }, [turn, preGame, setPauseTimer, coinResult, maxMana, enemyMaxMana, drawPlayerCard, drawEnemyCard, setPlayerFieldCards, setEnemyFieldCards, setMaxMana, setEnemyMaxMana, setCurrentMana, setEnemyCurrentMana]);
 
   // ターンタイマーの管理
   useEffect(() => {
@@ -123,7 +125,7 @@ export function useTurnManagement({
     const offEnemyTick = enemyTurnTimerRef.current?.onTick(enemyTick);
     const offEnemyEnd = enemyTurnTimerRef.current?.onEnd(enemyEnd);
 
-    if (!pauseTimer) {
+    if (!setPauseTimer) {
       if (turn % 2 === 1) playerTurnTimerRef.current?.start();
       else enemyTurnTimerRef.current?.start();
     }
@@ -138,11 +140,11 @@ export function useTurnManagement({
       playerTurnTimerRef.current?.pause();
       enemyTurnTimerRef.current?.pause();
     };
-  }, [turn, preGame, pauseTimer, endTurn]);
+  }, [turn, preGame, setPauseTimer, endTurn]);
 
   // UI の一時停止要求に応じて pause/resume を行う
   useEffect(() => {
-    if (pauseTimer) {
+    if (!setPauseTimer) {
       playerTurnTimerRef.current?.pause();
       enemyTurnTimerRef.current?.pause();
     } else {
@@ -154,7 +156,7 @@ export function useTurnManagement({
         if (e && !e.isRunning() && e.getRemaining() > 0) e.start();
       }
     }
-  }, [pauseTimer, turn]);
+  }, [setPauseTimer, turn]);
 
   return {
     turnSecondsRemaining,
