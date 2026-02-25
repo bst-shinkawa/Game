@@ -9,6 +9,7 @@ import { PlayerArea } from "./PlayerArea";
 import CardItem from "./CardItem";
 import { PreGame } from "./PreGame";
 import GameOver from "./GameOver";
+import Image from "next/image";
 import type { Card } from "@/app/data/cards";
 import type { DamageFloat } from "@/app/hooks/useGameUI";
 import styles from "@/app/assets/css/Game.Master.module.css";
@@ -1276,7 +1277,7 @@ export const GameField: React.FC<GameFieldProps> = ({
         };
         return (
           <div style={baseStyle} className={styles.card}>
-            {card.image && <img src={card.image} alt={card.name} />}
+            {card.image && <Image src={card.image} alt={card.name} width={100} height={100} />}
             <div className={styles.card_hp}><p>{Math.min(card.hp ?? 0, card.maxHp ?? 0)}</p></div>
             <div className={styles.card_attack}><p>{card.attack ?? 0}</p></div>
           </div>
@@ -1388,7 +1389,7 @@ export const GameField: React.FC<GameFieldProps> = ({
           try {
             // Suppress browser drag ghost and ensure the drag carries an identifier
             e.dataTransfer?.setData('text/plain', card.uniqueId);
-            e.dataTransfer?.setDragImage(new Image(), 0, 0);
+            e.dataTransfer?.setDragImage(new window.Image(), 0, 0);
           } catch (err) { /* ignore for browsers that restrict dataTransfer */ }
 
           const rect = e.currentTarget.getBoundingClientRect();

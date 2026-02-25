@@ -1,6 +1,7 @@
 // CardItem.tsx
 "use client";
 import React from "react";
+import Image from "next/image";
 import styles from "../assets/css/Game.Master.module.css";
 import { CardType } from "../data/cards";
 
@@ -143,7 +144,7 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
       }}
       ref={ref} // forwardRef により渡せるようになる
     >
-      {image && <img src={image} alt={name} />}
+      {image && <Image src={image} alt={name} width={100} height={100} />}
       {/* 状態バッジ */}
       {!noStatus && (
         <div style={{ position: "absolute", left: 8, top: 8, display: "flex", gap: 6, zIndex: 20 }} aria-hidden={false}>
