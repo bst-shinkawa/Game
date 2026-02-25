@@ -1,11 +1,12 @@
 /** @type {import('next').NextConfig} */
-import type { NextConfig } from 'next';
+const isProd = process.env.NODE_ENV === 'production';
 
-const nextConfig: NextConfig = {
-  output: undefined,
+const nextConfig = {
+  output: isProd ? 'export' : undefined,
+  basePath: isProd ? '/Game' : '',
   images: {
-    unoptimized: false,
+    unoptimized: true,
   },
 };
 
-export default nextConfig;
+module.exports = nextConfig;
