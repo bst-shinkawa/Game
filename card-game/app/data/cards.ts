@@ -48,7 +48,7 @@ export interface RuntimeCard extends Card {
 }
 
 // 仮カードデータ
-const basePath = process.env.NODE_ENV === 'production' ? '/Game' : '';
+const basePath = process.env.NODE_ENV === 'production' ? '' : '';
 export const cards: Card[] = [
   { id: 1, name: "剣士", type: "follower", description: "攻撃時に1ダメージを自身が受ける", attack: 3, hp: 2, maxHp: 2, image: `${basePath}/img/cards/swordsman.png`, uniqueId: "", cost: 1, onAttackEffect: "self_damage_1" },
   { id: 2, name: "炎の呪文", type: "spell", description: "相手に3ダメージ", effect: "damage_single", effectValue: 3, image: `${basePath}/img/cards/fire_spell.png`, uniqueId: "", cost: 3 },

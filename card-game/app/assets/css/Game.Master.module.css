@@ -8,11 +8,8 @@
   background-repeat: no-repeat;
   background-size: cover;
   background-position: center;
-  background-image: url("/Game/img/field/bg.png");
+  background-image: url("/img/field/bg.png");
   perspective: 1000px;
-  /* ターゲットハイライト */
-  /* ドラッグ中のカード */
-  /* 脈動アニメーション */
 }
 .field.field_local {
   background-image: url("/img/field/bg.png");
@@ -158,13 +155,6 @@
   right: 0;
   transform: translate(-50%, -50%);
   /* タイマーカード */
-  /* SVG サイズ調整 */
-  /* 中央の数字 */
-  /* トラック */
-  /* プログレスの見た目 */
-  /* "warn" は global class なので :global() を使う */
-  /* "critical" も global class なので :global() を使う */
-  /* コントロール */
 }
 .field_enemy_timer_card {
   width: 140px;
@@ -176,10 +166,16 @@
   position: relative;
   padding: 18px;
 }
+.field_enemy_timer {
+  /* SVG サイズ調整 */
+}
 .field_enemy_timer svg.timer {
   width: 160px;
   height: 160px;
   display: block;
+}
+.field_enemy_timer {
+  /* 中央の数字 */
 }
 .field_enemy_timer_time_label {
   position: absolute;
@@ -191,10 +187,16 @@
      -moz-user-select: none;
           user-select: none;
 }
+.field_enemy_timer {
+  /* トラック */
+}
 .field_enemy_timer .track {
   fill: none;
   stroke: #efe6d8; /* 背景トラック */
   stroke-width: 12;
+}
+.field_enemy_timer {
+  /* プログレスの見た目 */
 }
 .field_enemy_timer .progress {
   fill: none;
@@ -206,12 +208,21 @@
   transform: rotate(-90deg);
   transform-origin: 50% 50%;
 }
+.field_enemy_timer {
+  /* "warn" は global class なので :global() を使う */
+}
 .field_enemy_timer .warn {
   stroke: #f0ad4e;
+}
+.field_enemy_timer {
+  /* "critical" も global class なので :global() を使う */
 }
 .field_enemy_timer .critical {
   stroke: #d9534f;
   filter: drop-shadow(0 6px 8px rgba(217, 83, 79, 0.18));
+}
+.field_enemy_timer {
+  /* コントロール */
 }
 .field_enemy_timer_controls {
   margin-top: 16px;
@@ -303,13 +314,6 @@
   right: 0;
   transform: translate(-50%, -50%);
   /* タイマーカード */
-  /* SVG サイズ調整 */
-  /* 中央の数字 */
-  /* トラック */
-  /* プログレスの見た目 */
-  /* "warn" は global class なので :global() を使う */
-  /* "critical" も global class なので :global() を使う */
-  /* コントロール */
 }
 .field_player_timer_card {
   width: 140px;
@@ -321,10 +325,16 @@
   position: relative;
   padding: 18px;
 }
+.field_player_timer {
+  /* SVG サイズ調整 */
+}
 .field_player_timer svg.timer {
   width: 160px;
   height: 160px;
   display: block;
+}
+.field_player_timer {
+  /* 中央の数字 */
 }
 .field_player_timer_time_label {
   position: absolute;
@@ -336,10 +346,16 @@
      -moz-user-select: none;
           user-select: none;
 }
+.field_player_timer {
+  /* トラック */
+}
 .field_player_timer .track {
   fill: none;
   stroke: #efe6d8; /* 背景トラック */
   stroke-width: 12;
+}
+.field_player_timer {
+  /* プログレスの見た目 */
 }
 .field_player_timer .progress {
   fill: none;
@@ -351,12 +367,21 @@
   transform: rotate(-90deg);
   transform-origin: 50% 50%;
 }
+.field_player_timer {
+  /* "warn" は global class なので :global() を使う */
+}
 .field_player_timer .warn {
   stroke: #f0ad4e;
+}
+.field_player_timer {
+  /* "critical" も global class なので :global() を使う */
 }
 .field_player_timer .critical {
   stroke: #d9534f;
   filter: drop-shadow(0 6px 8px rgba(217, 83, 79, 0.18));
+}
+.field_player_timer {
+  /* コントロール */
 }
 .field_player_timer_controls {
   margin-top: 16px;
@@ -438,6 +463,9 @@
   transform: translateY(-15px) scale(1.05) rotate(var(--rotate));
   z-index: 20;
 }
+.field {
+  /* ターゲットハイライト */
+}
 .field .attack_highlight {
   box-sizing: border-box;
   outline: 4px solid #ff4444;
@@ -445,10 +473,16 @@
   box-shadow: 0 0 20px #ff4444, 0 0 40px rgba(255, 68, 68, 0.5);
   animation: pulse 1s infinite;
 }
+.field {
+  /* ドラッグ中のカード */
+}
 .field .dragging {
   transform: scale(1.1);
   box-shadow: 0 0 20px rgba(0, 255, 0, 0.8);
   z-index: 1000;
+}
+.field {
+  /* 脈動アニメーション */
 }
 @keyframes pulse {
   0% {
@@ -461,14 +495,6 @@
   100% {
     box-shadow: 0 0 20px #ff4444, 0 0 40px rgba(255, 68, 68, 0.5);
   }
-}
-.field_turn {
-  /* ボタンテキスト */
-  /* --- (オプション) 簡易的なアニメーション --- */
-  /* isPlayerTurn の時だけ鼓動するアニメーション */
-  /* --- ターンエンドボタンの緊迫状態 (残り20秒以下) --- */
-  /* 緊迫時のネオン脈動アニメーションの定義 */
-  /* 緊迫状態のクラス */
 }
 .field_turn_wrapper {
   position: fixed;
@@ -511,9 +537,16 @@
   transform: scale(0.98); /* 少し沈み込ませる */
   box-shadow: 0 0 5px rgba(0, 255, 255, 0.4);
 }
+.field_turn {
+  /* ボタンテキスト */
+}
 .field_turn_text {
   position: relative;
   z-index: 2; /* ネオンの上にテキストを表示 */
+}
+.field_turn {
+  /* --- (オプション) 簡易的なアニメーション --- */
+  /* isPlayerTurn の時だけ鼓動するアニメーション */
 }
 @keyframes pulseGlow {
   0% {
@@ -525,6 +558,10 @@
   100% {
     box-shadow: 0 0 10px rgba(0, 255, 255, 0.6), 0 0 20px rgba(0, 255, 255, 0.3);
   }
+}
+.field_turn {
+  /* --- ターンエンドボタンの緊迫状態 (残り20秒以下) --- */
+  /* 緊迫時のネオン脈動アニメーションの定義 */
 }
 @keyframes criticalGlow {
   0% {
@@ -545,6 +582,9 @@
     box-shadow: 0 0 10px rgba(255, 87, 34, 0.7);
     transform: scale(1);
   }
+}
+.field_turn {
+  /* 緊迫状態のクラス */
 }
 .field_turn_end_critical {
   /* 色を赤系に上書き */
