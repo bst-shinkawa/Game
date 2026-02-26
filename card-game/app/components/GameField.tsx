@@ -1277,7 +1277,7 @@ export const GameField: React.FC<GameFieldProps> = ({
         };
         return (
           <div style={baseStyle} className={styles.card}>
-            {card.image && <Image src={card.image} alt={card.name} width={100} height={100} />}
+            {card.image && <Image src={card.image} alt={card.name} width={100} height={100} priority />}
             <div className={styles.card_hp}><p>{Math.min(card.hp ?? 0, card.maxHp ?? 0)}</p></div>
             <div className={styles.card_attack}><p>{card.attack ?? 0}</p></div>
           </div>

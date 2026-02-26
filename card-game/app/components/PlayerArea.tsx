@@ -414,13 +414,13 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
       {/* プレイヤーステータス */}
       <div className={styles.field_player_status}>
         <div className={styles.field_player_status_item}>
-          <Image src={handIcon} alt="プレイヤー手札" /><span>{playerHandCards.length}</span>
+          <Image src={handIcon} alt="プレイヤー手札" priority /><span>{playerHandCards.length}</span>
         </div>
         <div className={styles.field_player_status_item}>
-          <Image src={deckIcon} alt="プレイヤーデッキ" /><span>{playerDeck.length}</span>
+          <Image src={deckIcon} alt="プレイヤーデッキ" priority /><span>{playerDeck.length}</span>
         </div>
         <div className={styles.field_player_status_item}>
-          <Image src={deathIcon} alt="墓地" /><span>{playerGraveyard.length}</span>
+          <Image src={deathIcon} alt="墓地" priority /><span>{playerGraveyard.length}</span>
         </div>
       </div>
 

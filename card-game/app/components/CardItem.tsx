@@ -144,7 +144,7 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
       }}
       ref={ref} // forwardRef により渡せるようになる
     >
-      {image && <Image src={image} alt={name} width={100} height={100} />}
+      {image && <Image src={image} alt={name} width={100} height={100} priority />}
       {/* 状態バッジ */}
       {!noStatus && (
         <div style={{ position: "absolute", left: 8, top: 8, display: "flex", gap: 6, zIndex: 20 }} aria-hidden={false}>
