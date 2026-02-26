@@ -20,9 +20,16 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
-          DEPLOY_URL=$(vercel ls game-two-nu-39 --token $VERCEL_TOKEN --scope bst-shinkawas-projects --json | jq -r '.[0].url')
-          echo "DEPLOY_URL=https://$DEPLOY_URL" >> $GITHUB_ENV
+          # 最新デプロイの URL を取得
+          RAW_URL=$(vercel ls game-two-nu-39 --token $VERCEL_TOKEN --scope bst-shinkawas-projects --json | jq -r '.[0].url')
+
+          # 改行を除去して URL を正常化
+          CLEAN_URL=$(echo $RAW_URL | tr -d '\n')
+
+          # GitHub Actions の環境変数に書き込み
+          echo "DEPLOY_URL=https://$CLEAN_URL" >> $GITHUB_ENV
 
       - name: Call Prewarm API
         run: |
-          curl -X GET "$DEPLOY_URL/api/Image-Cash-Clear"
+          echo "Calling: $DEPLOY_URL/api/Image-Cash-Clear"
+          curl -v "$DEPLOY_URL/api/Image-Cash-Clear"
