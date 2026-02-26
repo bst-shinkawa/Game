@@ -1,0 +1,22 @@
+name: Prewarm Image Cache
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  prewarm:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Wait for Vercel Deployment
+        uses: UnlyEd/github-action-await-vercel@v1.2.0
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Call Prewarm API
+        run: |
+          curl -X GET "https://game-two-nu-39.vercel.app/api/Image-Cash-Clear"
