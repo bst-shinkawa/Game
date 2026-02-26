@@ -10,13 +10,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Wait for Vercel Deployment
-        uses: UnlyEd/github-action-await-vercel@v1.2.0
-        with:
-          vercel-token: ${{ secrets.VERCEL_TOKEN }}
-          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
-          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel
+
+      - name: Get latest deployment URL
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          DEPLOY_URL=$(vercel ls game-two-nu-39 --token $VERCEL_TOKEN --scope bst-shinkawas-projects --json | jq -r '.[0].url')
+          echo "DEPLOY_URL=https://$DEPLOY_URL" >> $GITHUB_ENV
 
       - name: Call Prewarm API
         run: |
-          curl -X GET "https://game-two-nu-39.vercel.app/api/Image-Cash-Clear"
+          curl -X GET "$DEPLOY_URL/api/Image-Cash-Clear"
