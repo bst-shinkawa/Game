@@ -16,23 +16,18 @@ jobs:
       - name: Install Vercel CLI
         run: npm install -g vercel
 
-      - name: Get latest deployment URL (debug)
+      - name: Get latest deployment URL
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
-          echo "=== DEBUG: vercel ls output ==="
-          vercel ls --token $VERCEL_TOKEN --scope bst-shinkawas-projects
+          # 最新デプロイ一覧を取得し、最初の URL を抽出
+          DEPLOY_URL=$(vercel ls --token $VERCEL_TOKEN --scope bst-shinkawas-projects | grep https | head -n 1)
 
-          echo "=== DEBUG: JSON ==="
-          vercel ls game-two-nu-39 --token $VERCEL_TOKEN --scope bst-shinkawas-projects --json
+          echo "=== DEBUG: DEPLOY_URL ==="
+          echo "$DEPLOY_URL"
 
-          RAW_URL=$(vercel ls game-two-nu-39 --token $VERCEL_TOKEN --scope bst-shinkawas-projects --json | jq -r '.[0].url')
-
-          echo "=== DEBUG: RAW_URL ==="
-          echo "$RAW_URL"
-
-          CLEAN_URL=$(echo $RAW_URL | tr -d '\n')
-          echo "DEPLOY_URL=https://$CLEAN_URL" >> $GITHUB_ENV
+          # GitHub Actions の環境変数に書き込み
+          echo "DEPLOY_URL=$DEPLOY_URL" >> $GITHUB_ENV
 
       - name: Call Prewarm API
         run: |
