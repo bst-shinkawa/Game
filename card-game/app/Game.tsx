@@ -184,6 +184,14 @@ export function useGame(): {
     setEnemyHandCards(initialEnemyHand);
     setDeck((prev) => prev.slice(5));
     setEnemyDeck((prev) => prev.slice(5));
+
+    // preload all card images once so browser cache holds them and display becomes instantaneous
+    cards.forEach((c) => {
+      if (c.image) {
+        const img = new Image();
+        img.src = c.image;
+      }
+    });
   }, []);
 
   const gameSessionRef = useRef(0);

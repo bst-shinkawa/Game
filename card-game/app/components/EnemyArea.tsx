@@ -208,13 +208,13 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
       {/* 敵ステータス */}
       <div className={styles.field_enemy_status}>
         <div className={styles.field_enemy_status_item}>
-          <Image src={handIcon} alt="敵手札" priority /><span>{enemyHandCards.length}</span>
+          <Image src={handIcon} alt="敵手札" priority unoptimized loading="eager" /><span>{enemyHandCards.length}</span>
         </div>
         <div className={styles.field_enemy_status_item}>
-          <Image src={deckIcon} alt="敵デッキ" priority /><span>{enemyDeck.length}</span>
+          <Image src={deckIcon} alt="敵デッキ" priority unoptimized loading="eager" /><span>{enemyDeck.length}</span>
         </div>
         <div className={styles.field_player_status_item}>
-          <Image src={deathIcon} alt="敵墓地" priority /><span>{enemyGraveyard.length}</span>
+          <Image src={deathIcon} alt="敵墓地" priority unoptimized loading="eager" /><span>{enemyGraveyard.length}</span>
         </div>
       </div>
     </div>

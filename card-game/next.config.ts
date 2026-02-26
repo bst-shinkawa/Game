@@ -4,7 +4,9 @@ import type { NextConfig } from 'next';
 const nextConfig: NextConfig = {
   output: undefined,
   images: {
-    unoptimized: false,
+    // disable built-in optimizer to serve raw files directly;
+    // this avoids /_next/image overhead when many cards appear on screen
+    unoptimized: true,
   },
 };
 
