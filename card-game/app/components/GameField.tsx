@@ -196,6 +196,8 @@ export const GameField: React.FC<GameFieldProps> = ({
   const [dropSuccess, setDropSuccess] = React.useState<{ type: string | null; id?: string | null }>({ type: null });
   const [attackTargets, setAttackTargets] = React.useState<string[]>([]);
   const [arrowProgress, setArrowProgress] = React.useState<number>(0);
+  // store last computed attackTargets to avoid updating state every animation frame
+  const lastAttackTargetsRef = React.useRef<string[]>([]);
 
   // Debug HUD state & helper (visible when window.__GAME_DRAG_DEBUG__ === true)
   const [debugEvents, setDebugEvents] = React.useState<Array<{ t: number; text: string; data?: any }>>([]);
@@ -576,12 +578,26 @@ export const GameField: React.FC<GameFieldProps> = ({
         const dropFieldCardId = dropFieldCardEl?.getAttribute('data-uniqueid') || null;
 
         if (handCard) {
+          // allow casting spells on either hero or card regardless of side; default attack always targets enemy
           if (isDropOnEnemyHero) {
             if (handCard.type === 'spell') castSpell(handCard.uniqueId, 'hero', true, setAttackTargets);
             else attack(handCard.uniqueId, 'hero', true);
           } else if (dropFieldCardId && enemyFieldCards.some(c => c.uniqueId === dropFieldCardId)) {
             if (handCard.type === 'spell') castSpell(handCard.uniqueId, dropFieldCardId, true, setAttackTargets);
             else attack(handCard.uniqueId, dropFieldCardId, true);
+          } else if (dropFieldCardId && playerFieldCards.some(c => c.uniqueId === dropFieldCardId)) {
+            // self-targeting allowed only for healing spells
+            if (handCard.type === 'spell' && handCard.effect === 'heal_single') {
+              castSpell(handCard.uniqueId, dropFieldCardId, true, setAttackTargets);
+            } else if (handCard.type !== 'spell') {
+              attack(handCard.uniqueId, dropFieldCardId, true);
+            }
+          } else if (dropEl && playerHeroRef.current && (playerHeroRef.current === dropEl || playerHeroRef.current.contains(dropEl))) {
+            if (handCard.type === 'spell' && handCard.effect === 'heal_single') {
+              castSpell(handCard.uniqueId, 'hero', true, setAttackTargets);
+            } else if (handCard.type !== 'spell') {
+              attack(handCard.uniqueId, 'hero', true);
+            }
           } else if (dropEl && playerBattleRef.current && (playerBattleRef.current === dropEl || playerBattleRef.current.contains(dropEl))) {
             if (preGame && coinResult !== 'deciding') {
               setSwapIds(swapIds.includes(handCard.uniqueId) ? swapIds.filter(id => id !== handCard.uniqueId) : [...swapIds, handCard.uniqueId]);
@@ -930,8 +946,20 @@ export const GameField: React.FC<GameFieldProps> = ({
           }
         }
 
-        console.log('targets', targets);
-        setAttackTargets(targets.map(t => t.id));
+        const ids = targets.map(t => t.id);
+        // only update React state if the target list changed
+        const last = lastAttackTargetsRef.current;
+        let changed = false;
+        if (last.length !== ids.length) changed = true;
+        else {
+          for (let i = 0; i < ids.length; i++) {
+            if (last[i] !== ids[i]) { changed = true; break; }
+          }
+        }
+        if (changed) {
+          lastAttackTargetsRef.current = ids;
+          setAttackTargets(ids);
+        }
 
         // ターゲットを選択
         let target: { x: number; y: number; kind: "damage" | "heal" } | null = null;

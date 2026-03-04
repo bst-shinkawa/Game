@@ -2,7 +2,8 @@
 import { Card } from "./cards";
 import { createDeck } from "./deck";
 
-export const deck: Card[] = createDeck();
+// 初期デッキは役割ごとに作り分け可能（デフォルトは王側）
+export const deck: Card[] = createDeck("king");
 
 // 初期手札を引く関数
 export function drawInitialHand(deck: Card[], count: number): Card[] {

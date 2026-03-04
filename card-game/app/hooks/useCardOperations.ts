@@ -6,11 +6,13 @@ import type { RuntimeCard } from "../types/gameTypes";
 import { cards } from "../data/cards";
 import { MAX_FIELD_SIZE, MAX_HAND } from "../constants/gameConstants";
 import { addCardToHand, createUniqueCard, createFieldCard } from "../services/cardService";
-import { castSpell } from "../services/spellService";
+import { applySpell, playCardToField as servicePlayCard } from "../services/effectService";
 
 interface UseCardOperationsProps {
   deck: Card[];
   setDeck: React.Dispatch<React.SetStateAction<Card[]>>;
+  enemyDeck: Card[];
+  setEnemyDeck: React.Dispatch<React.SetStateAction<Card[]>>;
   playerHandCards: Card[];
   setPlayerHandCards: React.Dispatch<React.SetStateAction<Card[]>>;
   playerFieldCards: RuntimeCard[];
@@ -40,6 +42,8 @@ interface UseCardOperationsProps {
 export function useCardOperations({
   deck,
   setDeck,
+  enemyDeck,
+  setEnemyDeck,
   playerHandCards,
   setPlayerHandCards,
   playerFieldCards,
@@ -73,79 +77,69 @@ export function useCardOperations({
   }, [deck, playerHandCards, playerGraveyard, setDeck, setPlayerHandCards, setPlayerGraveyard]);
 
   const drawEnemyCard = useCallback(() => {
-    // この関数はenemyDeckが必要なので、propsに追加する必要がある
-    // 現時点では簡略化
-  }, []);
+    if (enemyDeck.length === 0) return;
+    const card = { ...enemyDeck[0], uniqueId: uuidv4() };
+    setEnemyDeck((prev) => prev.slice(1));
+    addCardToHand(card, enemyHandCards, setEnemyHandCards, enemyGraveyard, setEnemyGraveyard);
+  }, [enemyDeck, enemyHandCards, enemyGraveyard, setEnemyDeck, setEnemyHandCards, setEnemyGraveyard]);
 
   const playCardToField = useCallback((card: Card) => {
-    if (card.type === "spell") {
-      console.log("スペルはフィールドに出せません。ターゲットにドロップして使用してください。");
-      return;
-    }
-
-    if (playerFieldCards.length >= MAX_FIELD_SIZE) {
-      console.log("フィールドは最大5体までです。");
-      return;
-    }
-
-    if (card.cost > currentMana) {
-      console.log("マナが足りません！");
-      return;
-    }
-    setCurrentMana((m) => m - card.cost);
-
-    const canAttack = !!(card.rush || card.superHaste);
-    const fieldCard = createFieldCard(card, canAttack);
-    setPlayerFieldCards((f) => [...f, fieldCard]);
-    setPlayerHandCards((h) => h.filter((c) => c.uniqueId !== card.uniqueId));
-
-    // アニメーション終了
-    setTimeout(() => {
-      setPlayerFieldCards((list) =>
-        list.map((c) => (c.uniqueId === card.uniqueId ? { ...c, isAnimating: false } : c))
-      );
-    }, 600);
-
-    // 召喚時効果の発動
-    if (card.summonEffect) {
-      const se = card.summonEffect;
-      if (se.type === "damage_all" && (se.value ?? 0) > 0) {
-        const dmg = se.value ?? 1;
-        setEnemyFieldCards((list) => {
-          const updated = list.map((c) => ({ ...c, hp: (c.hp ?? 0) - dmg }));
-          const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
-          if (dead.length) {
-            addCardToDestroying(dead.map(d => d.uniqueId));
-            setEnemyGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
-          }
-          return updated.filter((c) => (c.hp ?? 0) > 0);
-        });
-        setEnemyHeroHp((h) => {
-          const next = Math.max(h - dmg, 0);
-          if (next <= 0) {
-            setGameOver({ over: true, winner: "player" });
-            try { stopTimer(); } catch (e) { /* ignore */ }
-            setAiRunning(false);
-          }
-          return next;
-        });
-      }
-    }
-
-    // 召喚時トリガーの発動
-    if (card.summonTrigger) {
-      const trigger = card.summonTrigger;
-      if (trigger.type === "add_card_hand" && trigger.cardId) {
-        const addCard = cards.find((c) => c.id === trigger.cardId);
-        if (addCard) {
-          const newCard = createUniqueCard(addCard);
-          setPlayerHandCards((h) => (h.length < MAX_HAND ? [...h, newCard] : h));
-        }
-      }
-    }
-  }, [playerFieldCards, currentMana, setCurrentMana, setPlayerFieldCards, setPlayerHandCards, setEnemyFieldCards, setEnemyGraveyard, setEnemyHeroHp, setGameOver, stopTimer, setAiRunning, addCardToDestroying]);
-
-  const handleCastSpell = useCallback((
+      // delegate to effectService; effectService will handle mana checks, field limits, summon effects, triggers, and card-specific logic
+      servicePlayCard(card, true, {
+        playerFieldCards,
+        setPlayerFieldCards,
+        playerHandCards,
+        enemyHandCards,
+        setPlayerHandCards,
+        setEnemyHandCards,
+        enemyFieldCards,
+        setEnemyFieldCards,
+        playerGraveyard,
+        setPlayerGraveyard,
+        enemyGraveyard,
+        setEnemyGraveyard,
+        setPlayerHeroHp,
+        setEnemyHeroHp,
+        setGameOver,
+        stopTimer,
+        setAiRunning,
+        addCardToDestroying,
+        setDeck,
+        setEnemyDeck,
+        drawPlayerCard,
+        drawEnemyCard,
+        currentMana,
+        setCurrentMana,
+        enemyCurrentMana,
+        setEnemyCurrentMana,
+      });
+    }, [
+      playerFieldCards,
+      setPlayerFieldCards,
+      playerHandCards,
+      setPlayerHandCards,
+      enemyFieldCards,
+      setEnemyFieldCards,
+      playerGraveyard,
+      setPlayerGraveyard,
+      enemyGraveyard,
+      setEnemyGraveyard,
+      playerHeroHp,
+      setPlayerHeroHp,
+      enemyHeroHp,
+      setEnemyHeroHp,
+      setGameOver,
+      stopTimer,
+      setAiRunning,
+      addCardToDestroying,
+      drawPlayerCard,
+      drawEnemyCard,
+      currentMana,
+      setCurrentMana,
+      enemyCurrentMana,
+      setEnemyCurrentMana,
+    ]);
+  const castSpell = useCallback((
     cardUniqueId: string,
     targetId: string | "hero",
     isPlayer: boolean = true,
@@ -168,37 +162,64 @@ export function useCardOperations({
       setEnemyCurrentMana((m) => m - card.cost);
     }
 
-    castSpell(card, targetId, isPlayer, {
+    applySpell(card, targetId, isPlayer, {
       playerFieldCards,
       enemyFieldCards,
       setPlayerFieldCards,
       setEnemyFieldCards,
       setPlayerHeroHp,
       setEnemyHeroHp,
-      setPlayerGraveyard,
-      setEnemyGraveyard,
       setGameOver,
       stopTimer,
       setAiRunning,
       addCardToDestroying,
+      playerHandCards,
+      enemyHandCards,
+      setPlayerHandCards,
+      setEnemyHandCards,
+      playerGraveyard,
+      enemyGraveyard,
+      setPlayerGraveyard,
+      setEnemyGraveyard,
+      setDeck,
+      setEnemyDeck,
+      currentMana,
+      setCurrentMana,
+      enemyCurrentMana,
+      setEnemyCurrentMana,
+      drawPlayerCard,
+      drawEnemyCard,
     });
+  }, [
+      playerFieldCards,
+      setPlayerFieldCards,
+      playerHandCards,
+      setPlayerHandCards,
+      enemyFieldCards,
+      setEnemyFieldCards,
+      playerGraveyard,
+      setPlayerGraveyard,
+      enemyGraveyard,
+      setEnemyGraveyard,
+      playerHeroHp,
+      setPlayerHeroHp,
+      enemyHeroHp,
+      setEnemyHeroHp,
+      setGameOver,
+      stopTimer,
+      setAiRunning,
+      addCardToDestroying,
+      drawPlayerCard,
+      drawEnemyCard,
+      currentMana,
+      enemyCurrentMana,
+  ]);
 
-    // 手札から除去して墓地へ
-    if (isPlayer) {
-      setPlayerHandCards((h) => h.filter((c) => c.uniqueId !== cardUniqueId));
-      setPlayerGraveyard((g) => [...g, createUniqueCard(card)]);
-    } else {
-      setEnemyHandCards((h) => h.filter((c) => c.uniqueId !== cardUniqueId));
-      setEnemyGraveyard((g) => [...g, createUniqueCard(card)]);
-    }
-
-    setAttackTargets?.([]);
-  }, [playerHandCards, enemyHandCards, currentMana, enemyCurrentMana, setCurrentMana, setEnemyCurrentMana, playerFieldCards, enemyFieldCards, setPlayerFieldCards, setEnemyFieldCards, setPlayerHeroHp, setEnemyHeroHp, setPlayerHandCards, setEnemyHandCards, setPlayerGraveyard, setEnemyGraveyard, setGameOver, stopTimer, setAiRunning, addCardToDestroying]);
-
+  // public API
   return {
     drawPlayerCard,
     drawEnemyCard,
     playCardToField,
-    castSpell: handleCastSpell,
+    castSpell,
   };
 }

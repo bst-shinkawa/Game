@@ -121,8 +121,8 @@ export function useGameActions(
       return;
     }
 
-    // wallGuard チェック
-    const defendList = isPlayerAttacker ? enemyFieldCards : playerFieldCards;
+    // wallGuard チェック（常にターゲット側の盤面を確認）
+    const defendList = targetList;
     const hasWallGuard = defendList.some((c) => (c as { wallGuard?: boolean }).wallGuard);
     if (hasWallGuard && targetId === "hero") {
       console.log("相手は鉄壁を持っているため、ヒーローは攻撃できません");
@@ -166,8 +166,10 @@ export function useGameActions(
         return;
       }
 
+      const extra = attacker.onAttackEffect === "bonus_vs_hero" ? (attacker.attack ?? 0) : 0;
+      const damageToTarget = (attacker.attack ?? 0) + extra;
       const newTargetList = targetList.map((c) =>
-        c.uniqueId === targetId ? { ...c, hp: (c.hp ?? 0) - (attacker.attack ?? 0) } : c
+        c.uniqueId === targetId ? { ...c, hp: (c.hp ?? 0) - damageToTarget } : c
       );
       setTargetList(newTargetList);
 
@@ -192,6 +194,20 @@ export function useGameActions(
                   setEnemyHandCards((h) => (h.length < MAX_HAND ? [...h, newCard] : h));
                 } else {
                   setPlayerHandCards((h) => (h.length < MAX_HAND ? [...h, newCard] : h));
+                }
+              }
+            } else if (trigger.type === "return_to_hand_once") {
+              // カードを手札に戻す（1回限り）
+              const base = cards.find((c) => c.id === deadCard.id);
+              if (base) {
+                const returned = { ...base, uniqueId: crypto.randomUUID() };
+                // remove trigger so it won't fire again
+                delete returned.deathTrigger;
+                if (isPlayerAttacker) {
+                  // the dead card was on enemy side
+                  setEnemyHandCards((h) => (h.length < MAX_HAND ? [...h, returned] : h));
+                } else {
+                  setPlayerHandCards((h) => (h.length < MAX_HAND ? [...h, returned] : h));
                 }
               }
             }

@@ -127,6 +127,10 @@ export function useGame(): {
   const playerFieldRef = useRef<RuntimeCard[]>([]);
   const enemyFieldRef = useRef<RuntimeCard[]>([]);
   const enemyHandCardsRef = useRef<Card[]>([]);
+  const enemyDeckRef = useRef<Card[]>([]);
+  const enemyGraveyardRef = useRef<Card[]>([]);
+  const playerHandCardsRef = useRef<Card[]>([]);
+  const playerGraveyardRef = useRef<Card[]>([]);
   const enemyFieldCardsRef = useRef<RuntimeCard[]>([]);
   const enemyCurrentManaRef = useRef<number>(1);
   const enemyHeroHpRef = useRef<number>(MAX_HERO_HP);
@@ -430,16 +434,24 @@ export function useGame(): {
         if (turn !== scheduledTurn) return;
         if (!aiRunning) {
           runEnemyTurn(
+            enemyDeckRef.current,
+            setEnemyDeck,
             enemyHandCardsRef.current,
+            enemyGraveyardRef.current,
             setEnemyHandCards,
             enemyFieldCardsRef.current,
             setEnemyFieldCards,
             enemyCurrentManaRef.current,
             setEnemyCurrentMana,
             enemyHeroHpRef.current,
+            setEnemyHeroHp,
             playerFieldCardsRef.current,
             playerHeroHpRef.current,
+            playerHandCardsRef.current,
+            setPlayerHandCards,
+            playerGraveyardRef.current,
             setPlayerHeroHp,
+            setDeck,
             setPlayerFieldCards,
             setPlayerGraveyard,
             setGameOver,
@@ -451,6 +463,9 @@ export function useGame(): {
             endTurn,
             () => { enemyTurnTimerRef.current?.stop(); },
             setEnemyGraveyard,
+            drawPlayerCard,
+            drawEnemyCard,
+            addCardToDestroying,
             aiCancelRef
           );
         }
@@ -473,6 +488,10 @@ export function useGame(): {
   }, [enemyFieldCards]);
   useEffect(() => {
     enemyHandCardsRef.current = enemyHandCards;
+    enemyDeckRef.current = enemyDeck;
+    enemyGraveyardRef.current = enemyGraveyard;
+    playerHandCardsRef.current = playerHandCards;
+    playerGraveyardRef.current = playerGraveyard;
   }, [enemyHandCards]);
   useEffect(() => {
     enemyCurrentManaRef.current = enemyCurrentMana;
@@ -526,16 +545,11 @@ export function useGame(): {
     aiCancelRef.current = true;
     initializedRef.current = false;
 
-    // 新しいデッキを作成して初期手札を配る
-    const newDeck = createDeck();
-    const newEnemyDeck = createDeck();
-    const initialPlayerHand = drawInitialHand(newDeck, 5).map((c) => ({ ...c, uniqueId: uuidv4() }));
-    const initialEnemyHand = drawInitialHand(newEnemyDeck, 5).map((c) => ({ ...c, uniqueId: uuidv4() }));
-
-    setDeck([...newDeck.slice(5)]);
-    setEnemyDeck([...newEnemyDeck.slice(5)]);
-    setPlayerHandCards(initialPlayerHand);
-    setEnemyHandCards(initialEnemyHand);
+    // 状態をリセット。デッキ/手札はコイントス後にセットする
+    setDeck([]);
+    setEnemyDeck([]);
+    setPlayerHandCards([]);
+    setEnemyHandCards([]);
     setPlayerFieldCards([]);
     setEnemyFieldCards([]);
     setPlayerGraveyard([]);
@@ -568,7 +582,19 @@ export function useGame(): {
   // コイントスの結果確定（'player' が先攻、'enemy' が後攻）
   const finalizeCoin = (winner: "player" | "enemy") => {
     setCoinResult(winner);
-    // 先攻が player の場合 turn を 1 にして player が先行、敵が先攻なら turn を 2 にして敵先行
+    const playerRole = winner === "player" ? "king" : "usurper";
+    const enemyRole = playerRole === "king" ? "usurper" : "king";
+
+    const playerFullDeck = createDeck(playerRole);
+    const enemyFullDeck = createDeck(enemyRole);
+    const playerHand = drawInitialHand(playerFullDeck, 5).map((c) => ({ ...c, uniqueId: uuidv4() }));
+    const enemyHand = drawInitialHand(enemyFullDeck, 5).map((c) => ({ ...c, uniqueId: uuidv4() }));
+
+    setDeck(playerFullDeck.slice(5));
+    setEnemyDeck(enemyFullDeck.slice(5));
+    setPlayerHandCards(playerHand);
+    setEnemyHandCards(enemyHand);
+
     if (winner === "player") setTurn(1);
     else setTurn(2);
   };

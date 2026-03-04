@@ -6,9 +6,11 @@ import type { RuntimeCard, CoinResult, GameOverState } from "../types/gameTypes"
 import { deck as initialDeck, drawInitialHand } from "../data/game";
 import { createDeck } from "../data/deck";
 import { startEnemyTurn, runEnemyTurn } from "../data/enemyAI";
-import { MAX_HERO_HP, TURN_DURATION_SECONDS } from "../constants/gameConstants";
+import { MAX_HERO_HP, TURN_DURATION_SECONDS, MAX_HAND } from "../constants/gameConstants";
+import { cards } from "../data/cards";
 import { processStatusEffects } from "../services/statusEffectService";
 import { executeAttack } from "../services/attackService";
+import { addCardToHand } from "../services/cardService";
 import { useTurnManagement } from "./useTurnManagement";
 import { useCardOperations } from "./useCardOperations";
 import { useAnimationManager } from "./useAnimationManager";
@@ -57,6 +59,8 @@ export function useGameLogic() {
   const cardOperations = useCardOperations({
     deck,
     setDeck,
+    enemyDeck,
+    setEnemyDeck,
     playerHandCards,
     setPlayerHandCards,
     playerFieldCards,
@@ -113,10 +117,48 @@ export function useGameLogic() {
     },
   });
 
-  // 状態効果の処理
+  // 状態効果および終了トリガーの処理
+  const prevTurnRef = useRef(turn);
   useEffect(() => {
     if (preGame) return;
     if (pauseTimer) return;
+
+    // 終了トリガー処理：前ターンに場にいたカードを調べる
+    const prevTurn = prevTurnRef.current;
+    if (prevTurn !== turn) {
+      const endedPlayer = prevTurn % 2 === 1 ? "player" : "enemy";
+      const field = endedPlayer === "player" ? playerFieldCards : enemyFieldCards;
+      const addToHand = (card: Card) => {
+        const newCard = { ...card, uniqueId: uuidv4() };
+        if (endedPlayer === "player") {
+          setPlayerHandCards((h) =>
+            h.length < MAX_HAND ? [...h, newCard] : h
+          );
+        } else {
+          setEnemyHandCards((h) =>
+            h.length < MAX_HAND ? [...h, newCard] : h
+          );
+        }
+      };
+      field.forEach((c) => {
+        if (c.id === 13) {
+          // 補給兵：砲撃と金の盃を手札に加える
+          const artillery = cards.find((x) => x.id === 6);
+          const chalice = cards.find((x) => x.id === 5);
+          const add = (card: Card) => {
+            const newCard = { ...card, uniqueId: uuidv4() };
+            if (endedPlayer === "player") {
+              addCardToHand(newCard, playerHandCards, setPlayerHandCards, playerGraveyard, setPlayerGraveyard);
+            } else {
+              addCardToHand(newCard, enemyHandCards, setEnemyHandCards, enemyGraveyard, setEnemyGraveyard);
+            }
+          };
+          if (artillery) add(artillery);
+          if (chalice) add(chalice);
+        }
+      });
+    }
+    prevTurnRef.current = turn;
 
     const playerResult = processStatusEffects(playerFieldCards);
     if (playerResult.dead.length > 0) {
@@ -161,16 +203,24 @@ export function useGameLogic() {
       enemyAiTimer = setTimeout(() => {
         if (preGame || pauseTimer || aiCancelRef.current || turn !== scheduledTurn || aiRunning) return;
         runEnemyTurn(
+          enemyDeck,
+          setEnemyDeck,
           enemyHandCards,
+          enemyGraveyard,
           setEnemyHandCards,
           enemyFieldCards,
           setEnemyFieldCards,
           enemyCurrentMana,
           setEnemyCurrentMana,
           enemyHeroHp,
+          setEnemyHeroHp,
           playerFieldCards,
           playerHeroHp,
+          playerHandCards,
+          setPlayerHandCards,
+          playerGraveyard,
           setPlayerHeroHp,
+          setDeck,
           setPlayerFieldCards,
           setPlayerGraveyard,
           setGameOver,
@@ -205,6 +255,9 @@ export function useGameLogic() {
             turnManagement.enemyTurnTimer?.stop();
           },
           setEnemyGraveyard,
+          cardOperations.drawPlayerCard,
+          cardOperations.drawEnemyCard,
+          animationManager.addCardToDestroying,
           aiCancelRef
         );
       }, 1000);
@@ -280,15 +333,11 @@ export function useGameLogic() {
     animationManager.setMovingAttack(null);
     aiCancelRef.current = true;
 
-    const newDeck = createDeck();
-    const newEnemyDeck = createDeck();
-    const initialPlayerHand = drawInitialHand(newDeck, 5).map((c) => ({ ...c, uniqueId: uuidv4() }));
-    const initialEnemyHand = drawInitialHand(newEnemyDeck, 5).map((c) => ({ ...c, uniqueId: uuidv4() }));
-
-    setDeck([...newDeck.slice(5)]);
-    setEnemyDeck([...newEnemyDeck.slice(5)]);
-    setPlayerHandCards(initialPlayerHand);
-    setEnemyHandCards(initialEnemyHand);
+    // reset state containers, actual deck & hand assignment occurs after coin toss
+    setDeck([]);
+    setEnemyDeck([]);
+    setPlayerHandCards([]);
+    setEnemyHandCards([]);
     setPlayerFieldCards([]);
     setEnemyFieldCards([]);
     setPlayerGraveyard([]);
@@ -312,6 +361,22 @@ export function useGameLogic() {
 
   const finalizeCoin = (winner: "player" | "enemy") => {
     setCoinResult(winner);
+    // assign roles: player=king when winner===player, else usurper
+    const playerRole = winner === "player" ? "king" : "usurper";
+    const enemyRole = playerRole === "king" ? "usurper" : "king";
+
+    // build decks and draw starting hands
+    const playerFullDeck = createDeck(playerRole);
+    const enemyFullDeck = createDeck(enemyRole);
+
+    const playerHand = drawInitialHand(playerFullDeck, 5).map((c) => ({ ...c, uniqueId: uuidv4() }));
+    const enemyHand = drawInitialHand(enemyFullDeck, 5).map((c) => ({ ...c, uniqueId: uuidv4() }));
+
+    setDeck(playerFullDeck.slice(5));
+    setEnemyDeck(enemyFullDeck.slice(5));
+    setPlayerHandCards(playerHand);
+    setEnemyHandCards(enemyHand);
+
     if (winner === "player") setTurn(1);
     else setTurn(2);
   };

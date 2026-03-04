@@ -171,8 +171,11 @@ function attackFollower(
   }
 
   // 双方にダメージ
+  const extra = attacker.onAttackEffect === "bonus_vs_hero" ? (attacker.attack ?? 0) : 0;
+  const damageToTarget = (attacker.attack ?? 0) + extra;
+
   const newTargetList = targetList.map((c) =>
-    c.uniqueId === targetId ? { ...c, hp: (c.hp ?? 0) - (attacker.attack ?? 0) } : c
+    c.uniqueId === targetId ? { ...c, hp: (c.hp ?? 0) - damageToTarget } : c
   );
 
   const newAttackerList = attackerList.map((c) =>
@@ -187,12 +190,16 @@ function attackFollower(
   const deadTargets = newTargetList.filter((c) => (c.hp ?? 0) <= 0);
   const deadTargetIds = deadTargets.map(d => d.uniqueId);
   if (deadTargets.length) {
-    setTargetGraveyard((g) => {
-      const added = deadTargets.filter(d => !g.some(x => x.uniqueId === d.uniqueId));
-      return [...g, ...added];
-    });
-    deadTargets.forEach((deadCard: any) => {
-      if (deadCard.deathTrigger) {
+      // don't add return-to-hand-once cards to graveyard, handle them separately
+      setTargetGraveyard((g) => {
+        const added = deadTargets.filter(d => {
+          if (d.deathTrigger && d.deathTrigger.type === "return_to_hand_once") return false;
+          return !g.some(x => x.uniqueId === d.uniqueId);
+        });
+        return [...g, ...added];
+      });
+      deadTargets.forEach((deadCard: any) => {
+        if (!deadCard.deathTrigger) return;
         const trigger = deadCard.deathTrigger;
         if (trigger.type === "add_card_hand" && trigger.cardId) {
           const addCard = cards.find((c) => c.id === trigger.cardId);
@@ -204,12 +211,19 @@ function attackFollower(
               setAttackerHandCards((h) => (h.length < MAX_HAND ? [...h, newCard] : h));
             }
           }
+        } else if (trigger.type === "return_to_hand_once") {
+          const returned = { ...deadCard } as any;
+          delete returned.deathTrigger;
+          if (isPlayerAttacker) {
+            setTargetHandCards((h) => (h.length < MAX_HAND ? [...h, returned] : h));
+          } else {
+            setAttackerHandCards((h) => (h.length < MAX_HAND ? [...h, returned] : h));
+          }
         }
-      }
-    });
-    addCardToDestroying(deadTargetIds, (ids) => {
-      setTargetList((list) => list.filter((c) => !ids.includes(c.uniqueId)));
-    });
+      });
+      addCardToDestroying(deadTargetIds, (ids) => {
+        setTargetList((list) => list.filter((c) => !ids.includes(c.uniqueId)));
+      });
   }
 
   const deadAttackers = newAttackerList.filter((c) => (c.hp ?? 0) <= 0);

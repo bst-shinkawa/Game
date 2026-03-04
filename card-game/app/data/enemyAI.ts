@@ -2,6 +2,7 @@ import { v4 as uuidv4 } from "uuid";
 import type { Card } from "./cards";
 import { cards } from "./cards";
 import type { MutableRefObject } from "react";
+import { applySpell } from "../services/effectService"; // centralized effect logic
 
 const MAX_MANA = 10;
 const MAX_HAND = 10;
@@ -75,16 +76,24 @@ export function startEnemyTurn(
 }
 
 export async function runEnemyTurn(
+  enemyDeck: Card[],
+  setEnemyDeck: React.Dispatch<React.SetStateAction<Card[]>>,
   enemyHandCards: Card[],
+  enemyGraveyard: Card[],
   setEnemyHandCards: React.Dispatch<React.SetStateAction<Card[]>>,
   enemyFieldCards: (Card & { maxHp: number; canAttack?: boolean })[],
   setEnemyFieldCards: React.Dispatch<React.SetStateAction<(Card & { maxHp: number; canAttack?: boolean })[]>>,
   enemyCurrentMana: number,
   setEnemyCurrentMana: React.Dispatch<React.SetStateAction<number>>,
   enemyHeroHp: number,
+  setEnemyHeroHp: React.Dispatch<React.SetStateAction<number>>,
   playerFieldCards: (Card & { maxHp: number; canAttack?: boolean })[],
   playerHeroHp: number,
+  playerHandCards: Card[],
+  setPlayerHandCards: React.Dispatch<React.SetStateAction<Card[]>>,
+  playerGraveyard: Card[],
   setPlayerHeroHp: React.Dispatch<React.SetStateAction<number>>,
+  setPlayerDeck: React.Dispatch<React.SetStateAction<Card[]>>,
   setPlayerFieldCards: React.Dispatch<React.SetStateAction<(Card & { maxHp: number; canAttack?: boolean })[]>>,
   setPlayerGraveyard: React.Dispatch<React.SetStateAction<Card[]>>,
   setGameOver: React.Dispatch<React.SetStateAction<{ over: boolean; winner: null | "player" | "enemy" }>>,
@@ -96,8 +105,13 @@ export async function runEnemyTurn(
   endTurn: () => void,
   stopTimer: () => void,
   setEnemyGraveyard: React.Dispatch<React.SetStateAction<Card[]>>,
+  drawPlayerCard: () => void,
+  drawEnemyCard: () => void,
+  addCardToDestroying: (cardIds: string[]) => void,
   cancelRef: MutableRefObject<boolean>
 ) {
+  // keep a mutable local deck so we can update it when drawing cards
+  let localEnemyDeck = [...enemyDeck];
   const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
   try {
@@ -124,7 +138,7 @@ export async function runEnemyTurn(
         setEnemyHandCards((h) => h.filter((c) => c.uniqueId !== lethalSpell!.uniqueId));
         setEnemyGraveyard((g) => [...g, { ...lethalSpell!, uniqueId: uuidv4() }]);
         remainingMana -= lethalSpell.cost;
-        let dmg = lethalSpell.effect === "damage_single" ? ((lethalSpell.name || "").toLowerCase().includes("lightning") ? 4 : 3) : 2;
+        const dmg = lethalSpell.effectValue ?? (lethalSpell.effect === "damage_single" ? 1 : 1);
         setPlayerHeroHp((hp) => {
           const next = Math.max(hp - dmg, 0);
           if (next <= 0) {
@@ -247,6 +261,44 @@ export async function runEnemyTurn(
           }
         }
       }
+      // フォロワー固有効果（AI）
+      if (card.id === 18) {
+        // 簒奪者: プレイヤーの墓地からコスト<=2を1枚取得し、暗器を1枚手札に追加
+        const valid = playerGraveyard.filter((c) => c.cost <= 2);
+        if (valid.length > 0) {
+          const chosen = valid[Math.floor(Math.random() * valid.length)];
+          setEnemyHandCards((h) => [...h, { ...chosen, uniqueId: uuidv4() }]);
+        }
+        const dagger = cards.find((c) => c.id === 15);
+        if (dagger) {
+          setEnemyHandCards((h) => [...h, { ...dagger, uniqueId: uuidv4() }]);
+        }
+      }
+      if (card.id === 22) {
+        // 裏取引の商人: ランダムに1枚手札を捨て、金の盃を追加
+        if (enemyHandCards.length > 0) {
+          const idx = Math.floor(Math.random() * enemyHandCards.length);
+          const [discarded] = enemyHandCards.splice(idx, 1);
+          setEnemyHandCards([...enemyHandCards]);
+          setEnemyGraveyard((g) => [...g, discarded]);
+        }
+        const chalice = cards.find((c) => c.id === 5);
+        if (chalice) {
+          setEnemyHandCards((h) => [...h, { ...chalice, uniqueId: uuidv4() }]);
+        }
+      }
+      if (card.id === 24) {
+        // 影の罠師: プレイヤーのフォロワーを1体凍結
+        if (playerFieldCards.length > 0) {
+          const idx = Math.floor(Math.random() * playerFieldCards.length);
+          const target = playerFieldCards[idx];
+          setPlayerFieldCards((list) =>
+            list.map((c, i) =>
+              i === idx ? { ...c, frozen: 1 } : c
+            )
+          );
+        }
+      }
       (async () => {
         await sleep(600);
         if (cancelRef.current) return;
@@ -256,291 +308,97 @@ export async function runEnemyTurn(
       if (cancelRef.current) return;
     }
 
-    // スペルも複数枚使う（優先度順で使えるだけ使う）
-    let spellCandidates = enemyHandCards.filter((c) => c.type === "spell" && c.cost <= remainingMana);
-    const spellPriority = ["poison", "freeze_single", "damage_single", "damage_all", "heal_single", "haste"];
+    // spells will be handled through the centralized effectService; targets are
+    // chosen below and then passed to applySpell. this eliminates the previous
+    // ad‑hoc logic and ensures AI uses the same rules as the player.
+
+    // simplified spell casting using effectService
+    let spellCandidates = enemyHandCards.filter(c => c.type === "spell" && c.cost <= remainingMana);
+    const spellPriority = [
+      "poison",
+      "freeze_single",
+      "damage_single",
+      "damage_all",
+      "heal_single",
+      "haste",
+      "draw_cards",
+      "reduce_cost",
+      "return_to_deck",
+      "steal_follower",
+      "summon_token",
+    ] as const;
+
     while (remainingMana > 0 && spellCandidates.length > 0) {
-      // 50%の確率で優先度順、50%でランダム順
-      let priorityOrder = Math.random() < 0.5;
+      const priorityOrder = Math.random() < 0.5;
+      const order = priorityOrder ? spellPriority : [...spellPriority].sort(() => Math.random() - 0.5);
       let spell: Card | undefined;
-      for (const type of (priorityOrder ? spellPriority : spellPriority.sort(() => Math.random() - 0.5))) {
-        // 守備的ターンならヒール優先
-        if (isDefensiveTurn && type === "heal_single") {
-          spell = spellCandidates.find(c => c.effect === "heal_single" && c.cost <= remainingMana);
-          if (spell) {
-            setEnemyHandCards((h) => h.filter((c) => c.uniqueId !== spell!.uniqueId));
-            setEnemyGraveyard((g) => [...g, { ...spell!, uniqueId: uuidv4() }]);
-            remainingMana -= spell.cost;
-            await sleep(600);
-            if (cancelRef.current) return;
-            break;
-          }
-        }
-        if (type === "poison" && playerFieldCards.length > 0) {
-          let target: Card | undefined;
-          if (Math.random() < 0.7) {
-            target = playerFieldCards.reduce((best, c) => (c.hp ?? 0) > (best.hp ?? 0) ? c : best);
-          } else {
-            target = playerFieldCards[Math.floor(Math.random() * playerFieldCards.length)];
-          }
-          spell = spellCandidates.find(c => c.effect === "poison" && c.cost <= remainingMana);
-          if (spell && target) {
-            setEnemyHandCards((h) => h.filter((c) => c.uniqueId !== spell!.uniqueId));
-            setEnemyGraveyard((g) => [...g, { ...spell!, uniqueId: uuidv4() }]);
-            remainingMana -= spell.cost;
-            setPlayerFieldCards((list) =>
-              list.map((c) =>
-                c.uniqueId === target!.uniqueId
-                  ? {
-                      ...c,
-                      poison: ((c as { poison?: number }).poison ?? 0) + 2,
-                      poisonDamage: (spell!.effectValue ?? 1) as number
-                    }
-                  : c
-              )
-            );
-            await sleep(600);
-            if (cancelRef.current) return;
-            break;
-          }
-        } else if (type === "freeze_single" && playerFieldCards.length > 0) {
-          let target: Card | undefined;
-          if (Math.random() < 0.7) {
-            target = playerFieldCards.reduce((best, c) => (c.attack ?? 0) > (best.attack ?? 0) ? c : best);
-          } else {
-            target = playerFieldCards[Math.floor(Math.random() * playerFieldCards.length)];
-          }
-          spell = spellCandidates.find(c => c.effect === "freeze_single" && c.cost <= remainingMana);
-          if (spell && target) {
-            setEnemyHandCards((h) => h.filter((c) => c.uniqueId !== spell!.uniqueId));
-            setEnemyGraveyard((g) => [...g, { ...spell!, uniqueId: uuidv4() }]);
-            remainingMana -= spell.cost;
-            setPlayerFieldCards((list) =>
-              list.map((c) =>
-                c.uniqueId === target!.uniqueId
-                  ? { ...c, frozen: spell!.statusDuration ?? 2, canAttack: false }
-                  : c
-              )
-            );
-            await sleep(600);
-            if (cancelRef.current) return;
-            break;
-          }
-        } else {
-          if (Math.random() < 0.6) {
-            spell = spellCandidates.find(c => c.effect === type && c.cost <= remainingMana);
-          } else {
-            const affordable = spellCandidates.filter(c => c.cost <= remainingMana);
-            spell = affordable.length > 0 ? affordable[Math.floor(Math.random() * affordable.length)] : undefined;
-          }
-          if (spell) {
-            setEnemyHandCards((h) => h.filter((c) => c.uniqueId !== spell!.uniqueId));
-            setEnemyGraveyard((g) => [...g, { ...spell!, uniqueId: uuidv4() }]);
-            remainingMana -= spell.cost;
-
-            // haste スペル: 敵フォロワーに突進を付与
-            if (spell.effect === "haste" && enemyFieldCards.length > 0) {
-              const targetCard = enemyFieldCards.find(c => c.canAttack === false || !(c as { rush?: boolean }).rush);
-              if (targetCard) {
-                setEnemyFieldCards((list) =>
-                  list.map((c) =>
-                    c.uniqueId === targetCard.uniqueId
-                      ? { ...c, canAttack: true, rush: true, haste: true }
-                      : c
-                  )
-                );
-              }
-            }
-            
-            await sleep(600);
-            if (cancelRef.current) return;
-            break;
-          }
-        }
+      for (const type of order) {
+        spell = spellCandidates.find(c => c.effect === type && c.cost <= remainingMana);
+        if (spell) break;
       }
-      spellCandidates = spellCandidates.filter(c => c.cost <= remainingMana);
-    }
+      if (!spell) break;
 
-    // 残ったマナで簡易スペル処理
-    let usedSpell: Card | null = null;
+      setEnemyHandCards(h => h.filter(c => c.uniqueId !== spell!.uniqueId));
+      setEnemyGraveyard(g => [...g, { ...spell!, uniqueId: uuidv4() }]);
+      remainingMana -= spell.cost;
 
-    // ダメージ系スペル (damage_single を優先)
-    const damageSingleSpell = enemyHandCards.find(
-      (c) => c.type === "spell" && c.effect === "damage_single" && c.cost <= remainingMana
-    );
-    if (damageSingleSpell && remainingMana >= damageSingleSpell.cost) {
-      usedSpell = damageSingleSpell;
-      setEnemyHandCards((h) => h.filter((c) => c.uniqueId !== damageSingleSpell.uniqueId));
-      setEnemyGraveyard((g) => [...g, { ...damageSingleSpell, uniqueId: uuidv4() }]);
-      remainingMana -= damageSingleSpell.cost;
-
-      // ターゲット選択: プレイヤーフィールドが空ならヒーロー
       let targetId: string | "hero" = "hero";
-      if (playerFieldCards.length > 0 && Math.random() < 0.4) {
-        targetId = playerFieldCards[0].uniqueId;
-      }
-
-      setEnemySpellAnimation({ targetId, effect: "damage_single" });
-      await sleep(300);
-
-      const dmg = damageSingleSpell.effectValue ?? 3;
-      if (targetId === "hero") {
-        setPlayerHeroHp((hp) => {
-          const next = Math.max(hp - dmg, 0);
-          if (next <= 0) {
-            setGameOver({ over: true, winner: "enemy" });
-            try { stopTimer(); } catch (e) { /* ignore */ }
-            return 0;
+      switch (spell.effect) {
+        case "heal_single": {
+          const damaged = enemyFieldCards.find(c => (c.hp ?? 0) < (c.maxHp ?? 0));
+          if (damaged) targetId = damaged.uniqueId;
+          break;
+        }
+        case "damage_single":
+        case "poison":
+        case "freeze_single":
+        case "haste": {
+          if (playerFieldCards.length > 0) {
+            if (spell.effect === "poison" && Math.random() < 0.7) {
+              targetId = playerFieldCards.reduce((best, c) => ((c.hp ?? 0) > (best.hp ?? 0) ? c : best)).uniqueId;
+            } else if (spell.effect === "freeze_single" && Math.random() < 0.7) {
+              targetId = playerFieldCards.reduce((best, c) => ((c.attack ?? 0) > (best.attack ?? 0) ? c : best)).uniqueId;
+            } else {
+              targetId = playerFieldCards[Math.floor(Math.random() * playerFieldCards.length)].uniqueId;
+            }
           }
-          return next;
-        });
-      } else {
-        setPlayerFieldCards((list) => {
-          const updated = list.map((c) => c.uniqueId === targetId ? { ...c, hp: (c.hp ?? 0) - dmg } : c);
-          const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
-          if (dead.length) setPlayerGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
-          return updated.filter((c) => (c.hp ?? 0) > 0);
-        });
+          break;
+        }
+        default:
+          targetId = "hero";
       }
-      setEnemySpellAnimation(null);
+
+      setEnemySpellAnimation({ targetId, effect: spell.effect });
+      applySpell(spell, targetId, false, {
+        playerFieldCards,
+        enemyFieldCards,
+        setPlayerFieldCards,
+        setEnemyFieldCards,
+        setPlayerHeroHp,
+        setEnemyHeroHp,
+        setPlayerGraveyard,
+        setEnemyGraveyard,
+        setGameOver,
+        stopTimer,
+        setAiRunning,
+        addCardToDestroying,
+        playerHandCards,
+        enemyHandCards,
+        setPlayerHandCards,
+        setEnemyHandCards,
+        playerGraveyard,
+        enemyGraveyard,
+        setPlayerGraveyard,
+        setEnemyGraveyard,
+        drawPlayerCard,
+        drawEnemyCard,
+      });
+
       await sleep(600);
       if (cancelRef.current) return;
+
+      spellCandidates = enemyHandCards.filter(c => c.type === "spell" && c.cost <= remainingMana);
     }
-
-    // ダメージ系スペル (damage_all)
-    if (!usedSpell) {
-      const damageAllSpell = enemyHandCards.find(
-        (c) => c.type === "spell" && c.effect === "damage_all" && c.cost <= remainingMana
-      );
-      if (damageAllSpell && remainingMana >= damageAllSpell.cost) {
-        usedSpell = damageAllSpell;
-        setEnemyHandCards((h) => h.filter((c) => c.uniqueId !== damageAllSpell.uniqueId));
-        setEnemyGraveyard((g) => [...g, { ...damageAllSpell, uniqueId: uuidv4() }]);
-        remainingMana -= damageAllSpell.cost;
-
-        setEnemySpellAnimation({ targetId: "hero", effect: "damage_all" });
-        await sleep(300);
-
-        const dmg = damageAllSpell.effectValue ?? 2;
-        // プレイヤーフィールド全体ダメージ
-        setPlayerFieldCards((list) => {
-          const updated = list.map((c) => ({ ...c, hp: (c.hp ?? 0) - dmg }));
-          const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
-          if (dead.length) setPlayerGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
-          return updated.filter((c) => (c.hp ?? 0) > 0);
-        });
-        // プレイヤーヒーロー
-        setPlayerHeroHp((hp) => {
-          const next = Math.max(hp - dmg, 0);
-          if (next <= 0) {
-            setGameOver({ over: true, winner: "enemy" });
-            try { stopTimer(); } catch (e) { /* ignore */ }
-            return 0;
-          }
-          return next;
-        });
-        setEnemySpellAnimation(null);
-        await sleep(600);
-        if (cancelRef.current) return;
-      }
-    }
-
-    // ポイズン系スペル (poison)
-    if (!usedSpell) {
-      const poisonSpell = enemyHandCards.find(
-        (c) => c.type === "spell" && c.effect === "poison" && c.cost <= remainingMana
-      );
-      if (poisonSpell && remainingMana >= poisonSpell.cost && playerFieldCards.length > 0) {
-        usedSpell = poisonSpell;
-        setEnemyHandCards((h) => h.filter((c) => c.uniqueId !== poisonSpell.uniqueId));
-        setEnemyGraveyard((g) => [...g, { ...poisonSpell, uniqueId: uuidv4() }]);
-        remainingMana -= poisonSpell.cost;
-
-        const targetCard = playerFieldCards[0];
-        const poisonDamage = poisonSpell.effectValue ?? 1;
-        const poisonDuration = poisonSpell.statusDuration ?? 3;
-        setPlayerFieldCards((list) =>
-          list.map((c) =>
-            c.uniqueId === targetCard.uniqueId
-              ? { ...c, poison: poisonDuration, poisonDamage }
-              : c
-          )
-        );
-        await sleep(600);
-        if (cancelRef.current) return;
-      }
-    }
-
-    // 凍結系スペル (freeze)
-    if (!usedSpell) {
-      const freezeSpell = enemyHandCards.find(
-        (c) => c.type === "spell" && c.effect === "freeze_single" && c.cost <= remainingMana
-      );
-      if (freezeSpell && remainingMana >= freezeSpell.cost && playerFieldCards.length > 0) {
-        usedSpell = freezeSpell;
-        setEnemyHandCards((h) => h.filter((c) => c.uniqueId !== freezeSpell.uniqueId));
-        setEnemyGraveyard((g) => [...g, { ...freezeSpell, uniqueId: uuidv4() }]);
-        remainingMana -= freezeSpell.cost;
-
-        const targetCard = playerFieldCards[0];
-        const freezeDuration = freezeSpell.statusDuration ?? 1;
-        setPlayerFieldCards((list) =>
-          list.map((c) =>
-            c.uniqueId === targetCard.uniqueId
-              ? { ...c, frozen: freezeDuration, canAttack: false }
-              : c
-          )
-        );
-        await sleep(600);
-        if (cancelRef.current) return;
-      }
-    }
-
-    // ヒール系スペル (heal)
-    if (!usedSpell) {
-      const healSpell = enemyHandCards.find(
-        (c) => c.type === "spell" && c.effect === "heal_single" && c.cost <= remainingMana
-      );
-      if (healSpell && remainingMana >= healSpell.cost) {
-        usedSpell = healSpell;
-        setEnemyHandCards((h) => h.filter((c) => c.uniqueId !== healSpell.uniqueId));
-        setEnemyGraveyard((g) => [...g, { ...healSpell, uniqueId: uuidv4() }]);
-        remainingMana -= healSpell.cost;
-
-        // ターゲット選択: HP が低いフォロワーを優先
-        const healAmount = healSpell.effectValue ?? 2;
-        let targetId: string | "hero" = "hero";
-        
-        if (enemyFieldCards.length > 0) {
-          const damagedFollowers = enemyFieldCards.filter((c) => (c.hp ?? 0) < c.maxHp);
-          if (damagedFollowers.length > 0) {
-            const lowestHpCard = damagedFollowers.reduce((best, c) => 
-              (c.hp ?? 0) < (best.hp ?? 0) ? c : best
-            );
-            targetId = lowestHpCard.uniqueId;
-            
-            // フォロワーを回復
-            setEnemyFieldCards((list) =>
-              list.map((c) =>
-                c.uniqueId === targetId
-                  ? { ...c, hp: Math.min((c.hp ?? 0) + healAmount, c.maxHp) }
-                  : c
-              )
-            );
-          }
-        }
-        
-        await sleep(600);
-        if (cancelRef.current) return;
-      }
-    }
-
-    // 敵の現在マナを更新
-    if (cancelRef.current) return;
-    if (remainingMana !== enemyCurrentMana) {
-      setEnemyCurrentMana(remainingMana);
-    }
-
     // 2) 攻撃フェーズ: 敵フォロワーが攻撃可能な場合は戦略的に攻撃
     // 注: 攻撃ループ中、フィールドが更新される可能性があるため、
     // 各反復で最新のフィールド状態を参照する必要があります

@@ -12,14 +12,14 @@ const MAX_HERO_HP = 20;
 
 export function useGameState() {
   // プレイヤー状態
-  const [deck, setDeck] = useState<Card[]>([...drawInitialHand(createDeck(), 0)]);
+  const [deck, setDeck] = useState<Card[]>([]);
   const [playerHandCards, setPlayerHandCards] = useState<Card[]>([]);
   const [playerFieldCards, setPlayerFieldCards] = useState<(Card & { maxHp: number; canAttack?: boolean })[]>([]);
   const [playerGraveyard, setPlayerGraveyard] = useState<Card[]>([]);
   const [playerHeroHp, setPlayerHeroHp] = useState<number>(MAX_HERO_HP);
 
   // 敵状態
-  const [enemyDeck, setEnemyDeck] = useState<Card[]>([...drawInitialHand(createDeck(), 0)]);
+  const [enemyDeck, setEnemyDeck] = useState<Card[]>([]);
   const [enemyHandCards, setEnemyHandCards] = useState<Card[]>([]);
   const [enemyFieldCards, setEnemyFieldCards] = useState<(Card & { maxHp: number; canAttack?: boolean })[]>([]);
   const [enemyGraveyard, setEnemyGraveyard] = useState<Card[]>([]);
