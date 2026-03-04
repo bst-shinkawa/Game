@@ -392,6 +392,12 @@ export async function runEnemyTurn(
         setEnemyGraveyard,
         drawPlayerCard,
         drawEnemyCard,
+        setDeck: setPlayerDeck,
+        setEnemyDeck,
+        currentMana: 0,
+        setCurrentMana: () => {},
+        enemyCurrentMana: remainingMana,
+        setEnemyCurrentMana,
       });
 
       await sleep(600);

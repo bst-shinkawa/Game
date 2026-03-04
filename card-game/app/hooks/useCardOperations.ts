@@ -134,6 +134,8 @@ export function useCardOperations({
       addCardToDestroying,
       drawPlayerCard,
       drawEnemyCard,
+      setDeck,
+      setEnemyDeck,
       currentMana,
       setCurrentMana,
       enemyCurrentMana,
@@ -213,6 +215,8 @@ export function useCardOperations({
       drawEnemyCard,
       currentMana,
       enemyCurrentMana,
+      enemyHandCards,          // read when locating card
+      setEnemyHandCards,       // for future closures
   ]);
 
   // public API

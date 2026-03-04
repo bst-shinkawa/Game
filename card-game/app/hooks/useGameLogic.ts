@@ -173,7 +173,21 @@ export function useGameLogic() {
       setEnemyGraveyard((g) => [...g, ...enemyResult.dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
     }
     setEnemyFieldCards(enemyResult.updated);
-  }, [turn, preGame, pauseTimer, playerFieldCards, enemyFieldCards, animationManager, setPlayerFieldCards, setEnemyFieldCards, setPlayerGraveyard, setEnemyGraveyard]);
+  }, [
+    turn,
+    preGame,
+    pauseTimer,
+    playerFieldCards,
+    enemyFieldCards,
+    // hand setters used when drawing supply cards
+    setPlayerHandCards,
+    setEnemyHandCards,
+    animationManager,
+    setPlayerFieldCards,
+    setEnemyFieldCards,
+    setPlayerGraveyard,
+    setEnemyGraveyard,
+  ]);
 
   // refs を同期
   useEffect(() => {
@@ -265,7 +279,36 @@ export function useGameLogic() {
     return () => {
       if (enemyAiTimer) clearTimeout(enemyAiTimer);
     };
-  }, [turn, aiRunning, preGame, pauseTimer, enemyHandCards, enemyFieldCards, enemyCurrentMana, enemyHeroHp, playerFieldCards, playerHeroHp, setEnemyHandCards, setEnemyFieldCards, setEnemyCurrentMana, setPlayerHeroHp, setPlayerFieldCards, setPlayerGraveyard, setGameOver, setAiRunning, animationManager, turnManagement]);
+  }, [
+    turn,
+    aiRunning,
+    preGame,
+    pauseTimer,
+    enemyDeck,
+    setEnemyDeck,
+    enemyHandCards,
+    enemyGraveyard,
+    setEnemyHandCards,
+    setEnemyGraveyard,
+    enemyFieldCards,
+    enemyCurrentMana,
+    enemyHeroHp,
+    playerFieldCards,
+    playerHandCards,
+    playerGraveyard,
+    playerHeroHp,
+    setPlayerHandCards,
+    setPlayerGraveyard,
+    setPlayerHeroHp,
+    setPlayerFieldCards,
+    setDeck,
+    setGameOver,
+    setAiRunning,
+    animationManager,
+    turnManagement,
+    cardOperations.drawPlayerCard,
+    cardOperations.drawEnemyCard,
+  ]);
 
   // 初期手札
   useEffect(() => {

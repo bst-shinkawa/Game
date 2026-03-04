@@ -40,6 +40,7 @@ export function createFieldCard(
 ): RuntimeCard {
   return {
     ...card,
+    uniqueId: card.uniqueId || uuidv4(),
     maxHp: card.hp ?? 0,
     canAttack,
     rushInitialTurn: card.rush ? true : undefined,

@@ -13,7 +13,7 @@ import { MAX_HAND, MAX_MANA, MAX_HERO_HP, MAX_FIELD_SIZE, TURN_DURATION_SECONDS 
 import { addCardToHand, createUniqueCard, createFieldCard } from "./services/cardService";
 import { processStatusEffects } from "./services/statusEffectService";
 import { executeAttack } from "./services/attackService";
-import { castSpell as executeSpell } from "./services/spellService";
+import { applySpell } from "./services/effectService";
 import type { RuntimeCard } from "./types/gameTypes";
 
 // ターン開始処理の重複実行を防ぐ（React Strict Mode の二重マウント対策）
@@ -777,7 +777,7 @@ export function useGame(): {
       setEnemyCurrentMana((m) => m - card.cost);
     }
 
-    executeSpell(card, targetId, isPlayer, {
+    applySpell(card, targetId, isPlayer, {
       playerFieldCards,
       enemyFieldCards,
       setPlayerFieldCards,
@@ -792,6 +792,22 @@ export function useGame(): {
       },
       setAiRunning,
       addCardToDestroying,
+      playerHandCards,
+      enemyHandCards,
+      setPlayerHandCards,
+      setEnemyHandCards,
+      setDeck,
+      setEnemyDeck,
+      currentMana,
+      setCurrentMana,
+      enemyCurrentMana,
+      setEnemyCurrentMana,
+      drawPlayerCard: () => {
+        // No-op for player draw (handled elsewhere)
+      },
+      drawEnemyCard: () => {
+        // No-op for enemy draw (handled elsewhere)
+      },
     });
 
     // 手札から除去して墓地へ
