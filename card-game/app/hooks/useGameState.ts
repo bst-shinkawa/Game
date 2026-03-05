@@ -39,7 +39,8 @@ export function useGameState() {
   const [gameOver, setGameOver] = useState<{ over: boolean; winner: null | "player" | "enemy" }>({ over: false, winner: null });
 
   // プリゲーム
-  const [preGame, setPreGame] = useState<boolean>(false);
+  // start in pre-game until resetGame invoked
+  const [preGame, setPreGame] = useState<boolean>(true);
   const [coinResult, setCoinResult] = useState<"deciding" | "player" | "enemy">("deciding");
 
   const heal = (targetId: string | "hero", amount: number, isPlayer: boolean = true) => {

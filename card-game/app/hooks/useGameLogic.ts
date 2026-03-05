@@ -46,7 +46,8 @@ export function useGameLogic() {
 
   // --- ゲーム状態 ---
   const [gameOver, setGameOver] = useState<GameOverState>({ over: false, winner: null });
-  const [preGame, setPreGame] = useState<boolean>(false);
+  // pregame prevents running main logic until decks/hands are prepared
+  const [preGame, setPreGame] = useState<boolean>(true);
   const [coinResult, setCoinResult] = useState<CoinResult>("deciding");
   const [pauseTimer, setPauseTimer] = useState<boolean>(false);
   const [aiRunning, setAiRunning] = useState<boolean>(false);

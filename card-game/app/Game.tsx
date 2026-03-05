@@ -155,7 +155,8 @@ export function useGame(): {
   const lastRoundIncreasedRef = useRef<number | null>(null);
 
   // プレゲーム（先攻決め＋マリガン）フラグとコイン結果
-  const [preGame, setPreGame] = useState<boolean>(false);
+  // start in pre-game state so that timers and turn logic are paused
+  const [preGame, setPreGame] = useState<boolean>(true);
   const [coinResult, setCoinResult] = useState<"deciding" | "player" | "enemy">("deciding");
 
   // ゲーム終了フラグと勝者
@@ -796,6 +797,8 @@ export function useGame(): {
       enemyHandCards,
       setPlayerHandCards,
       setEnemyHandCards,
+      playerGraveyard,
+      enemyGraveyard,
       setDeck,
       setEnemyDeck,
       currentMana,
