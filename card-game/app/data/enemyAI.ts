@@ -368,7 +368,7 @@ export async function runEnemyTurn(
           targetId = "hero";
       }
 
-      setEnemySpellAnimation({ targetId, effect: spell.effect });
+      setEnemySpellAnimation({ targetId, effect: spell.effect! });
       applySpell(spell, targetId, false, {
         playerFieldCards,
         enemyFieldCards,
@@ -388,8 +388,6 @@ export async function runEnemyTurn(
         setEnemyHandCards,
         playerGraveyard,
         enemyGraveyard,
-        setPlayerGraveyard,
-        setEnemyGraveyard,
         drawPlayerCard,
         drawEnemyCard,
         setDeck: setPlayerDeck,
