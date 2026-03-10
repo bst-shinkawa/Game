@@ -691,6 +691,7 @@
     aspect-ratio: 180 / 250;
     position: relative;
     box-sizing: border-box;
+    border-radius: 10px;
 
     &_on_field{
         transform: rotateX(30deg) scaleY(1.1);
@@ -708,6 +709,7 @@
         height: 100%;
         top: 0;
         right: 0;
+        border-radius: 10px;
     }
 
     &_hp{

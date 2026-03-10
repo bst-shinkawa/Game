@@ -4,7 +4,12 @@ import React, { useRef, useEffect } from "react";
 import CardItem from "./CardItem";
 import ManaBar from "./ManaBar";
 import Image from "next/image";
+import {
+  isEnemyHeroSelectable,
+  isEnemyFieldCardSelectable,
+} from "@/app/services/selectionService";
 import type { Card } from "@/app/data/cards";
+import type { SelectionMode, SelectionConfig } from "@/app/types/gameTypes";
 import styles from "@/app/assets/css/Game.Master.module.css";
 import handIcon from "@/public/img/field/hand-icon.png";
 import deckIcon from "@/public/img/field/deck-icon.png";
@@ -37,6 +42,10 @@ interface EnemyAreaProps {
   isTimerActive: boolean;
   enemyTurnTimer?: TurnTimer | null;
   destroyingCards: Set<string>;
+  // 選択モード
+  selectionMode: SelectionMode;
+  selectionConfig: SelectionConfig | null;
+  applySelection: (targetIds: string[]) => void;
 }
 
 export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string | null; id?: string | null }, dropSuccess?: { type: string | null; id?: string | null }, attackTargets?: string[] }> = ({
@@ -57,6 +66,7 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
   onDrop,
   onCardHoverEnter,
   onCardHoverLeave,
+  onCardClick,
   enemyHeroRef,
   enemyFieldRefs,
   enemyTimerRef,
@@ -66,6 +76,9 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
   dropSuccess,
   attackTargets = [],
   destroyingCards,
+  selectionMode,
+  selectionConfig,
+  applySelection,
 }) => {
   // プレイヤー→敵への攻撃アニメーション（プレイヤーフィールドから敵ヒーロー/敵フォロワーへ）
   useEffect(() => {
@@ -101,22 +114,31 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
   const enemyMaxAngle = -20;
   const enemyAngleStep = (enemyHandCount > 1) ? (enemyMaxAngle * 2) / (enemyHandCount - 1) : 0;
 
+  // 選択モード中のハイライト判定（selectionService を使用）
+  const isHeroSelectable = isEnemyHeroSelectable(selectionMode, selectionConfig);
+  const isFieldCardSelectable = isEnemyFieldCardSelectable(selectionMode, selectionConfig);
+
   return (
     <div className={`${styles.field_enemy} ${enemySpellAnimation ? styles.spell_cast_flash : ""}`}>
       {/* 敵ヒーロー */}
       <div
         ref={enemyHeroRef}
-        className={`${styles.field_enemy_hero} ${hoverTarget?.type === 'enemyHero' ? styles.target_highlight : ''} ${dropSuccess?.type === 'enemyHero' ? styles.drop_success : ''} ${attackTargets.includes('hero') ? styles.attack_highlight : ''}`}
+        className={`${styles.field_enemy_hero} ${hoverTarget?.type === 'enemyHero' ? styles.target_highlight : ''} ${dropSuccess?.type === 'enemyHero' ? styles.drop_success : ''} ${attackTargets.includes('hero') ? styles.attack_highlight : ''} ${isHeroSelectable ? styles.selection_highlight : ''}`}
         onDragOver={onDragOver}
         onDrop={() => {
           onDrop("hero");
+        }}
+        onClick={() => {
+          if (isHeroSelectable) {
+            applySelection(["hero"]);
+          }
         }}
         style={
           enemySpellAnimation?.targetId === "hero"
             ? { animation: "spellTargetFlash 0.6s ease-out" }
             : enemyAttackAnimation?.targetId === "hero"
             ? { animation: "enemyCardAttack 0.9s ease-in-out forwards" }
-            : {}
+            : isHeroSelectable ? { cursor: "pointer" } : {}
         }
       >
         <div className={styles.field_enemy_hero_wrap}>
@@ -141,11 +163,12 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
               hp={card.hp ?? 0}
               maxHp={card.maxHp ?? 0}
               attack={card.attack ?? 0}
-              className={`${isSummoning ? styles.enemy_follower_summon : ""} ${isHovered ? styles.target_highlight : ''} ${isDropped ? styles.drop_success : ''} ${attackTargets.includes(card.uniqueId) ? styles.attack_highlight : ''} ${destroyingCards.has(card.uniqueId) ? styles.card_destroying : ""}`}
+              className={`${isSummoning ? styles.enemy_follower_summon : ""} ${isHovered ? styles.target_highlight : ''} ${isDropped ? styles.drop_success : ''} ${attackTargets.includes(card.uniqueId) ? styles.attack_highlight : ''} ${destroyingCards.has(card.uniqueId) ? styles.card_destroying : ""} ${isFieldCardSelectable ? styles.selection_highlight : ""}`}
               style={{
                 ...((card as { isAnimating?: boolean }).isAnimating ? { transform: "translateY(-40px)", opacity: 0 } : {}),
                 ...(isAttacking ? { animation: "enemyCardAttack 0.9s ease-in-out forwards" } : {}),
                 ...(isSpellTarget ? { animation: "spellTargetFlash 0.6s ease-out" } : {}),
+                ...(isFieldCardSelectable ? { cursor: "pointer" } : {}),
               }}
               onDragOver={onDragOver}
               onDrop={() => onDrop(card.uniqueId)}
@@ -155,6 +178,13 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
               }}
               onMouseEnter={() => onCardHoverEnter && onCardHoverEnter(card.uniqueId)}
               onMouseLeave={() => onCardHoverLeave && onCardHoverLeave()}
+              onClick={() => {
+                if (isFieldCardSelectable) {
+                  applySelection([card.uniqueId]);
+                } else if (onCardClick) {
+                  onCardClick(card.uniqueId);
+                }
+              }}
             />
           );
         })}

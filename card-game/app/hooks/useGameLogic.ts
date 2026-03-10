@@ -313,12 +313,14 @@ export function useGameLogic() {
 
   // 初期手札
   useEffect(() => {
-    const initialPlayerHand = drawInitialHand(deck, 5).map((c) => ({ ...c, uniqueId: uuidv4() }));
-    const initialEnemyHand = drawInitialHand(enemyDeck, 5).map((c) => ({ ...c, uniqueId: uuidv4() }));
+    const playerDrawResult = drawInitialHand(deck, 5);
+    const enemyDrawResult = drawInitialHand(enemyDeck, 5);
+    const initialPlayerHand = playerDrawResult.hand.map((c) => ({ ...c, uniqueId: uuidv4() }));
+    const initialEnemyHand = enemyDrawResult.hand.map((c) => ({ ...c, uniqueId: uuidv4() }));
     setPlayerHandCards(initialPlayerHand);
     setEnemyHandCards(initialEnemyHand);
-    setDeck((prev) => prev.slice(5));
-    setEnemyDeck((prev) => prev.slice(5));
+    setDeck(playerDrawResult.remaining);
+    setEnemyDeck(enemyDrawResult.remaining);
   }, []);
 
   // 攻撃処理
@@ -413,11 +415,13 @@ export function useGameLogic() {
     const playerFullDeck = createDeck(playerRole);
     const enemyFullDeck = createDeck(enemyRole);
 
-    const playerHand = drawInitialHand(playerFullDeck, 5).map((c) => ({ ...c, uniqueId: uuidv4() }));
-    const enemyHand = drawInitialHand(enemyFullDeck, 5).map((c) => ({ ...c, uniqueId: uuidv4() }));
+    const playerDrawResult = drawInitialHand(playerFullDeck, 5);
+    const enemyDrawResult = drawInitialHand(enemyFullDeck, 5);
+    const playerHand = playerDrawResult.hand.map((c) => ({ ...c, uniqueId: uuidv4() }));
+    const enemyHand = enemyDrawResult.hand.map((c) => ({ ...c, uniqueId: uuidv4() }));
 
-    setDeck(playerFullDeck.slice(5));
-    setEnemyDeck(enemyFullDeck.slice(5));
+    setDeck(playerDrawResult.remaining);
+    setEnemyDeck(enemyDrawResult.remaining);
     setPlayerHandCards(playerHand);
     setEnemyHandCards(enemyHand);
 

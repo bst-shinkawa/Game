@@ -14,7 +14,7 @@ import { addCardToHand, createUniqueCard, createFieldCard } from "./services/car
 import { processStatusEffects } from "./services/statusEffectService";
 import { executeAttack } from "./services/attackService";
 import { applySpell } from "./services/effectService";
-import type { RuntimeCard } from "./types/gameTypes";
+import type { RuntimeCard, SelectionMode, SelectionConfig, CardUsageType } from "./types/gameTypes";
 
 // ターン開始処理の重複実行を防ぐ（React Strict Mode の二重マウント対策）
 let turnProcessedKeys = new Set<string>();
@@ -63,6 +63,12 @@ export function useGame(): {
   enemyTurnTimer: TurnTimer | null;
   setPauseTimer: (pause: boolean) => void;
   destroyingCards: Set<string>;
+  // 選択モード
+  selectionMode: SelectionMode;
+  selectionConfig: SelectionConfig | null;
+  initializeSelection: (config: Omit<SelectionConfig, "selectedIds">) => void;
+  applySelection: (targetIds: string[]) => void;
+  cancelSelection: () => void;
 } {
   // --- プレイヤー状態 ---
   const [deck, setDeck] = useState<Card[]>([...initialDeck]);
@@ -168,6 +174,32 @@ export function useGame(): {
   // 敵AI の途中中断用フラグ
   const aiCancelRef = useRef<boolean>(false);
 
+  // --- 選択モード （ターゲット選択、手札選択など） ---
+  const [selectionMode, setSelectionMode] = useState<SelectionMode>("none");
+  const [selectionConfig, setSelectionConfig] = useState<SelectionConfig | null>(null);
+
+  const initializeSelection = (config: Omit<SelectionConfig, "selectedIds">) => {
+    setSelectionMode(config.selectableTargets.includes("hand_card") ? "select_hand_card" : "select_target");
+    setSelectionConfig({
+      ...config,
+      selectedIds: [],
+    });
+  };
+
+  const applySelection = (targetIds: string[]) => {
+    if (!selectionConfig) return;
+    setSelectionMode("none");
+    setSelectionConfig(null);
+    selectionConfig.onComplete?.(targetIds);
+  };
+
+  const cancelSelection = () => {
+    if (!selectionConfig) return;
+    setSelectionMode("none");
+    setSelectionConfig(null);
+    selectionConfig.onCancel?.();
+  };
+
   // 視覚用：AIが攻撃を行うときの移動表示を通知する
   const [movingAttack, setMovingAttack] = useState<{ attackerId: string; targetId: string | "hero" } | null>(null);
   
@@ -183,12 +215,14 @@ export function useGame(): {
   useEffect(() => {
     if (initializedRef.current) return;
     initializedRef.current = true;
-    const initialPlayerHand = drawInitialHand(deck, 5).map((c) => ({ ...c, uniqueId: uuidv4() }));
-    const initialEnemyHand = drawInitialHand(enemyDeck, 5).map((c) => ({ ...c, uniqueId: uuidv4() }));
+    const playerDrawResult = drawInitialHand(deck, 5);
+    const enemyDrawResult = drawInitialHand(enemyDeck, 5);
+    const initialPlayerHand = playerDrawResult.hand.map((c) => ({ ...c, uniqueId: uuidv4() }));
+    const initialEnemyHand = enemyDrawResult.hand.map((c) => ({ ...c, uniqueId: uuidv4() }));
     setPlayerHandCards(initialPlayerHand);
     setEnemyHandCards(initialEnemyHand);
-    setDeck((prev) => prev.slice(5));
-    setEnemyDeck((prev) => prev.slice(5));
+    setDeck(playerDrawResult.remaining);
+    setEnemyDeck(enemyDrawResult.remaining);
 
     // preload all card images once so browser cache holds them and display becomes instantaneous
     cards.forEach((c) => {
@@ -588,11 +622,13 @@ export function useGame(): {
 
     const playerFullDeck = createDeck(playerRole);
     const enemyFullDeck = createDeck(enemyRole);
-    const playerHand = drawInitialHand(playerFullDeck, 5).map((c) => ({ ...c, uniqueId: uuidv4() }));
-    const enemyHand = drawInitialHand(enemyFullDeck, 5).map((c) => ({ ...c, uniqueId: uuidv4() }));
+    const playerDrawResult = drawInitialHand(playerFullDeck, 5);
+    const enemyDrawResult = drawInitialHand(enemyFullDeck, 5);
+    const playerHand = playerDrawResult.hand.map((c) => ({ ...c, uniqueId: uuidv4() }));
+    const enemyHand = enemyDrawResult.hand.map((c) => ({ ...c, uniqueId: uuidv4() }));
 
-    setDeck(playerFullDeck.slice(5));
-    setEnemyDeck(enemyFullDeck.slice(5));
+    setDeck(playerDrawResult.remaining);
+    setEnemyDeck(enemyDrawResult.remaining);
     setPlayerHandCards(playerHand);
     setEnemyHandCards(enemyHand);
 
@@ -707,6 +743,16 @@ export function useGame(): {
         }
       }
     }
+
+    // 策士（id: 12）の召喚時ドロー効果
+    if (card.id === 12) {
+      // デッキからカード1枚ドロー
+      if (deck.length > 0) {
+        const drawnCard = { ...deck[0], uniqueId: crypto.randomUUID() };
+        setPlayerHandCards((h) => (h.length < MAX_HAND ? [...h, drawnCard] : h));
+        setDeck((d) => d.slice(1));
+      }
+    }
   };
 
   // --- HP回復 ---
@@ -806,10 +852,22 @@ export function useGame(): {
       enemyCurrentMana,
       setEnemyCurrentMana,
       drawPlayerCard: () => {
-        // No-op for player draw (handled elsewhere)
+        // プレイヤー側のドロー処理
+        setDeck((prev) => {
+          if (prev.length === 0) return prev;
+          const drawnCard = { ...prev[0], uniqueId: crypto.randomUUID() };
+          setPlayerHandCards((h) => (h.length < MAX_HAND ? [...h, drawnCard] : h));
+          return prev.slice(1);
+        });
       },
       drawEnemyCard: () => {
-        // No-op for enemy draw (handled elsewhere)
+        // 敵側のドロー処理
+        setEnemyDeck((prev) => {
+          if (prev.length === 0) return prev;
+          const drawnCard = { ...prev[0], uniqueId: crypto.randomUUID() };
+          setEnemyHandCards((h) => (h.length < MAX_HAND ? [...h, drawnCard] : h));
+          return prev.slice(1);
+        });
       },
     });
 
@@ -874,6 +932,12 @@ export function useGame(): {
     enemyTurnTimer: enemyTurnTimerRef.current,
     setPauseTimer,
     destroyingCards,
+    // 選択モード
+    selectionMode,
+    selectionConfig,
+    initializeSelection,
+    applySelection,
+    cancelSelection,
   };
 }
 

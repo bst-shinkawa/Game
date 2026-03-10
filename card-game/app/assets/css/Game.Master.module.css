@@ -644,12 +644,17 @@
 .field .target_highlight {
   box-shadow: 0 0 10px limegreen;
 }
+.field .selection_highlight {
+  box-shadow: 0 0 15px cyan;
+  border: 2px solid cyan;
+}
 
 .card {
   width: clamp(80px, 8vw, 100px);
   aspect-ratio: 180/250;
   position: relative;
   box-sizing: border-box;
+  border-radius: 10px;
 }
 .card_on_field {
   transform: rotateX(30deg) scaleY(1.1);
@@ -665,6 +670,7 @@
   height: 100%;
   top: 0;
   right: 0;
+  border-radius: 10px;
 }
 .card_hp {
   background-color: green;

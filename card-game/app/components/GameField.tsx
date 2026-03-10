@@ -10,8 +10,10 @@ import CardItem from "./CardItem";
 import { PreGame } from "./PreGame";
 import GameOver from "./GameOver";
 import Image from "next/image";
+import { handleSpellUsage } from "@/app/services/spellUsageService";
 import type { Card } from "@/app/data/cards";
 import type { DamageFloat } from "@/app/hooks/useGameUI";
+import type { SelectionMode, SelectionConfig } from "@/app/types/gameTypes";
 import styles from "@/app/assets/css/Game.Master.module.css";
 import { TimerController } from "./TimerCircle";
 import ViewportContext, { ViewportInfo } from "@/app/context/ViewportContext";
@@ -58,6 +60,10 @@ interface GameFieldProps {
   enemyAttackAnimation: { sourceCardId: string | null; targetId: string | "hero" } | null;
   enemySpellAnimation: { targetId: string | "hero"; effect: string } | null;
 
+  // 選択モード
+  selectionMode: SelectionMode;
+  selectionConfig: SelectionConfig | null;
+
   // ゲーム操作
   playCardToField: (card: Card) => void;
   endTurn: () => void;
@@ -67,6 +73,9 @@ interface GameFieldProps {
   finalizeCoin: (winner: "player" | "enemy") => void;
   doMulligan: (keepIds: string[]) => void;
   startMatch: () => void;
+  initializeSelection: (config: Omit<SelectionConfig, "selectedIds">) => void;
+  applySelection: (targetIds: string[]) => void;
+  cancelSelection: () => void;
 
   // UI更新関数
   setDamageFloats: (floats: DamageFloat[]) => void;
@@ -134,6 +143,9 @@ export const GameField: React.FC<GameFieldProps> = ({
   playerAttackAnimation,
   enemyAttackAnimation,
   enemySpellAnimation,
+  // 選択モード
+  selectionMode,
+  selectionConfig,
   // ゲーム操作
   playCardToField,
   endTurn,
@@ -143,6 +155,9 @@ export const GameField: React.FC<GameFieldProps> = ({
   finalizeCoin,
   doMulligan,
   startMatch,
+  initializeSelection,
+  applySelection,
+  cancelSelection,
   // UI更新関数
   setDamageFloats,
   setDraggingCard,
@@ -601,7 +616,17 @@ export const GameField: React.FC<GameFieldProps> = ({
           } else if (dropEl && playerBattleRef.current && (playerBattleRef.current === dropEl || playerBattleRef.current.contains(dropEl))) {
             if (preGame && coinResult !== 'deciding') {
               setSwapIds(swapIds.includes(handCard.uniqueId) ? swapIds.filter(id => id !== handCard.uniqueId) : [...swapIds, handCard.uniqueId]);
-            } else if (handCard.type !== 'spell') {
+            } else if (handCard.type === 'spell') {
+              // spellUsageService で統一処理
+              handleSpellUsage({
+                card: handCard,
+                cardId: handCard.uniqueId,
+                isPlayer: true,
+                castSpell,
+                playCardToField,
+                initializeSelection,
+              });
+            } else if (handCard.type === 'follower') {
               playCardToField(handCard);
             }
           }
@@ -720,7 +745,17 @@ export const GameField: React.FC<GameFieldProps> = ({
           } else if (dropEl && playerBattleRef.current && (playerBattleRef.current === dropEl || playerBattleRef.current.contains(dropEl))) {
             if (preGame && coinResult !== 'deciding') {
               setSwapIds(swapIds.includes(handCard.uniqueId) ? swapIds.filter(id => id !== handCard.uniqueId) : [...swapIds, handCard.uniqueId]);
-            } else if (handCard.type !== 'spell') {
+            } else if (handCard.type === 'spell') {
+              // spellUsageService で統一処理
+              handleSpellUsage({
+                card: handCard,
+                cardId: handCard.uniqueId,
+                isPlayer: true,
+                castSpell,
+                playCardToField,
+                initializeSelection,
+              });
+            } else if (handCard.type === 'follower') {
               playCardToField(handCard);
             }
           }
@@ -1391,6 +1426,9 @@ export const GameField: React.FC<GameFieldProps> = ({
         enemyTimerRef={enemyTimerRef}
         isTimerActive={isTimerActive}
         enemyTurnTimer={enemyTurnTimer}
+        selectionMode={selectionMode}
+        selectionConfig={selectionConfig}
+        applySelection={applySelection}
       />
 
       {/* プレイヤーエリア */}
@@ -1481,6 +1519,10 @@ export const GameField: React.FC<GameFieldProps> = ({
         onCardSwap={(cardId: string) => {
           setSwapIds(swapIds.includes(cardId) ? swapIds.filter(id => id !== cardId) : [...swapIds, cardId]);
         }}
+        castSpell={castSpell}
+        playCardToField={playCardToField}
+        initializeSelection={initializeSelection}
+        cancelSelection={cancelSelection}
         playerHeroRef={playerHeroRef}
         playerBattleRef={playerBattleRef}
         playerFieldRefs={playerFieldRefs}
@@ -1491,6 +1533,9 @@ export const GameField: React.FC<GameFieldProps> = ({
         playerTurnTimer={playerTurnTimer}
         hoverTarget={hoverTarget}
         dropSuccess={dropSuccess}
+        selectionMode={selectionMode}
+        selectionConfig={selectionConfig}
+        applySelection={applySelection}
       />
 
       {/* ターンエンドボタン */}

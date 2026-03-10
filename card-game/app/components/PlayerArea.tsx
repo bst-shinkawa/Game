@@ -4,7 +4,9 @@ import React, { useRef, useEffect, useContext } from "react";
 import CardItem from "./CardItem";
 import ManaBar from "./ManaBar";
 import Image from "next/image";
+import { handleSpellUsage } from "@/app/services/spellUsageService";
 import type { Card } from "@/app/data/cards";
+import type { SelectionConfig } from "@/app/types/gameTypes";
 import styles from "@/app/assets/css/Game.Master.module.css";
 import handIcon from "@/public/img/field/hand-icon.png";
 import deckIcon from "@/public/img/field/deck-icon.png";
@@ -48,6 +50,15 @@ interface PlayerAreaProps {
   onPlayerFieldDrop: () => void;
   onCardClick: (cardId: string) => void;
   onCardSwap: (cardId: string) => void;
+  // スペル使用
+  castSpell: (cardUniqueId: string, targetId: string | "hero", isPlayer?: boolean) => void;
+  playCardToField: (card: Card) => void;
+  initializeSelection: (config: Omit<SelectionConfig, "selectedIds">) => void;
+  cancelSelection: () => void;
+  // 選択モード
+  selectionMode: "none" | "select_target" | "select_hand_card";
+  selectionConfig: SelectionConfig | null;
+  applySelection: (targetIds: string[]) => void;
   // Ref
   playerHeroRef: React.MutableRefObject<HTMLDivElement | null>;
   playerBattleRef: React.MutableRefObject<HTMLDivElement | null>;
@@ -92,6 +103,13 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
   onPlayerFieldDrop,
   onCardClick,
   onCardSwap,
+  castSpell,
+  playCardToField,
+  initializeSelection,
+  cancelSelection,
+  selectionMode,
+  selectionConfig,
+  applySelection,
   playerHeroRef,
   playerBattleRef,
   playerFieldRefs,
@@ -126,6 +144,23 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
   const handleCardClick = (cardId: string) => {
     if (!isHandExpanded) {
       setIsHandExpanded(true);
+      return;
+    }
+
+    const card = playerHandCards.find((c) => c.uniqueId === cardId);
+    if (!card) return;
+
+    // スペル/フォロワー処理を統合
+    if (card.type === "spell") {
+      handleSpellUsage({
+        card,
+        cardId,
+        isPlayer: true,
+        castSpell,
+        playCardToField,
+        initializeSelection,
+      });
+      setActiveHandCardId(null);
       return;
     }
 
@@ -333,16 +368,21 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
         {playerHandCards.map((card) => {
           const isActive = activeHandCardId === card.uniqueId;
           const isDragging = draggingCard === card.uniqueId;
+          const isHandCardSelectable = selectionMode === "select_hand_card" && selectionConfig?.selectableTargets.includes("hand_card");
           return (
             <div
               key={card.uniqueId}
-              className={`${styles.field_player_hand_card} ${isActive ? styles.active : ''} ${isDragging ? styles.dragging : ''}`}
+              className={`${styles.field_player_hand_card} ${isActive ? styles.active : ''} ${isDragging ? styles.dragging : ''} ${isHandCardSelectable ? styles.selection_highlight : ''}`}
               onClick={(e) => {
                 if (isDragging) return;
                 e.stopPropagation();
-                handleCardClick(card.uniqueId);
+                if (isHandCardSelectable) {
+                  applySelection([card.uniqueId]);
+                } else {
+                  handleCardClick(card.uniqueId);
+                }
               }}
-              style={{ zIndex: isActive ? 4000 : (isDragging ? 950 : 10), transition: 'all 0.25s ease' }}
+              style={{ zIndex: isActive ? 4000 : (isDragging ? 950 : 10), transition: 'all 0.25s ease', ...(isHandCardSelectable ? { cursor: "pointer" } : {}) }}
             >
               {isDragging ? (
                 // keep card DOM in place but hide visually to avoid layout shifts that may break touch tracking
