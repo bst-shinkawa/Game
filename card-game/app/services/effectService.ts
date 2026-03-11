@@ -40,6 +40,8 @@ export interface PlayContext {
   setEnemyCurrentMana: React.Dispatch<React.SetStateAction<number>>;
   drawPlayerCard: () => void;
   drawEnemyCard: () => void;
+  drawPlayerCards: (count: number) => void;
+  drawEnemyCards: (count: number) => void;
 }
 
 // -----------------------------------------------------------------------------
@@ -97,10 +99,9 @@ export function applySpell(
     switch (card.effect) {
       case "draw_cards": {
         const count = card.effectValue ?? 1;
-        for (let i = 0; i < count; i++) {
-          if (isPlayer) drawPlayerCard();
-          else drawEnemyCard();
-        }
+        // 複数カードのドロー処理を1つのsetで行う（ループでの複数setState回避）
+        if (isPlayer) context.drawPlayerCards(count);
+        else context.drawEnemyCards(count);
         break;
       }
       case "reduce_cost": {

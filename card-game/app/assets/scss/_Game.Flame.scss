@@ -1,5 +1,110 @@
 @use 'template' as t;
 
+.pregame{
+    &__wrap{
+        padding: 40px;
+    }
+}
+
+@keyframes damage-float {
+  0% { opacity: 1; transform: translateY(0); }
+  80% { opacity: 1; }
+  100% { opacity: 0; transform: translateY(-40px); }
+}
+
+.follower{
+    &__status{
+        position: absolute;
+        left: 8px;
+        top: 8px;
+        display: flex;
+        gap: 6px;
+        z-index: 20;
+
+        &--frozen{
+            background: #4fc3f7;
+            color: #003;
+            padding: 2px 6px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        &--poison{
+            background: #e57373;
+            color: #300;
+            padding: 2px 6px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        &--haste{
+            background: #ffd54f;
+            color: #663c00;
+            padding: 2px 6px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        &--stealth{
+            background: #9e9e9e;
+            color: #fff;
+            padding: 2px 6px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+    }
+}
+
+.viewport{
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background :rgba(0,0,0,0.85);
+    color: #fff;
+    z-index: 9999;
+    &__wrap{
+        text-align: center;
+        padding: 20px;
+    }
+    &__title{
+        text-align: center;
+        padding: 20px;
+    }
+    &__description{
+        opacity: 0.9;
+        margin-bottom: 12px;
+    }
+    &__controls{
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+    }
+    &__button{
+        padding: 10px 16px; 
+        background: #1e90ff; 
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+    }
+    &__backbutton{
+        padding: 10px 16px; 
+        background: #444; 
+        color: #fff;
+        border: none;
+        border-radius: 6px;
+    }
+    &__warning{
+        opacity: 0.8;
+        margin-top: 10px;
+    }
+}
+
 
 .field{
     width: 1280px;
@@ -683,6 +788,10 @@
     box-shadow: 0 0 10px limegreen;
     }
 
+    .selection_highlight {
+        box-shadow: 0 0 15px cyan;
+        border: 2px solid cyan;
+    }
     
 }
 
@@ -1090,3 +1199,5 @@
     filter: brightness(0.5);
   }
 }
+
+

@@ -192,7 +192,14 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
 
       {/* 敵手札（裏向き） */}
       <div className={styles.field_enemy_hand_area}>
-        {enemyHandCards.map((card, i) => {
+        {enemyHandCards.reduce((acc, card) => {
+          // 同じ uniqueId が既に追加されていないかチェック（重複排除）
+          if (acc.some((c) => c.uniqueId === card.uniqueId)) {
+            console.warn(`敵手札に重複したカードが検出されました: ${card.name} (${card.uniqueId})`);
+            return acc;
+          }
+          return [...acc, card];
+        }, [] as typeof enemyHandCards).map((card, i) => {
           const angle = -enemyMaxAngle + enemyAngleStep * i;
           const offsetX = (i - (enemyHandCount - 1) / 2) * 5;
 

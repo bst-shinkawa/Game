@@ -161,14 +161,17 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
         initializeSelection,
       });
       setActiveHandCardId(null);
+      onCardClick(cardId);  // カード説明表示用
       return;
     }
 
+    // フォロワーの場合もカード説明表示の トグルを実行
     if (activeHandCardId === cardId) {
       setActiveHandCardId(null);
     } else {
       setActiveHandCardId(cardId);
     }
+    onCardClick(cardId);  // カード説明表示用
   };
 
   const getHpClass = (hp: number) => {
@@ -365,7 +368,14 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
         ref={handAreaRef}
         className={`${styles.field_player_hand_area} ${isHandExpanded ? styles.expanded : ''}`}
       >
-        {playerHandCards.map((card) => {
+        {playerHandCards.reduce((acc, card) => {
+          // 同じ uniqueId が既に追加されていないかチェック（重複排除）
+          if (acc.some((c) => c.uniqueId === card.uniqueId)) {
+            console.warn(`重複したカードが検出されました: ${card.name} (${card.uniqueId})`);
+            return acc;
+          }
+          return [...acc, card];
+        }, [] as typeof playerHandCards).map((card) => {
           const isActive = activeHandCardId === card.uniqueId;
           const isDragging = draggingCard === card.uniqueId;
           const isHandCardSelectable = selectionMode === "select_hand_card" && selectionConfig?.selectableTargets.includes("hand_card");

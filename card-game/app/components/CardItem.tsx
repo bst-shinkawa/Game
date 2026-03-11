@@ -156,24 +156,24 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
       )}
       {/* 状態バッジ */}
       {!noStatus && (
-        <div style={{ position: "absolute", left: 8, top: 8, display: "flex", gap: 6, zIndex: 20 }} aria-hidden={false}>
+        <div  className={styles.follower__status} aria-hidden={false} >
           {typeof frozen === "number" && frozen > 0 && (
-            <div title={`凍結: ${frozen}ターン`} aria-label={`凍結 ${frozen}ターン`} style={{ background: "#4fc3f7", color: "#003", padding: "2px 6px", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>
+            <div title={`凍結: ${frozen}ターン`} aria-label={`凍結 ${frozen}ターン`} className={styles["follower__status--frozen"]}>
               凍{frozen}
             </div>
           )}
           {typeof poison === "number" && poison > 0 && (
-            <div title={`毒: ${poison}ターン`} aria-label={`毒 ${poison}ターン`} style={{ background: "#e57373", color: "#300", padding: "2px 6px", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>
+            <div title={`毒: ${poison}ターン`} aria-label={`毒 ${poison}ターン`} className={styles["follower__status--poison"]}>
               毒{poison}
             </div>
           )}
           {haste && (
-            <div title={`加速`} aria-label={`加速`} style={{ background: "#ffd54f", color: "#663c00", padding: "2px 6px", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>
+            <div title={`加速`} aria-label={`加速`} className={styles["follower__status--haste"]}>
               速
             </div>
           )}
           {stealth && (
-            <div title={`隠密`} aria-label={`隠密`} style={{ background: "#9e9e9e", color: "#fff", padding: "2px 6px", borderRadius: 6, fontSize: 12, fontWeight: 600 }}>
+            <div title={`隠密`} aria-label={`隠密`} className={styles["follower__status--stealth"]}>
               隠
             </div>
           )}

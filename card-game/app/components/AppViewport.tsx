@@ -1,6 +1,7 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import ViewportScaler from "./ViewportScaler";
+import styles from "../assets/css/Game.Master.module.css";
 
 export default function AppViewport({ children }: { children: React.ReactNode }) {
   const [showRotateOverlay, setShowRotateOverlay] = useState(false);
@@ -44,15 +45,15 @@ export default function AppViewport({ children }: { children: React.ReactNode })
       {children}
 
       {showRotateOverlay && (
-        <div style={{ position: "fixed", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", background: "rgba(0,0,0,0.85)", color: "#fff", zIndex: 9999 }}>
-          <div style={{ textAlign: "center", padding: 20 }}>
-            <h2 style={{ marginBottom: 8 }}>横向きでプレイしてください</h2>
-            <p style={{ opacity: 0.9, marginBottom: 12 }}>端末を横向きに回転させるか、フルスクリーンを許可して横向きに固定してください。</p>
-            <div style={{ display: "flex", gap: 8, justifyContent: "center" }}>
-              <button onClick={requestFullscreenAndLock} style={{ padding: "10px 16px", background: "#1e90ff", color: "#fff", border: "none", borderRadius: 6 }}>フルスクリーンで横向きに固定</button>
-              <button onClick={() => setShowRotateOverlay(false)} style={{ padding: "10px 16px", background: "#444", color: "#fff", border: "none", borderRadius: 6 }}>閉じる</button>
+        <div className={styles.viewport}>
+          <div className={styles.viewport__wrap}>
+            <h2 className={styles.viewport__title}>横向きでプレイしてください</h2>
+            <p className={styles.viewport__description}>端末を横向きに回転させるか、フルスクリーンを許可して横向きに固定してください。</p>
+            <div className={styles.viewport__controls}>
+              <button onClick={requestFullscreenAndLock} className={styles.viewport__button}>フルスクリーンで横向きに固定</button>
+              <button onClick={() => setShowRotateOverlay(false)} className={styles.viewport__backbutton}>閉じる</button>
             </div>
-            {!isTouchDevice && <p style={{ opacity: 0.8, marginTop: 10 }}>※ デスクトップでは自動ロックできないことがあります</p>}
+            {!isTouchDevice && <p className={styles.viewport__warning}>※ デスクトップでは自動ロックできないことがあります</p>}
           </div>
         </div>
       )}

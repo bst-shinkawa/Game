@@ -5,7 +5,7 @@ import { useGameContext } from "./context/GameContext";
 import { useGameUI } from "./hooks/useGameUI";
 const GameField = dynamic(() => import('./components/GameField').then(mod => mod.GameField), { ssr: false, loading: () => <div>Loading...</div> });
 import StartMenu from "./components/StartMenu";
-import ErrorBoundary from "./components/ErrorBoundary";
+import styles from "./assets/css/Game.Master.module.css";
 
 const GamePage: React.FC = () => {
   const [mode, setMode] = useState<"menu" | "game" | "deck">("menu");
@@ -56,7 +56,7 @@ const GamePage: React.FC = () => {
 
   if (mode === "deck") {
     return (
-      <div style={{ padding: 40 }}>
+      <div className={styles.pregame__wrap}>
         <h2>デッキ作成（準備中）</h2>
         <p>ここにデッキ作成 UI を実装します。</p>
         <button onClick={() => setMode("menu")}>戻る</button>

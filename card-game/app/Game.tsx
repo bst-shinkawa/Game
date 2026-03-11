@@ -852,7 +852,7 @@ export function useGame(): {
       enemyCurrentMana,
       setEnemyCurrentMana,
       drawPlayerCard: () => {
-        // プレイヤー側のドロー処理
+        // プレイヤー側のシングルドロー処理
         setDeck((prev) => {
           if (prev.length === 0) return prev;
           const drawnCard = { ...prev[0], uniqueId: crypto.randomUUID() };
@@ -861,12 +861,54 @@ export function useGame(): {
         });
       },
       drawEnemyCard: () => {
-        // 敵側のドロー処理
+        // 敵側のシングルドロー処理
         setEnemyDeck((prev) => {
           if (prev.length === 0) return prev;
           const drawnCard = { ...prev[0], uniqueId: crypto.randomUUID() };
           setEnemyHandCards((h) => (h.length < MAX_HAND ? [...h, drawnCard] : h));
           return prev.slice(1);
+        });
+      },
+      drawPlayerCards: (count: number) => {
+        // プレイヤー側の複数ドロー処理（ループ内での複数setState回避）
+        setDeck((prev) => {
+          const cards: Card[] = [];
+          let remaining = [...prev];
+          for (let i = 0; i < count && remaining.length > 0; i++) {
+            cards.push({ ...remaining[0], uniqueId: crypto.randomUUID() });
+            remaining = remaining.slice(1);
+          }
+          setPlayerHandCards((h) => {
+            const newHand = [...h];
+            for (const card of cards) {
+              if (newHand.length < MAX_HAND) {
+                newHand.push(card);
+              }
+            }
+            return newHand;
+          });
+          return remaining;
+        });
+      },
+      drawEnemyCards: (count: number) => {
+        // 敵側の複数ドロー処理（ループ内での複数setState回避）
+        setEnemyDeck((prev) => {
+          const cards: Card[] = [];
+          let remaining = [...prev];
+          for (let i = 0; i < count && remaining.length > 0; i++) {
+            cards.push({ ...remaining[0], uniqueId: crypto.randomUUID() });
+            remaining = remaining.slice(1);
+          }
+          setEnemyHandCards((h) => {
+            const newHand = [...h];
+            for (const card of cards) {
+              if (newHand.length < MAX_HAND) {
+                newHand.push(card);
+              }
+            }
+            return newHand;
+          });
+          return remaining;
         });
       },
     });
