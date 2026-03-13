@@ -83,6 +83,50 @@ export function useCardOperations({
     addCardToHand(card, enemyHandCards, setEnemyHandCards, enemyGraveyard, setEnemyGraveyard);
   }, [enemyDeck, enemyHandCards, enemyGraveyard, setEnemyDeck, setEnemyHandCards, setEnemyGraveyard]);
 
+  const drawPlayerCards = useCallback((count: number) => {
+    // 複数のプレイヤーカードを一度にドロー
+    setDeck((prev) => {
+      const cards: Card[] = [];
+      let remaining = [...prev];
+      for (let i = 0; i < count && remaining.length > 0; i++) {
+        cards.push(createUniqueCard(remaining[0]));
+        remaining = remaining.slice(1);
+      }
+      setPlayerHandCards((h) => {
+        const newHand = [...h];
+        for (const card of cards) {
+          if (newHand.length < MAX_HAND) {
+            newHand.push(card);
+          }
+        }
+        return newHand;
+      });
+      return remaining;
+    });
+  }, [deck, playerHandCards, setDeck, setPlayerHandCards]);
+
+  const drawEnemyCards = useCallback((count: number) => {
+    // 複数の敵カードを一度にドロー
+    setEnemyDeck((prev) => {
+      const cards: Card[] = [];
+      let remaining = [...prev];
+      for (let i = 0; i < count && remaining.length > 0; i++) {
+        cards.push({ ...remaining[0], uniqueId: uuidv4() });
+        remaining = remaining.slice(1);
+      }
+      setEnemyHandCards((h) => {
+        const newHand = [...h];
+        for (const card of cards) {
+          if (newHand.length < MAX_HAND) {
+            newHand.push(card);
+          }
+        }
+        return newHand;
+      });
+      return remaining;
+    });
+  }, [enemyDeck, enemyHandCards, setEnemyDeck, setEnemyHandCards]);
+
   const playCardToField = useCallback((card: Card) => {
       // delegate to effectService; effectService will handle mana checks, field limits, summon effects, triggers, and card-specific logic
       servicePlayCard(card, true, {
@@ -108,6 +152,8 @@ export function useCardOperations({
         setEnemyDeck,
         drawPlayerCard,
         drawEnemyCard,
+        drawPlayerCards,
+        drawEnemyCards,
         currentMana,
         setCurrentMana,
         enemyCurrentMana,
@@ -134,6 +180,8 @@ export function useCardOperations({
       addCardToDestroying,
       drawPlayerCard,
       drawEnemyCard,
+      drawPlayerCards,
+      drawEnemyCards,
       setDeck,
       setEnemyDeck,
       currentMana,
@@ -191,6 +239,8 @@ export function useCardOperations({
       setEnemyCurrentMana,
       drawPlayerCard,
       drawEnemyCard,
+      drawPlayerCards,
+      drawEnemyCards,
     });
   }, [
       playerFieldCards,
@@ -213,6 +263,8 @@ export function useCardOperations({
       addCardToDestroying,
       drawPlayerCard,
       drawEnemyCard,
+      drawPlayerCards,
+      drawEnemyCards,
       currentMana,
       enemyCurrentMana,
       enemyHandCards,          // read when locating card
@@ -223,6 +275,8 @@ export function useCardOperations({
   return {
     drawPlayerCard,
     drawEnemyCard,
+    drawPlayerCards,
+    drawEnemyCards,
     playCardToField,
     castSpell,
   };

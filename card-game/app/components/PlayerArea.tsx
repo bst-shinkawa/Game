@@ -4,7 +4,6 @@ import React, { useRef, useEffect, useContext } from "react";
 import CardItem from "./CardItem";
 import ManaBar from "./ManaBar";
 import Image from "next/image";
-import { handleSpellUsage } from "@/app/services/spellUsageService";
 import type { Card } from "@/app/data/cards";
 import type { SelectionConfig } from "@/app/types/gameTypes";
 import styles from "@/app/assets/css/Game.Master.module.css";
@@ -150,22 +149,7 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
     const card = playerHandCards.find((c) => c.uniqueId === cardId);
     if (!card) return;
 
-    // スペル/フォロワー処理を統合
-    if (card.type === "spell") {
-      handleSpellUsage({
-        card,
-        cardId,
-        isPlayer: true,
-        castSpell,
-        playCardToField,
-        initializeSelection,
-      });
-      setActiveHandCardId(null);
-      onCardClick(cardId);  // カード説明表示用
-      return;
-    }
-
-    // フォロワーの場合もカード説明表示の トグルを実行
+    // クリック時はカード説明表示のみ（ドラッグ&ドロップで発動）
     if (activeHandCardId === cardId) {
       setActiveHandCardId(null);
     } else {

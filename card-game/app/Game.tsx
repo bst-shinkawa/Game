@@ -500,6 +500,8 @@ export function useGame(): {
             setEnemyGraveyard,
             drawPlayerCard,
             drawEnemyCard,
+            drawPlayerCards,
+            drawEnemyCards,
             addCardToDestroying,
             aiCancelRef
           );
@@ -562,6 +564,50 @@ export function useGame(): {
     const card = createUniqueCard(enemyDeck[0]);
     setEnemyDeck((prev) => prev.slice(1));
     addCardToHand(card, enemyHandCards, setEnemyHandCards, enemyGraveyard, setEnemyGraveyard);
+  };
+
+  const drawPlayerCards = (count: number) => {
+    // 複数のプレイヤーカードを一度にドロー
+    setDeck((prev) => {
+      const cards: Card[] = [];
+      let remaining = [...prev];
+      for (let i = 0; i < count && remaining.length > 0; i++) {
+        cards.push(createUniqueCard(remaining[0]));
+        remaining = remaining.slice(1);
+      }
+      setPlayerHandCards((h) => {
+        const newHand = [...h];
+        for (const card of cards) {
+          if (newHand.length < MAX_HAND) {
+            newHand.push(card);
+          }
+        }
+        return newHand;
+      });
+      return remaining;
+    });
+  };
+
+  const drawEnemyCards = (count: number) => {
+    // 複数の敵カードを一度にドロー
+    setEnemyDeck((prev) => {
+      const cards: Card[] = [];
+      let remaining = [...prev];
+      for (let i = 0; i < count && remaining.length > 0; i++) {
+        cards.push(createUniqueCard(remaining[0]));
+        remaining = remaining.slice(1);
+      }
+      setEnemyHandCards((h) => {
+        const newHand = [...h];
+        for (const card of cards) {
+          if (newHand.length < MAX_HAND) {
+            newHand.push(card);
+          }
+        }
+        return newHand;
+      });
+      return remaining;
+    });
   };
 
   // --- ターン終了 ---

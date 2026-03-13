@@ -272,6 +272,8 @@ export function useGameLogic() {
           setEnemyGraveyard,
           cardOperations.drawPlayerCard,
           cardOperations.drawEnemyCard,
+          cardOperations.drawPlayerCards,
+          cardOperations.drawEnemyCards,
           animationManager.addCardToDestroying,
           aiCancelRef
         );

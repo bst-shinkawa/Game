@@ -107,6 +107,8 @@ export async function runEnemyTurn(
   setEnemyGraveyard: React.Dispatch<React.SetStateAction<Card[]>>,
   drawPlayerCard: () => void,
   drawEnemyCard: () => void,
+  drawPlayerCards: (count: number) => void,
+  drawEnemyCards: (count: number) => void,
   addCardToDestroying: (cardIds: string[]) => void,
   cancelRef: MutableRefObject<boolean>
 ) {
@@ -390,6 +392,8 @@ export async function runEnemyTurn(
         enemyGraveyard,
         drawPlayerCard,
         drawEnemyCard,
+        drawPlayerCards,
+        drawEnemyCards,
         setDeck: setPlayerDeck,
         setEnemyDeck,
         currentMana: 0,

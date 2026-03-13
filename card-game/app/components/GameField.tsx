@@ -1506,11 +1506,63 @@ export const GameField: React.FC<GameFieldProps> = ({
           if (!draggingCard) return;
           const card = playerHandCards.find((c) => c.uniqueId === draggingCard);
           if (!card) return;
+
+          // ゲーム前（マリガン）の処理
           if (preGame && coinResult !== 'deciding') {
             setSwapIds(swapIds.includes(card.uniqueId) ? swapIds.filter(id => id !== card.uniqueId) : [...swapIds, card.uniqueId]);
-          } else if (card.type !== "spell") {
-            playCardToField(card);
+            setDraggingCard(null);
+            arrowStartPos.current = null;
+            dragOffsetRef.current = { x: 0, y: 0 };
+            return;
           }
+
+          // スペルの処理
+          if (card.type === "spell") {
+            const usageType = (card as any).usageType;
+            if (usageType === "cast_spell_select_target" || usageType === "cast_spell_select_hand") {
+              // 選択型スペル：選択画面を開く
+              const selectableTargets = (card as any).selectableTargets || (usageType === "cast_spell_select_target" ? ["hero", "field_card"] : ["hand_card"]);
+              const selectCount = (card as any).selectCount || 1;
+              initializeSelection({
+                sourceCardId: draggingCard,
+                selectableTargets,
+                selectCount,
+                onComplete: (selectedIds: string[]) => {
+                  if (selectedIds.length > 0) {
+                    castSpell(draggingCard, selectedIds[0] as string | "hero", true);
+                  }
+                },
+                onCancel: () => {
+                  // キャンセル処理
+                },
+              });
+            } else {
+              // 自動型スペル
+              castSpell(draggingCard, "hero", true);
+            }
+          } else if (card.type === "follower") {
+            // フォロワーの処理
+            const summonSelectableTargets = (card as any).summonSelectableTargets;
+            if (summonSelectableTargets && summonSelectableTargets.length > 0) {
+              // 選択型フォロワー（例：裏取引の商人）：選択画面を開く
+              initializeSelection({
+                sourceCardId: draggingCard,
+                selectableTargets: summonSelectableTargets,
+                selectCount: 1,  // TODO: カード定義で selectCount を指定可能にする必要があるかも
+                onComplete: (selectedIds: string[]) => {
+                  // 選択完了後、フォロワーを場に出す
+                  playCardToField(card);
+                },
+                onCancel: () => {
+                  // キャンセル処理
+                },
+              });
+            } else {
+              // 通常フォロワー：直接フィールドに配置
+              playCardToField(card);
+            }
+          }
+
           setDraggingCard(null);
           arrowStartPos.current = null;
           dragOffsetRef.current = { x: 0, y: 0 };

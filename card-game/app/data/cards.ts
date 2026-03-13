@@ -52,8 +52,9 @@ export interface Card {
   guard?: boolean;
   // カード使用方法
   usageType?: CardUsageType;                                  // カードの使用方法
-  selectableTargets?: ("hero" | "field_card" | "hand_card")[]; // 選択可能な対象タイプ
+  selectableTargets?: ("hero" | "field_card" | "hand_card")[]; // スペル時の選択可能な対象タイプ
   selectCount?: number;                                       // 選択対象数（デフォルト1）
+  summonSelectableTargets?: ("hero" | "field_card" | "hand_card")[]; // 召喚時の選択対象（フォロワー用）
 }
 
 // ゲーム実行時のカードプロパティを含む拡張型
@@ -94,7 +95,7 @@ export const cards: Card[] = [
   { id: 19, name: "裏切りの手引き", type: "spell", description: "相手の場のフォロワーを一枚自分の場に配置しなおす（召喚効果も発動）", effect: "steal_follower", image: `${basePath}/img/cards/betrayal_guidance.webp`, uniqueId: "", cost: 5, owner: "usurper", usageType: "cast_spell_select_target", selectableTargets: ["field_card"] },
   { id: 20, name: "破壊工作", type: "spell", description: "相手の手札一枚を山札へ戻す。暗器を1枚手札に加える", effect: "return_to_deck", image: `${basePath}/img/cards/sabotage.webp`, uniqueId: "", cost: 2, owner: "usurper", usageType: "cast_spell_select_hand", selectableTargets: ["hand_card"] },
   { id: 21, name: "市民の暴動", type: "spell", description: "相手の手札を二枚山札へ戻す。暗躍を1枚手札に加える", effect: "return_to_deck", effectValue: 2, image: `${basePath}/img/cards/civil_riot.webp`, uniqueId: "", cost: 4, owner: "usurper", usageType: "cast_spell_select_hand", selectableTargets: ["hand_card"], selectCount: 2 },
-  { id: 22, name: "裏取引の商人", type: "follower", description: "召喚時、自分の手札から一枚選んで捨てる。金の盃を一枚手札に加える", attack: 1, hp: 2, maxHp: 2, image: `${basePath}/img/cards/black_market_merchant.webp`, uniqueId: "", cost: 2, owner: "usurper", usageType: "play_follower" },
+  { id: 22, name: "裏取引の商人", type: "follower", description: "召喚時、自分の手札から一枚選んで捨てる。金の盃を一枚手札に加える", attack: 1, hp: 2, maxHp: 2, image: `${basePath}/img/cards/black_market_merchant.webp`, uniqueId: "", cost: 2, owner: "usurper", usageType: "play_follower", summonSelectableTargets: ["hand_card"] },
   { id: 23, name: "闇夜の襲撃", type: "spell", description: "相手は手札を2枚ランダムに捨てさせ、自分の場に影を縫う者を2体召喚（召喚効果は発動しない）", effect: "discard_hand", image: `${basePath}/img/cards/night_raid.webp`, uniqueId: "", cost: 7, owner: "usurper", usageType: "cast_spell_auto" },
   { id: 24, name: "影の罠師", type: "follower", description: "召喚時、相手のフォロワー1体を次のターンを行動不能にする。", attack: 2, hp: 1, maxHp: 1, image: `${basePath}/img/cards/shadow_trapper.webp`, uniqueId: "", cost: 2, owner: "usurper", usageType: "play_follower" },
   { id: 25, name: "毒瓶", type: "spell", description: "相手のフォロワーに2ダメージ", effect: "damage_single", effectValue: 2, image: `${basePath}/img/cards/poison_vial.webp`, uniqueId: "", cost: 2, owner: "usurper", usageType: "cast_spell_select_target", selectableTargets: ["field_card"] }
