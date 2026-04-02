@@ -57,15 +57,8 @@ export interface Card {
   summonSelectableTargets?: ("hero" | "field_card" | "hand_card")[]; // 召喚時の選択対象（フォロワー用）
 }
 
-// ゲーム実行時のカードプロパティを含む拡張型
-export interface RuntimeCard extends Card {
-  maxHp: number;
-  isAnimating?: boolean;
-  poison?: number;
-  poisonDamage?: number;
-  frozen?: number;
-  rushInitialTurn?: boolean;
-}
+// RuntimeCard は gameTypes.ts で定義（重複を防ぐため re-export）
+export type { RuntimeCard } from "../types/gameTypes";
 
 // 仮カードデータ
 const basePath = process.env.NODE_ENV === 'production' ? '' : '';

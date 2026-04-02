@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useContext } from "react";
+import React, { useEffect, useRef, useContext, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { TurnTimer } from "@/app/data/turnTimer";
 import { DamageFloater } from "./DamageFloater";
@@ -9,6 +9,8 @@ import { PlayerArea } from "./PlayerArea";
 import CardItem from "./CardItem";
 import { PreGame } from "./PreGame";
 import GameOver from "./GameOver";
+import Toast from "./Toast";
+import type { ToastItem } from "@/app/hooks/useToast";
 import Image from "next/image";
 import { handleSpellUsage } from "@/app/services/spellUsageService";
 import type { Card } from "@/app/data/cards";
@@ -16,10 +18,14 @@ import type { DamageFloat } from "@/app/hooks/useGameUI";
 import type { SelectionMode, SelectionConfig } from "@/app/types/gameTypes";
 import styles from "@/app/assets/css/Game.Master.module.css";
 import { TimerController } from "./TimerCircle";
-import ViewportContext, { ViewportInfo } from "@/app/context/ViewportContext";
+import ViewportContext from "@/app/context/ViewportContext";
+
+import { useDragHandler } from "@/app/hooks/useDragHandler";
+import { useArrowCanvas } from "@/app/hooks/useArrowCanvas";
+import { useDamageMonitor } from "@/app/hooks/useDamageMonitor";
+import { useAttackClone } from "@/app/hooks/useAttackClone";
 
 interface GameFieldProps {
-  // ゲームロジック
   playerHandCards: Card[];
   playerFieldCards: (Card & { maxHp: number; canAttack?: boolean })[];
   playerHeroHp: number;
@@ -39,8 +45,7 @@ interface GameFieldProps {
   coinResult: "deciding" | "player" | "enemy";
   aiRunning: boolean;
   destroyingCards: Set<string>;
-
-  // UI状態
+  toasts: ToastItem[];
   damageFloats: DamageFloat[];
   draggingCard: string | null;
   dragPosition: { x: number; y: number };
@@ -59,12 +64,8 @@ interface GameFieldProps {
   playerAttackAnimation: { sourceCardId: string; targetId: string | "hero" } | null;
   enemyAttackAnimation: { sourceCardId: string | null; targetId: string | "hero" } | null;
   enemySpellAnimation: { targetId: string | "hero"; effect: string } | null;
-
-  // 選択モード
   selectionMode: SelectionMode;
   selectionConfig: SelectionConfig | null;
-
-  // ゲーム操作
   playCardToField: (card: Card) => void;
   endTurn: () => void;
   attack: (attackerId: string, targetId: string | "hero", isPlayerAttacker?: boolean) => void;
@@ -76,8 +77,6 @@ interface GameFieldProps {
   initializeSelection: (config: Omit<SelectionConfig, "selectedIds">) => void;
   applySelection: (targetIds: string[]) => void;
   cancelSelection: () => void;
-
-  // UI更新関数
   setDamageFloats: (floats: DamageFloat[]) => void;
   setDraggingCard: (id: string | null) => void;
   setDragPosition: (pos: { x: number; y: number }) => void;
@@ -96,1099 +95,129 @@ interface GameFieldProps {
   setAttackClone: (clone: any) => void;
   playerTurnTimer?: TurnTimer | null;
   enemyTurnTimer?: TurnTimer | null;
-
-  // Refs
   playerBattleRef: React.MutableRefObject<HTMLDivElement | null>;
   handAreaRef: React.MutableRefObject<HTMLDivElement | null>;
   collapseHand: () => void;
 }
 
-export const GameField: React.FC<GameFieldProps> = ({
-  // ゲームロジック
-  playerHandCards,
-  playerFieldCards,
-  playerHeroHp,
-  enemyHandCards,
-  enemyFieldCards,
-  enemyHeroHp,
-  playerGraveyard,
-  enemyGraveyard,
-  deck,
-  enemyDeck,
-  currentMana,
-  enemyCurrentMana,
-  turn,
-  turnSecondsRemaining,
-  gameOver,
-  preGame,
-  coinResult,
-  aiRunning,
-  destroyingCards,
-  // UI状態
-  damageFloats,
-  draggingCard,
-  dragPosition,
-  isHandExpanded,
-  activeHandCardId,
-  showTurnModal,
-  descCardId,
-  rouletteRunning,
-  rouletteLabel,
-  showCoinPopup,
-  mulliganTimer,
-  swapIds,
-  showGameStart,
-  attackClone,
-  movingAttack,
-  playerAttackAnimation,
-  enemyAttackAnimation,
-  enemySpellAnimation,
-  // 選択モード
-  selectionMode,
-  selectionConfig,
-  // ゲーム操作
-  playCardToField,
-  endTurn,
-  attack,
-  castSpell,
-  resetGame,
-  finalizeCoin,
-  doMulligan,
-  startMatch,
-  initializeSelection,
-  applySelection,
-  cancelSelection,
-  // UI更新関数
-  setDamageFloats,
-  setDraggingCard,
-  setDragPosition,
-  setArrowStartPos,
-  setIsHandExpanded,
-  setActiveHandCardId,
-  setShowTurnModal,
-  setPauseTimer,
-  setDescCardId,
-  setRouletteRunning,
-  setRouletteLabel,
-  setShowCoinPopup,
-  setMulliganTimer,
-  setSwapIds,
-  setShowGameStart,
-  setAttackClone,
-  // Refs
-  playerBattleRef,
-  handAreaRef,
-  collapseHand,
-  playerTurnTimer,
-  enemyTurnTimer,
-}) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+export const GameField: React.FC<GameFieldProps> = (props) => {
+  const {
+    playerHandCards, playerFieldCards, playerHeroHp,
+    enemyHandCards, enemyFieldCards, enemyHeroHp,
+    playerGraveyard, enemyGraveyard, deck, enemyDeck,
+    currentMana, enemyCurrentMana, turn, turnSecondsRemaining,
+    gameOver, preGame, coinResult, aiRunning, destroyingCards,
+    toasts, damageFloats, draggingCard, dragPosition,
+    isHandExpanded, activeHandCardId, showTurnModal,
+    descCardId, rouletteRunning, rouletteLabel,
+    showCoinPopup, mulliganTimer, swapIds, showGameStart,
+    attackClone, movingAttack, playerAttackAnimation,
+    enemyAttackAnimation, enemySpellAnimation,
+    selectionMode, selectionConfig,
+    playCardToField, endTurn, attack, castSpell,
+    resetGame, finalizeCoin, doMulligan, startMatch,
+    initializeSelection, applySelection, cancelSelection,
+    setDamageFloats, setDraggingCard, setDragPosition,
+    setIsHandExpanded, setActiveHandCardId, setShowTurnModal,
+    setPauseTimer, setDescCardId,
+    setRouletteRunning, setRouletteLabel, setShowCoinPopup,
+    setMulliganTimer, setSwapIds, setShowGameStart,
+    setAttackClone,
+    playerTurnTimer, enemyTurnTimer,
+    playerBattleRef, handAreaRef, collapseHand,
+  } = props;
+
+  // --- Refs ---
   const enemyHeroRef = useRef<HTMLDivElement | null>(null);
   const enemyFieldRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const playerHeroRef = useRef<HTMLDivElement | null>(null);
   const playerFieldRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
-  const arrowStartPos = useRef<{ x: number; y: number } | null>(null);
-
-  const timerRef = useRef<TimerController | null>(null); 
+  const timerRef = useRef<TimerController | null>(null);
   const enemyTimerRef = useRef<TimerController | null>(null);
 
   const viewport = useContext(ViewportContext);
-
-  // Debugging flag (controlled at runtime via window.__GAME_DRAG_DEBUG__)
-  const DEBUG = typeof window !== 'undefined' && (window as any).__GAME_DRAG_DEBUG__ === true;
-
   const isPlayerTurn = turn % 2 === 1;
-  const MAX_TIME = 60;
-
   const isTimeCritical = isPlayerTurn && turnSecondsRemaining <= 20;
+  const isTimerActive = !preGame && !showTurnModal && !showGameStart && !gameOver.over;
 
-  // ドラッグ中のマウス座標追跡（mousemove / dragover を rAF でバッファして更新）
-  const dragPendingRef = React.useRef<{ x: number; y: number; dx?: number; dy?: number } | null>(null);
-  const dragDesignRef = React.useRef<{ x: number; y: number } | null>(null);
-  const dragRafRef = React.useRef<number | null>(null);
-  const dragOffsetRef = React.useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const [hoverTarget, setHoverTarget] = React.useState<{ type: string | null; id?: string | null }>({ type: null });
-  const [dropSuccess, setDropSuccess] = React.useState<{ type: string | null; id?: string | null }>({ type: null });
-  const [attackTargets, setAttackTargets] = React.useState<string[]>([]);
-  const [arrowProgress, setArrowProgress] = React.useState<number>(0);
-  // store last computed attackTargets to avoid updating state every animation frame
-  const lastAttackTargetsRef = React.useRef<string[]>([]);
+  // --- Memoized action objects (stable refs for hooks) ---
+  const dragRefs = useMemo(() => ({ enemyHeroRef, playerHeroRef, playerBattleRef }), [playerBattleRef]);
+  const dragActions = useMemo(() => ({
+    castSpell, attack, playCardToField, initializeSelection,
+    setSwapIds: setSwapIds as React.Dispatch<React.SetStateAction<string[]>>,
+  }), [castSpell, attack, playCardToField, initializeSelection, setSwapIds]);
 
-  // Debug HUD state & helper (visible when window.__GAME_DRAG_DEBUG__ === true)
-  const [debugEvents, setDebugEvents] = React.useState<Array<{ t: number; text: string; data?: any }>>([]);
-  const pushDebug = (text: string, data?: any) => {
-    const enabled = typeof window !== 'undefined' && (window as any).__GAME_DRAG_DEBUG__ === true;
-    if (!enabled) return;
-    setDebugEvents((prev) => [{ t: Date.now(), text, data }, ...prev].slice(0, 12));
-  };
+  // --- Custom hooks ---
+  const {
+    hoverTarget, dropSuccess, setDropSuccess,
+    attackTargets, setAttackTargets, lastAttackTargetsRef,
+    arrowStartPos, dragOffsetRef, clientToDesign,
+  } = useDragHandler({
+    playerHandCards, playerFieldCards, enemyFieldCards,
+    isPlayerTurn, preGame, coinResult, swapIds,
+    draggingCard, setDraggingCard, setDragPosition,
+    refs: dragRefs, actions: dragActions,
+  });
 
-  // Monitor refs moved to component scope so we can always stop from anywhere
-  const lastPointerRef = React.useRef<{ x: number; y: number }>({ x: 0, y: 0 });
-  const monitorTimerRef = React.useRef<number | null>(null);
+  const { canvasRef, setArrowProgress } = useArrowCanvas({
+    draggingCard, dragPosition, playerHandCards, playerFieldCards, enemyFieldCards,
+    hoverTarget, arrowStartPos, enemyHeroRef, playerHeroRef,
+    playerFieldRefs, enemyFieldRefs, attackTargets, setAttackTargets,
+    lastAttackTargetsRef,
+  });
 
-  const startMonitor = (idLocal: string) => {
-    if (monitorTimerRef.current != null) return;
-    monitorTimerRef.current = window.setInterval(() => {
-      try {
-        const lp = lastPointerRef.current;
-        const cloneEl = document.querySelector('.' + styles.drag_clone) as HTMLElement | null;
-        const elAtPoint = document.elementFromPoint(lp.x, lp.y) as HTMLElement | null;
-        pushDebug('monitor', { id: idLocal, lastPointer: lp, hasClone: !!cloneEl, cloneRect: cloneEl ? (() => { const r = cloneEl.getBoundingClientRect(); return { left: r.left, top: r.top, w: r.width, h: r.height }; })() : null, elAtPoint: elAtPoint ? (elAtPoint.getAttribute && elAtPoint.getAttribute('data-uniqueid')) : null });
-      } catch (e) {
-        if (DEBUG) console.debug('[drag-debug] monitor error', e);
-      }
-    }, 120) as unknown as number;
-  };
+  useDamageMonitor({
+    playerHeroHp, enemyHeroHp, playerFieldCards, enemyFieldCards,
+    damageFloats, setDamageFloats,
+    playerHeroRef, enemyHeroRef, playerFieldRefs, enemyFieldRefs,
+  });
 
-  const clientToDesign = (cx: number, cy: number) => {
-    if (!viewport || !viewport.scale) return null;
-    const dx = (cx - (viewport.containerLeft || 0)) / (viewport.scale || 1);
-    const dy = (cy - (viewport.containerTop || 0)) / (viewport.scale || 1);
-    return { x: Math.round(dx), y: Math.round(dy) };
-  };
+  useAttackClone({
+    movingAttack, enemyFieldCards,
+    enemyFieldRefs, playerFieldRefs, playerHeroRef,
+    attackClone, setAttackClone, damageFloats, setDamageFloats,
+  });
 
-  const stopMonitor = () => {
-    if (monitorTimerRef.current != null) { clearInterval(monitorTimerRef.current); monitorTimerRef.current = null; }
-  };
-
+  // --- Turn modal ---
   useEffect(() => {
-    if (!draggingCard) {
-      setHoverTarget({ type: null });
-      return;
-    }
-
-    const flushPending = () => {
-      if (dragPendingRef.current) {
-        // dragPendingRef stores client coords (x,y) and optionally design coords (dx,dy)
-        const clientX = dragPendingRef.current.x;
-        const clientY = dragPendingRef.current.y;
-        const pos = { x: clientX - dragOffsetRef.current.x, y: clientY - dragOffsetRef.current.y };
-        setDragPosition(pos);
-        // determine hover target
-        try {
-          const el = document.elementFromPoint(dragPendingRef.current.x, dragPendingRef.current.y) as HTMLElement | null;
-          if (el) {
-            const enemyHeroEl = el.closest('.' + styles.field_enemy_hero);
-            const playerHeroEl = el.closest('.' + styles.field_player_hero);
-            const enemyBattleEl = el.closest('.' + styles.field_enemy_battle);
-            const playerBattleEl = el.closest('.' + styles.field_player_battle);
-            const cardEl = el.closest('[data-uniqueid]') as HTMLElement | null;
-
-            if (enemyHeroEl) setHoverTarget({ type: 'enemyHero' });
-            else if (playerHeroEl) setHoverTarget({ type: 'playerHero' });
-            else if (cardEl && enemyBattleEl) setHoverTarget({ type: 'enemyCard', id: cardEl.getAttribute('data-uniqueid') });
-            else if (cardEl && playerBattleEl) setHoverTarget({ type: 'playerCard', id: cardEl.getAttribute('data-uniqueid') });
-            else if (playerBattleEl) setHoverTarget({ type: 'playerBattle' });
-            else if (enemyBattleEl) setHoverTarget({ type: 'enemyBattle' });
-            else setHoverTarget({ type: null });
-          } else {
-            setHoverTarget({ type: null });
-          }
-        } catch (e) {
-          setHoverTarget({ type: null });
-        }
-
-        dragPendingRef.current = null;
-      }
-      if (dragRafRef.current) {
-        cancelAnimationFrame(dragRafRef.current);
-        dragRafRef.current = null;
-      }
-    };
-
-    const scheduleFlush = () => {
-      if (dragRafRef.current != null) return;
-      dragRafRef.current = requestAnimationFrame(() => {
-        if (dragPendingRef.current) {
-          const pos = { x: dragPendingRef.current.x - dragOffsetRef.current.x, y: dragPendingRef.current.y - dragOffsetRef.current.y };
-          setDragPosition(pos);
-          // determine hover target
-          try {
-            const p = dragPendingRef.current as { x: number; y: number; dx?: number; dy?: number };
-              const el = document.elementFromPoint(p.x, p.y) as HTMLElement | null;
-            if (el) {
-              const enemyHeroEl = el.closest('.' + styles.field_enemy_hero);
-              const playerHeroEl = el.closest('.' + styles.field_player_hero);
-              const enemyBattleEl = el.closest('.' + styles.field_enemy_battle);
-              const playerBattleEl = el.closest('.' + styles.field_player_battle);
-              const cardEl = el.closest('[data-uniqueid]') as HTMLElement | null;
-
-              if (enemyHeroEl) setHoverTarget({ type: 'enemyHero' });
-              else if (playerHeroEl) setHoverTarget({ type: 'playerHero' });
-              else if (cardEl && enemyBattleEl) setHoverTarget({ type: 'enemyCard', id: cardEl.getAttribute('data-uniqueid') });
-              else if (cardEl && playerBattleEl) setHoverTarget({ type: 'playerCard', id: cardEl.getAttribute('data-uniqueid') });
-              else if (playerBattleEl) setHoverTarget({ type: 'playerBattle' });
-              else if (enemyBattleEl) setHoverTarget({ type: 'enemyBattle' });
-              else setHoverTarget({ type: null });
-            } else {
-              setHoverTarget({ type: null });
-            }
-          } catch (e) {
-            setHoverTarget({ type: null });
-          }
-          dragPendingRef.current = null;
-        }
-        dragRafRef.current = null;
-      });
-    };
-
-    const handleMouseMove = (e: MouseEvent) => {
-      const cx = e.clientX;
-      const cy = e.clientY;
-      let dx = undefined;
-      let dy = undefined;
-      if (viewport && viewport.scale) {
-        dx = Math.round((cx - (viewport.containerLeft || 0)) / (viewport.scale || 1));
-        dy = Math.round((cy - (viewport.containerTop || 0)) / (viewport.scale || 1));
-      }
-      dragPendingRef.current = { x: cx, y: cy, dx, dy };
-      scheduleFlush();
-    };
-
-    const handleDragOver = (e: DragEvent) => {
-      // dragover provides client coordinates reliably during HTML5 drag
-      const cx = e.clientX;
-      const cy = e.clientY;
-      let dx = undefined;
-      let dy = undefined;
-      if (viewport && viewport.scale) {
-        dx = Math.round((cx - (viewport.containerLeft || 0)) / (viewport.scale || 1));
-        dy = Math.round((cy - (viewport.containerTop || 0)) / (viewport.scale || 1));
-      }
-      dragPendingRef.current = { x: cx, y: cy, dx, dy };
-      scheduleFlush();
-    };
-
-    document.addEventListener('mousemove', handleMouseMove);
-    document.addEventListener('dragover', handleDragOver);
-
-    return () => {
-      document.removeEventListener('mousemove', handleMouseMove);
-      document.removeEventListener('dragover', handleDragOver);
-      if (dragRafRef.current) cancelAnimationFrame(dragRafRef.current);
-      dragPendingRef.current = null;
-      dragRafRef.current = null;
-      setHoverTarget({ type: null });
-    };
-  }, [draggingCard]);
-
-  React.useEffect(() => {
-    if (hoverTarget.type && attackTargets.includes(hoverTarget.id || 'hero')) {
-      setArrowProgress(0);
-      const interval = setInterval(() => {
-        setArrowProgress(prev => Math.min(prev + 0.05, 1));
-      }, 50);
-      return () => clearInterval(interval);
-    } else {
-      setArrowProgress(0);
-    }
-  }, [hoverTarget, attackTargets]);
-
-  // Pointer / touch fallback: document-level pointer handling to support mobile drag
-  useEffect(() => {
-    let activePointerId: number | null = null;
-    let startRect: DOMRect | null = null;
-    let pointerOffset = { x: 0, y: 0 };
-    // element that we captured pointer on (for pointer events)
-    let capturedPointerElement: HTMLElement | null = null;
-    let capturedPointerId: number | null = null;
-
-    const DRAG_START_THRESHOLD = 6;
-
-    const beginPotentialDrag = (startX: number, startY: number, el: HTMLElement, id: string, idForPointer?: number | null) => {
-      activePointerId = idForPointer ?? null;
-      startRect = el.getBoundingClientRect();
-      let dragStarted = false;
-      let lastPointer = { x: startX, y: startY };
-
-      const resyncPointerOffset = (idLocal: string, pointerX: number, pointerY: number, attempt = 0) => {
-        // run a couple of rAFs to allow layout to settle
-        window.requestAnimationFrame(() => {
-          window.requestAnimationFrame(() => {
-            try {
-              const cloneEl = document.querySelector('.' + styles.drag_clone) as HTMLElement | null;
-              if (cloneEl) {
-                const cloneId = cloneEl.getAttribute('data-drag-id') || null;
-                // only use the clone rect if it corresponds to the id we expect
-                if (cloneId === idLocal) {
-                  const rect = cloneEl.getBoundingClientRect();
-                  pointerOffset = { x: pointerX - rect.left, y: pointerY - rect.top };
-                  // update client drag position
-                  setDragPosition({ x: pointerX - pointerOffset.x, y: pointerY - pointerOffset.y });
-                  // also store design coords
-                  const d = clientToDesign(pointerX, pointerY);
-                  if (d) dragDesignRef.current = d;
-                  if (DEBUG) pushDebug('resyncPointerOffset', { id: idLocal, pointerX, pointerY, rect, pointerOffset });
-                  return;
-                } else {
-                  if (DEBUG) pushDebug('resyncPointerOffset-wrong-clone', { id: idLocal, cloneId, attempt });
-                  // retry a couple of frames to wait for clone to update
-                  if (attempt < 2) {
-                    window.requestAnimationFrame(() => resyncPointerOffset(idLocal, pointerX, pointerY, attempt + 1));
-                    return;
-                  }
-                }
-              }
-              // fallback: try to query the card element in the hand (might still be present)
-              const handEl = document.querySelector('[data-uniqueid="' + idLocal + '"]') as HTMLElement | null;
-              if (handEl) {
-                const rect = handEl.getBoundingClientRect();
-                pointerOffset = { x: pointerX - rect.left, y: pointerY - rect.top };
-                setDragPosition({ x: pointerX - pointerOffset.x, y: pointerY - pointerOffset.y });
-                const d = clientToDesign(pointerX, pointerY);
-                if (d) dragDesignRef.current = d;
-                if (DEBUG) pushDebug('resyncPointerOffset-hand', { id: idLocal, pointerX, pointerY, rect, pointerOffset });
-              } else {
-                if (DEBUG) pushDebug('resyncPointerOffset-no-anchor', { id: idLocal, pointerX, pointerY });
-              }
-            } catch (e) {
-              if (DEBUG) pushDebug('resyncPointerOffset-ex', { id: idLocal, err: String(e) });
-            }
-          });
-        });
-      };
-
-      if (DEBUG) { console.debug('[drag-debug] beginPotentialDrag', { id, startX, startY, idForPointer, startRect: { left: startRect.left, top: startRect.top, width: startRect.width, height: startRect.height } }); pushDebug('beginPotentialDrag', { id, startX, startY, idForPointer, startRect: { left: startRect.left, top: startRect.top, width: startRect.width, height: startRect.height } }); }
-
-      const forceStart = () => {
-        if (dragStarted) return;
-        if (DEBUG) { console.debug('[drag-debug] forceStart', { id }); pushDebug('forceStart', { id }); }
-        dragStarted = true;
-        try { (document.activeElement as HTMLElement | null)?.blur(); } catch (e) {}
-        pointerOffset = { x: startX - (startRect!.left), y: startY - (startRect!.top) };
-        setDraggingCard(id);
-        arrowStartPos.current = { x: startRect!.left + startRect!.width / 2, y: startRect!.top + startRect!.height / 2 };
-        setDragPosition({ x: startX - pointerOffset.x, y: startY - pointerOffset.y });
-        const d0 = clientToDesign(startX, startY);
-        if (d0) dragDesignRef.current = d0;
-        // prevent browser touch gestures from stealing moves
-        try { document.body.style.touchAction = 'none'; if (DEBUG) pushDebug('set body.touchAction none'); } catch (e) {}
-        // update last pointer and start monitor and attempt to resync in case DOM layout changed
-        lastPointer = { x: startX, y: startY };
-        lastPointerRef.current = { x: startX, y: startY };
-        startMonitor(id);
-        resyncPointerOffset(id, startX, startY);
-      };
-
-      const onMove = (x: number, y: number, preventDefaultIfStarted = true) => {
-        const dx = x - startX;
-        const dy = y - startY;
-        if (!dragStarted) {
-          if (Math.hypot(dx, dy) > DRAG_START_THRESHOLD) {
-            dragStarted = true;
-            if (DEBUG) { console.debug('[drag-debug] dragStarted by move', { id, x, y, dx, dy }); pushDebug('dragStarted by move', { id, x, y, dx, dy }); }
-            // prevent native scrolling when drag actually starts
-            if (preventDefaultIfStarted) {
-              try { /* best-effort */ (document.activeElement as HTMLElement | null)?.blur(); } catch (e) {}
-            }
-            // compute offset relative to top-left so the grabbed point stays under pointer
-            pointerOffset = { x: startX - (startRect!.left), y: startY - (startRect!.top) };
-            setDraggingCard(id);
-            arrowStartPos.current = { x: startRect!.left + startRect!.width / 2, y: startRect!.top + startRect!.height / 2 };
-            setDragPosition({ x: x - pointerOffset.x, y: y - pointerOffset.y });
-            const d1 = clientToDesign(x, y);
-            if (d1) dragDesignRef.current = d1;
-            // update last pointer, start monitor and attempt resync
-            lastPointer = { x, y };
-            lastPointerRef.current = { x, y };
-            startMonitor(id);
-            resyncPointerOffset(id, x, y);
-            return true;
-          }
-          return false;
-        } else {
-          lastPointer = { x, y };
-          lastPointerRef.current = { x, y };
-          if (DEBUG) { console.debug('[drag-debug] dragMove', { id, x, y }); pushDebug('dragMove', { id, x, y }); }
-          setDragPosition({ x: x - pointerOffset.x, y: y - pointerOffset.y });
-          const d2 = clientToDesign(x, y);
-          if (d2) dragDesignRef.current = d2;
-          return true;
-        }
-      };
-
-      return { onMove, forceStart, finish: () => { if (DEBUG) console.debug('[drag-debug] finish', { id }); startRect = null; activePointerId = null; stopMonitor(); try { document.body.style.touchAction = ''; } catch (e) {} try { if (capturedPointerElement && capturedPointerId != null) { capturedPointerElement.releasePointerCapture(capturedPointerId); if (DEBUG) { console.debug('[drag-debug] finish releasePointerCapture', { id, pid: capturedPointerId }); pushDebug('finish releasePointerCapture', { id, pid: capturedPointerId }); } } } catch (err) { if (DEBUG) { console.debug('[drag-debug] finish releasePointerCapture failed', err); pushDebug('finish releasePointerCapture failed', { id, err: String(err) }); } } capturedPointerElement = null; capturedPointerId = null; } };
-    };
-
-    const onPointerDown = (e: PointerEvent) => {
-      // find the closest card element that has data-uniqueid
-      const el = (e.target as HTMLElement).closest('[data-uniqueid]') as HTMLElement | null;
-      if (!el) return;
-      const id = el.getAttribute('data-uniqueid');
-      if (!id) return;
-
-      // only start - if it's a player hand card or an attack-capable field card
-      const handCard = playerHandCards.find((c) => c.uniqueId === id);
-      const fieldCard = playerFieldCards.find((c) => c.uniqueId === id && c.canAttack);
-      if (!handCard && !fieldCard) return;
-      // ignore if not player's turn
-      if (!isPlayerTurn) return;
-
-      const startX = e.clientX;
-      const startY = e.clientY;
-      const pd = beginPotentialDrag(startX, startY, el, id, (e as any).pointerId ?? null);
-      if (DEBUG) console.debug('[drag-debug] pointerdown', { id, startX, startY, pointerId: (e as any).pointerId, handCard: !!handCard, fieldCard: !!fieldCard });
-      // Try to capture the pointer on the original element so we keep receiving pointermove/up even if DOM changes
-      try {
-        const pid = (e as any).pointerId ?? null;
-        if (pid != null && el && (el as any).setPointerCapture) {
-          try {
-            (el as any).setPointerCapture(pid);
-            capturedPointerElement = el;
-            capturedPointerId = pid;
-            if (DEBUG) { console.debug('[drag-debug] setPointerCapture', { id, pid }); pushDebug('setPointerCapture', { id, pid }); }
-          } catch (err) { if (DEBUG) { console.debug('[drag-debug] setPointerCapture failed', err); pushDebug('setPointerCapture failed', { id, err: String(err) }); } }
-        }
-      } catch (err) { if (DEBUG) console.debug('[drag-debug] setPointerCapture failed', err); }
-
-      // long-press fallback for pointer (some mobile browsers use pointer events)
-      let longPressTimer: number | null = null;
-      const LONG_PRESS_MS = 180;
-      longPressTimer = window.setTimeout(() => {
-        if (DEBUG) { console.debug('[drag-debug] pointer longPress fired', { id }); pushDebug('pointer longPress fired', { id }); }
-        pd.forceStart();
-      }, LONG_PRESS_MS);
-      if (DEBUG) { console.debug('[drag-debug] set pointer longPress timer', { ms: LONG_PRESS_MS, id }); pushDebug('set pointer longPress timer', { ms: LONG_PRESS_MS, id }); }
-
-      const moveHandler = (ev: PointerEvent) => {
-        if (activePointerId == null || (ev as any).pointerId !== activePointerId) return;
-        // cancel longPress if user moved
-        if (Math.hypot(ev.clientX - startX, ev.clientY - startY) > 4 && longPressTimer != null) { if (DEBUG) { console.debug('[drag-debug] pointer move cancelled longPress', { id }); pushDebug('pointer move cancelled longPress', { id }); } clearTimeout(longPressTimer); longPressTimer = null; }
-        if (pd.onMove(ev.clientX, ev.clientY)) {
-          if (longPressTimer != null) { if (DEBUG) { console.debug('[drag-debug] pointer move started drag', { id }); pushDebug('pointer move started drag', { id }); } clearTimeout(longPressTimer); longPressTimer = null; }
-          if (DEBUG) { console.debug('[drag-debug] pointer move prevented default', { id, x: ev.clientX, y: ev.clientY }); pushDebug('pointer move prevented default', { id, x: ev.clientX, y: ev.clientY }); }
-          ev.preventDefault();
-        }
-      };
-
-      const cancelHandler = (ev: PointerEvent) => {
-        if (DEBUG) pushDebug('pointer cancel', { id });
-        if (longPressTimer != null) { clearTimeout(longPressTimer); longPressTimer = null; }
-        document.removeEventListener('pointermove', moveHandler);
-        document.removeEventListener('pointerup', upHandler);
-        document.removeEventListener('pointercancel', cancelHandler);
-        try { document.body.style.touchAction = ''; } catch (e) {}
-        pd.finish();
-      };
-
-      const upHandler = (ev: PointerEvent) => {
-        if (longPressTimer != null) { clearTimeout(longPressTimer); longPressTimer = null; }
-        if (activePointerId == null || (ev as any).pointerId !== activePointerId) return;
-        // if drag didn't start, leave click semantics intact
-        if (pd.onMove(ev.clientX, ev.clientY, false) === false) {
-          if (DEBUG) console.debug('[drag-debug] pointer up without drag (click)', { id, x: ev.clientX, y: ev.clientY });
-          document.removeEventListener('pointermove', moveHandler);
-          document.removeEventListener('pointerup', upHandler);
-          document.removeEventListener('pointercancel', cancelHandler);
-          pd.finish();
-          return;
-        }
-        if (DEBUG) { console.debug('[drag-debug] pointer up with drop', { id, x: ev.clientX, y: ev.clientY }); pushDebug('pointer up with drop', { id, x: ev.clientX, y: ev.clientY }); }
-
-        // finish drop logic (same as before)
-        ev.preventDefault();
-        const dropEl = document.elementFromPoint(ev.clientX, ev.clientY) as HTMLElement | null;
-        const isDropOnEnemyHero = dropEl && enemyHeroRef.current && (enemyHeroRef.current === dropEl || enemyHeroRef.current.contains(dropEl));
-        const dropFieldCardEl = dropEl ? dropEl.closest('[data-uniqueid]') as HTMLElement | null : null;
-        const dropFieldCardId = dropFieldCardEl?.getAttribute('data-uniqueid') || null;
-
-        if (handCard) {
-          // allow casting spells on either hero or card regardless of side; default attack always targets enemy
-          if (isDropOnEnemyHero) {
-            if (handCard.type === 'spell') castSpell(handCard.uniqueId, 'hero', true, setAttackTargets);
-            else attack(handCard.uniqueId, 'hero', true);
-          } else if (dropFieldCardId && enemyFieldCards.some(c => c.uniqueId === dropFieldCardId)) {
-            if (handCard.type === 'spell') castSpell(handCard.uniqueId, dropFieldCardId, true, setAttackTargets);
-            else attack(handCard.uniqueId, dropFieldCardId, true);
-          } else if (dropFieldCardId && playerFieldCards.some(c => c.uniqueId === dropFieldCardId)) {
-            // self-targeting allowed only for healing spells
-            if (handCard.type === 'spell' && handCard.effect === 'heal_single') {
-              castSpell(handCard.uniqueId, dropFieldCardId, true, setAttackTargets);
-            } else if (handCard.type !== 'spell') {
-              attack(handCard.uniqueId, dropFieldCardId, true);
-            }
-          } else if (dropEl && playerHeroRef.current && (playerHeroRef.current === dropEl || playerHeroRef.current.contains(dropEl))) {
-            if (handCard.type === 'spell' && handCard.effect === 'heal_single') {
-              castSpell(handCard.uniqueId, 'hero', true, setAttackTargets);
-            } else if (handCard.type !== 'spell') {
-              attack(handCard.uniqueId, 'hero', true);
-            }
-          } else if (dropEl && playerBattleRef.current && (playerBattleRef.current === dropEl || playerBattleRef.current.contains(dropEl))) {
-            if (preGame && coinResult !== 'deciding') {
-              setSwapIds(swapIds.includes(handCard.uniqueId) ? swapIds.filter(id => id !== handCard.uniqueId) : [...swapIds, handCard.uniqueId]);
-            } else if (handCard.type === 'spell') {
-              // spellUsageService で統一処理
-              handleSpellUsage({
-                card: handCard,
-                cardId: handCard.uniqueId,
-                isPlayer: true,
-                castSpell,
-                playCardToField,
-                initializeSelection,
-              });
-            } else if (handCard.type === 'follower') {
-              playCardToField(handCard);
-            }
-          }
-        } else if (fieldCard) {
-          if (isDropOnEnemyHero) {
-            attack(fieldCard.uniqueId, 'hero', true);
-          } else if (dropFieldCardId && enemyFieldCards.some(c => c.uniqueId === dropFieldCardId)) {
-            attack(fieldCard.uniqueId, dropFieldCardId, true);
-          }
-        }
-
-        setDraggingCard(null);
-        arrowStartPos.current = null;
-        try { document.body.style.touchAction = ''; } catch (e) {}
-        // release any pointer capture
-        try {
-          if (capturedPointerElement && capturedPointerId != null) {
-            capturedPointerElement.releasePointerCapture(capturedPointerId);
-            if (DEBUG) { console.debug('[drag-debug] releasePointerCapture', { id, pid: capturedPointerId }); pushDebug('releasePointerCapture', { id, pid: capturedPointerId }); }
-          }
-        } catch (err) { if (DEBUG) { console.debug('[drag-debug] releasePointerCapture failed', err); pushDebug('releasePointerCapture failed', { id, err: String(err) }); } }
-        capturedPointerElement = null;
-        capturedPointerId = null;
-        document.removeEventListener('pointermove', moveHandler);
-        document.removeEventListener('pointerup', upHandler);
-        pd.finish();
-      };
-
-      document.addEventListener('pointermove', moveHandler);
-      document.addEventListener('pointerup', upHandler);
-      document.addEventListener('pointercancel', cancelHandler);
-    };
-
-    // Touch fallback for browsers that don't emit pointer events reliably
-    const onTouchStart = (e: TouchEvent) => {
-      const t = e.touches[0];
-      if (!t) return;
-      const el = (e.target as HTMLElement).closest('[data-uniqueid]') as HTMLElement | null;
-      if (!el) return;
-      const id = el.getAttribute('data-uniqueid');
-      if (!id) return;
-
-      const handCard = playerHandCards.find((c) => c.uniqueId === id);
-      const fieldCard = playerFieldCards.find((c) => c.uniqueId === id && c.canAttack);
-      if (!handCard && !fieldCard) return;
-      if (!isPlayerTurn) return;
-
-      const startX = t.clientX;
-      const startY = t.clientY;
-      const pd = beginPotentialDrag(startX, startY, el, id, null);
-      if (DEBUG) console.debug('[drag-debug] touchstart', { id, startX, startY, handCard: !!handCard, fieldCard: !!fieldCard });
-
-      // long-press fallback for touch to start drag without movement
-      let longPressTimer: number | null = null;
-      const LONG_PRESS_MS = 180;
-      longPressTimer = window.setTimeout(() => {
-        if (DEBUG) { console.debug('[drag-debug] touch longPress fired', { id }); pushDebug('touch longPress fired', { id }); }
-        pd.forceStart();
-      }, LONG_PRESS_MS);
-      if (DEBUG) { console.debug('[drag-debug] set touch longPress timer', { ms: LONG_PRESS_MS, id }); pushDebug('set touch longPress timer', { ms: LONG_PRESS_MS, id }); }
-
-      const touchMove = (ev: TouchEvent) => {
-        const t2 = ev.touches[0];
-        if (!t2) return;
-        // if user moved before long-press, cancel timer
-        if (Math.hypot(t2.clientX - startX, t2.clientY - startY) > 4 && longPressTimer != null) {
-          if (DEBUG) console.debug('[drag-debug] touch move cancelled longPress', { id });
-          clearTimeout(longPressTimer);
-          longPressTimer = null;
-        }
-        // prevent scrolling only once drag begins
-        if (pd.onMove(t2.clientX, t2.clientY)) {
-          if (longPressTimer != null) { if (DEBUG) { console.debug('[drag-debug] touch move started drag', { id }); pushDebug('touch move started drag', { id }); } clearTimeout(longPressTimer); longPressTimer = null; }
-          if (DEBUG) { console.debug('[drag-debug] touch move prevented default', { id, x: t2.clientX, y: t2.clientY }); pushDebug('touch move prevented default', { id, x: t2.clientX, y: t2.clientY }); }
-          ev.preventDefault();
-        }
-      };
-
-      const touchCancel = (ev: TouchEvent) => {
-        if (DEBUG) pushDebug('touch cancel', { id });
-        if (longPressTimer != null) { clearTimeout(longPressTimer); longPressTimer = null; }
-        document.removeEventListener('touchmove', touchMove as EventListenerOrEventListenerObject);
-        document.removeEventListener('touchend', touchEnd as EventListenerOrEventListenerObject);
-        document.removeEventListener('touchcancel', touchCancel as EventListenerOrEventListenerObject);
-        try { document.body.style.touchAction = ''; } catch (e) {}
-        pd.finish();
-      };
-
-      const touchEnd = (ev: TouchEvent) => {
-        if (longPressTimer != null) { clearTimeout(longPressTimer); longPressTimer = null; }
-        const t2 = ev.changedTouches[0];
-        if (!t2) return;
-        if (pd.onMove(t2.clientX, t2.clientY, false) === false) {
-          if (DEBUG) console.debug('[drag-debug] touch end without drag (tap)', { id, x: t2.clientX, y: t2.clientY });
-          document.removeEventListener('touchmove', touchMove as EventListenerOrEventListenerObject);
-          document.removeEventListener('touchend', touchEnd as EventListenerOrEventListenerObject);
-          document.removeEventListener('touchcancel', touchCancel as EventListenerOrEventListenerObject);
-          pd.finish();
-          return;
-        }
-        if (DEBUG) { console.debug('[drag-debug] touch end with drop', { id, x: t2.clientX, y: t2.clientY }); pushDebug('touch end with drop', { id, x: t2.clientX, y: t2.clientY }); }
-
-        // finish drop
-        const dropEl = document.elementFromPoint(t2.clientX, t2.clientY) as HTMLElement | null;
-        const isDropOnEnemyHero = dropEl && enemyHeroRef.current && (enemyHeroRef.current === dropEl || enemyHeroRef.current.contains(dropEl));
-        const dropFieldCardEl = dropEl ? dropEl.closest('[data-uniqueid]') as HTMLElement | null : null;
-        const dropFieldCardId = dropFieldCardEl?.getAttribute('data-uniqueid') || null;
-
-        if (handCard) {
-          if (isDropOnEnemyHero) {
-            if (handCard.type === 'spell') castSpell(handCard.uniqueId, 'hero', true, setAttackTargets);
-            else attack(handCard.uniqueId, 'hero', true);
-          } else if (dropFieldCardId && enemyFieldCards.some(c => c.uniqueId === dropFieldCardId)) {
-            if (handCard.type === 'spell') castSpell(handCard.uniqueId, dropFieldCardId, true, setAttackTargets);
-            else attack(handCard.uniqueId, dropFieldCardId, true);
-          } else if (dropEl && playerBattleRef.current && (playerBattleRef.current === dropEl || playerBattleRef.current.contains(dropEl))) {
-            if (preGame && coinResult !== 'deciding') {
-              setSwapIds(swapIds.includes(handCard.uniqueId) ? swapIds.filter(id => id !== handCard.uniqueId) : [...swapIds, handCard.uniqueId]);
-            } else if (handCard.type === 'spell') {
-              // spellUsageService で統一処理
-              handleSpellUsage({
-                card: handCard,
-                cardId: handCard.uniqueId,
-                isPlayer: true,
-                castSpell,
-                playCardToField,
-                initializeSelection,
-              });
-            } else if (handCard.type === 'follower') {
-              playCardToField(handCard);
-            }
-          }
-        } else if (fieldCard) {
-          if (isDropOnEnemyHero) {
-            attack(fieldCard.uniqueId, 'hero', true);
-          } else if (dropFieldCardId && enemyFieldCards.some(c => c.uniqueId === dropFieldCardId)) {
-            attack(fieldCard.uniqueId, dropFieldCardId, true);
-          }
-        }
-
-        setDraggingCard(null);
-        arrowStartPos.current = null;
-        try { document.body.style.touchAction = ''; } catch (e) {}
-        document.removeEventListener('touchmove', touchMove as EventListenerOrEventListenerObject);
-        document.removeEventListener('touchend', touchEnd as EventListenerOrEventListenerObject);
-        pd.finish();
-      };
-
-      document.addEventListener('touchmove', touchMove, { passive: false } as any);
-      document.addEventListener('touchend', touchEnd as any);
-      document.addEventListener('touchcancel', touchCancel as any);
-    };
-
-    document.addEventListener('pointerdown', onPointerDown);
-    // use passive: false so we can preventDefault on touchstart / long-press if needed
-    document.addEventListener('touchstart', onTouchStart, { passive: false } as any);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('touchstart', onTouchStart as any);
-    };
-  }, [playerHandCards, playerFieldCards, isPlayerTurn, castSpell, attack, playCardToField, preGame, coinResult, swapIds]);
-
-  // Ensure monitor and touchAction are cleared when drag state ends
-  React.useEffect(() => {
-    if (!draggingCard) {
-      stopMonitor();
-      try { document.body.style.touchAction = ''; } catch (e) {}
-    }
-  }, [draggingCard]);
-
-  // Capture global client-side errors and unhandled promise rejections and post to debug HUD
-  React.useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const handleError = (ev: ErrorEvent) => {
-      try {
-        const { message, filename, lineno, colno, error } = ev;
-        pushDebug('window.error', { message, filename, lineno, colno, stack: error?.stack });
-        console.error('Captured window.error', message, filename, lineno, colno, error);
-      } catch (e) {
-        console.error('Error in handleError', e);
-      }
-    };
-
-    const handleRejection = (ev: PromiseRejectionEvent) => {
-      try {
-        const reason = ev.reason;
-        pushDebug('unhandledrejection', { reason: String(reason), stack: (reason && (reason as any).stack) || null });
-        console.error('Captured unhandledrejection', reason);
-      } catch (e) {
-        console.error('Error in handleRejection', e);
-      }
-    };
-
-    window.addEventListener('error', handleError as EventListener);
-    window.addEventListener('unhandledrejection', handleRejection as EventListener);
-
-    return () => {
-      window.removeEventListener('error', handleError as EventListener);
-      window.removeEventListener('unhandledrejection', handleRejection as EventListener);
-    };
-  }, []);
-
-
-
-  // ターン切替時に中央モーダルを短時間表示する（UI のみ）
-  useEffect(() => {
-    if (preGame || showGameStart) {
-      setShowTurnModal(false);
-      return;
-    }
+    if (preGame || showGameStart) { setShowTurnModal(false); return; }
     setShowTurnModal(true);
     const duration = isPlayerTurn ? 2000 : 1200;
-    const t = setTimeout(() => {
-      setShowTurnModal(false);
-    }, duration);
-    return () => {
-      clearTimeout(t);
-      setShowTurnModal(false);
-    };
+    const t = setTimeout(() => setShowTurnModal(false), duration);
+    return () => { clearTimeout(t); setShowTurnModal(false); };
   }, [isPlayerTurn, turn, preGame, showGameStart, setShowTurnModal]);
 
-  // ダメージフロート表示ロジック: ヒーローとフィールドカードのHP変化を監視してフロートを追加
-  const prevPlayerHeroHp = useRef<number>(playerHeroHp);
-  const prevEnemyHeroHp = useRef<number>(enemyHeroHp);
-  const prevFieldHp = useRef<{ [id: string]: number }>({});
-
+  // --- Mulligan timer ---
   useEffect(() => {
-    // ヒーローダメージ
-    if (playerHeroHp < prevPlayerHeroHp.current && playerHeroRef.current) {
-      const rect = playerHeroRef.current.getBoundingClientRect();
-      const x = rect.left + rect.width / 2;
-      const y = rect.top + rect.height / 2;
-      const amount = prevPlayerHeroHp.current - playerHeroHp;
-      setDamageFloats([...damageFloats, { id: `playerHero-${Date.now()}`, target: 'playerHero', amount, x, y }]);
-    }
-    if (enemyHeroRef.current && enemyHeroHp < prevEnemyHeroHp.current) {
-      const rect = enemyHeroRef.current.getBoundingClientRect();
-      const x = rect.left + rect.width / 2;
-      const y = rect.top + rect.height / 2;
-      const amount = prevEnemyHeroHp.current - enemyHeroHp;
-      setDamageFloats([...damageFloats, { id: `enemyHero-${Date.now()}`, target: 'enemyHero', amount, x, y }]);
-    }
-    prevPlayerHeroHp.current = playerHeroHp;
-    prevEnemyHeroHp.current = enemyHeroHp;
-
-    // フィールドカードのHP変化
-    playerFieldCards.forEach((c) => {
-      const prev = prevFieldHp.current[c.uniqueId];
-      if (prev !== undefined && c.hp !== undefined && c.hp < prev) {
-        const ref = playerFieldRefs.current[c.uniqueId];
-        if (ref) {
-          const rect = ref.getBoundingClientRect();
-          const x = rect.left + rect.width / 2;
-          const y = rect.top + rect.height / 2;
-          const amount = prev - (c.hp ?? 0);
-          setDamageFloats([...damageFloats, { id: `${c.uniqueId}-${Date.now()}`, target: c.uniqueId, amount, x, y }]);
-        }
-      }
-      prevFieldHp.current[c.uniqueId] = c.hp ?? 0;
-    });
-
-    enemyFieldCards.forEach((c) => {
-      const prev = prevFieldHp.current[c.uniqueId];
-      if (prev !== undefined && c.hp !== undefined && c.hp < prev) {
-        const ref = enemyFieldRefs.current[c.uniqueId];
-        if (ref) {
-          const rect = ref.getBoundingClientRect();
-          const x = rect.left + rect.width / 2;
-          const y = rect.top + rect.height / 2;
-          const amount = prev - (c.hp ?? 0);
-          setDamageFloats([...damageFloats, { id: `${c.uniqueId}-${Date.now()}`, target: c.uniqueId, amount, x, y }]);
-        }
-      }
-      prevFieldHp.current[c.uniqueId] = c.hp ?? 0;
-    });
-    // 削除されたカードは記録から除外
-    Object.keys(prevFieldHp.current).forEach((id) => {
-      if (!playerFieldCards.some((c) => c.uniqueId === id) && !enemyFieldCards.some((c) => c.uniqueId === id)) {
-        delete prevFieldHp.current[id];
-      }
-    });
-  }, [playerHeroHp, enemyHeroHp, playerFieldCards, enemyFieldCards, setDamageFloats, playerHeroRef, enemyHeroRef, playerFieldRefs, enemyFieldRefs]);
-
-  // Canvas 矢印描画
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const drawArrow = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      if (!draggingCard || !arrowStartPos.current) {
-        return;
-      }
-
-      console.log('drawArrow called, draggingCard:', draggingCard);
-
-      const isHandCard = playerHandCards.some(c => c.uniqueId === draggingCard);
-      const draggingCardObj = playerHandCards.find(c => c.uniqueId === draggingCard) || playerFieldCards.find(c => c.uniqueId === draggingCard);
-      const isHandSpell = isHandCard && draggingCardObj?.type === "spell";
-      const isHealSpell = isHandSpell && (draggingCardObj?.effect === "heal_single");
-      const isHasteSpell = isHandSpell && (draggingCardObj?.effect === "haste");
-      const isDamageSpell = isHandSpell && !isHealSpell && !isHasteSpell;
-      if (isHandCard && !isHandSpell) return;
-
-      const attackingCard = playerFieldCards.find(c => c.uniqueId === draggingCard && c.canAttack);
-      if (attackingCard || isHandSpell) {
-        const targets: { x: number; y: number; kind: "damage" | "heal"; id: string }[] = [];
-
-        if (isDamageSpell || attackingCard) {
-          const canTargetHero = !((attackingCard as { rushInitialTurn?: boolean })?.rushInitialTurn);
-          const hasWallGuardOnEnemy = enemyFieldCards.some((c) => (c as { wallGuard?: boolean }).wallGuard);
-
-          if (canTargetHero && !hasWallGuardOnEnemy && enemyHeroRef.current) {
-            const rect = enemyHeroRef.current.getBoundingClientRect();
-            targets.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height, kind: "damage", id: "hero" });
-          }
-
-          for (const c of enemyFieldCards) {
-            const ref = enemyFieldRefs.current[c.uniqueId];
-            if (ref) {
-              if ((c as { stealth?: boolean }).stealth) continue;
-              const rect = ref.getBoundingClientRect();
-              targets.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, kind: "damage", id: c.uniqueId });
-            }
-          }
-        }
-
-        if (isHealSpell) {
-          for (const c of playerFieldCards) {
-            const ref = playerFieldRefs.current[c.uniqueId];
-            if (ref) {
-              const rect = ref.getBoundingClientRect();
-              targets.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, kind: "heal", id: c.uniqueId });
-            }
-          }
-        }
-
-        if (isHasteSpell) {
-          for (const c of playerFieldCards) {
-            if (c.canAttack) {
-              const ref = playerFieldRefs.current[c.uniqueId];
-              if (ref) {
-                const rect = ref.getBoundingClientRect();
-                targets.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, kind: "heal", id: c.uniqueId });
-              }
-            }
-          }
-        }
-
-        const ids = targets.map(t => t.id);
-        // only update React state if the target list changed
-        const last = lastAttackTargetsRef.current;
-        let changed = false;
-        if (last.length !== ids.length) changed = true;
-        else {
-          for (let i = 0; i < ids.length; i++) {
-            if (last[i] !== ids[i]) { changed = true; break; }
-          }
-        }
-        if (changed) {
-          lastAttackTargetsRef.current = ids;
-          setAttackTargets(ids);
-        }
-
-        // ターゲットを選択
-        let target: { x: number; y: number; kind: "damage" | "heal" } | null = null;
-        if (hoverTarget.type === 'enemyHero' && targets.some(t => t.id === 'hero')) {
-          const rect = enemyHeroRef.current?.getBoundingClientRect();
-          if (rect) target = { x: rect.left + rect.width / 2, y: rect.top + rect.height, kind: "damage" };
-        } else if (hoverTarget.type === 'enemyCard' && hoverTarget.id && targets.some(t => t.id === hoverTarget.id)) {
-          const ref = enemyFieldRefs.current[hoverTarget.id];
-          if (ref) {
-            const rect = ref.getBoundingClientRect();
-            target = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, kind: "damage" };
-          }
-        } else if (hoverTarget.type === 'playerHero' && targets.some(t => t.id === 'hero')) {
-          const rect = playerHeroRef.current?.getBoundingClientRect();
-          if (rect) target = { x: rect.left + rect.width / 2, y: rect.top + rect.height, kind: "heal" };
-        } else if (hoverTarget.type === 'playerCard' && hoverTarget.id && targets.some(t => t.id === hoverTarget.id)) {
-          const ref = playerFieldRefs.current[hoverTarget.id];
-          if (ref) {
-            const rect = ref.getBoundingClientRect();
-            target = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, kind: "heal" };
-          }
-        }
-
-        if (target) {
-          const startX = arrowStartPos.current.x;
-          const startY = arrowStartPos.current.y;
-          const endX = target.x;
-          const endY = target.y;
-          const distance = Math.sqrt((endX - startX) ** 2 + (endY - startY) ** 2);
-          const currentLength = distance * arrowProgress;
-          const ratio = Math.min(currentLength / distance, 1);
-          const currentEndX = startX + (endX - startX) * ratio;
-          const currentEndY = startY + (endY - startY) * ratio;
-
-          ctx.lineWidth = 3;
-          ctx.strokeStyle = target.kind === "heal" ? "#4caf50" : "#ff5722";
-          ctx.setLineDash([5, 5]);
-          ctx.lineDashOffset = -arrowProgress * 20;
-          ctx.beginPath();
-          ctx.moveTo(startX, startY);
-          ctx.lineTo(currentEndX, currentEndY);
-          ctx.stroke();
-
-          // 矢印の頭
-          if (ratio >= 1) {
-            const angle = Math.atan2(endY - startY, endX - startX);
-            const arrowLength = 10;
-            ctx.beginPath();
-            ctx.moveTo(currentEndX, currentEndY);
-            ctx.lineTo(
-              currentEndX - arrowLength * Math.cos(angle - Math.PI / 6),
-              currentEndY - arrowLength * Math.sin(angle - Math.PI / 6)
-            );
-            ctx.moveTo(currentEndX, currentEndY);
-            ctx.lineTo(
-              currentEndX - arrowLength * Math.cos(angle + Math.PI / 6),
-              currentEndY - arrowLength * Math.sin(angle + Math.PI / 6)
-            );
-            ctx.stroke();
-          }
-        }
-      }
-    };
-
-    let id: number;
-    const tick = () => {
-      drawArrow();
-      id = requestAnimationFrame(tick);
-    };
-    tick();
-    return () => cancelAnimationFrame(id);
-  }, [draggingCard, dragPosition, playerFieldCards, playerHandCards, enemyFieldCards]);
-
-  // マリガンタイマー
-  useEffect(() => {
-    // coinResultが"deciding"でない（ルーレット完了後）かつshowCoinPopupがfalse（コイン結果ポップアップ消出後）＝マリガン画面表示時
     if (!preGame || coinResult === "deciding" || showCoinPopup) return;
-
     if (mulliganTimer <= 0) {
-      // タイマー終了→自動で「交換せず開始」を実行
       startMatch();
       setShowGameStart(true);
       setTimeout(() => setShowGameStart(false), 1400);
       return;
     }
-
-    const timer = setTimeout(() => {
-      setMulliganTimer(mulliganTimer - 1);
-    }, 1000);
-
+    const timer = setTimeout(() => setMulliganTimer(mulliganTimer - 1), 1000);
     return () => clearTimeout(timer);
   }, [preGame, coinResult, showCoinPopup, mulliganTimer, setMulliganTimer, startMatch, setShowGameStart]);
 
-  // 敵の移動攻撃 (movingAttack) を受け取って attackClone を生成する
-  useEffect(() => {
-    if (!movingAttack) return;
-    const { attackerId, targetId } = movingAttack;
-
-    // 攻撃元要素 (敵フィールド) と攻撃先要素 (プレイヤー側) を参照
-    const sourceEl = enemyFieldRefs.current[attackerId];
-    const targetEl = targetId === 'hero' ? playerHeroRef.current : playerFieldRefs.current[targetId];
-    if (!sourceEl || !targetEl) return;
-
-    const start = sourceEl.getBoundingClientRect();
-    const end = targetEl.getBoundingClientRect();
-
-    // カードデータを取得
-    const card = enemyFieldCards.find(c => c.uniqueId === attackerId);
-    if (!card) return;
-
-    // duration は見た目の調整
-    const duration = 700;
-
-    // setAttackClone を使って移動アニメを開始
-    setAttackClone({
-      key: `${attackerId}-${Date.now()}`,
-      start,
-      end,
-      card: {
-        name: card.name,
-        attack: card.attack,
-        hp: card.hp,
-        maxHp: card.maxHp,
-        image: (card as any).image,
-      },
-      started: false,
-      duration,
-    });
-
-    // トランジション開始を次のtickで実行して transform をアニメーションさせる
-    const t1 = setTimeout(() => {
-      setAttackClone((prev: any) => prev ? { ...prev, started: true } : prev);
-    }, 50);
-
-    // 即時ダメージフロートを出す（攻撃と同時に視認できるように）
-    try {
-      const dmg = card.attack ?? 0;
-      const targetRect = end;
-      const x = targetRect.left + targetRect.width / 2;
-      const y = targetRect.top + targetRect.height / 2;
-      // setDamageFloats は props で渡されるので既存の配列に新しいフロートを追加
-      setDamageFloats([...damageFloats, { id: `attack-${Date.now()}`, target: targetId === 'hero' ? 'playerHero' : (targetId as string), amount: dmg, x, y }]);
-    } catch (e) {
-      console.warn('[GameField] failed to show immediate damage float', e);
-    }
-
-    // 終了後にクリーンアップ
-    const t2 = setTimeout(() => {
-      setAttackClone(null);
-    }, duration + 120);
-
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-      setAttackClone(null);
-    };
-  }, [movingAttack, enemyFieldRefs, playerFieldRefs, playerHeroRef, enemyFieldCards, setAttackClone]);
-
-  const isLocal = process.env.NODE_ENV !== 'production';
-  const basePath = process.env.NODE_ENV === 'production' ? '/Game' : '';
+  // --- Video playback rate ---
   const videoRef = useRef<HTMLVideoElement | null>(null);
-
   useEffect(() => {
-    if (videoRef.current) {
-      videoRef.current.playbackRate = 0.75; // 再生速度を0.75倍に設定
-    }
+    if (videoRef.current) videoRef.current.playbackRate = 0.75;
   }, []);
 
+  const isLocal = process.env.NODE_ENV !== "production";
+  const basePath = process.env.NODE_ENV === "production" ? "/Game" : "";
 
-    const isTimerActive = !preGame &&       // プリゲーム中でない
-                          !showTurnModal &&   // ターン切り替えモーダル中でない
-                          !showGameStart &&   // ゲームスタートモーダル中でない
-                          !gameOver.over;     // ゲームオーバー中でない
-
-
-  // ゲーム画面のメイン
+  // --- Render ---
   return (
     <div className={`${styles.field} ${isLocal ? styles.field_local : ""}`}>
-
       <div className={styles.field_bg}>
-        <video
-          ref={videoRef}
-          src={`${basePath}/img/field/bg.mp4`}
-          autoPlay
-          muted
-          loop
-          playsInline
-        ></video>
+        <video ref={videoRef} src={`${basePath}/img/field/bg.mp4`} autoPlay muted loop playsInline />
       </div>
 
-      {/* ダメージフロート（body に portal して viewport 座標と一致させる） */}
       {typeof document !== "undefined" && createPortal(<DamageFloater floats={damageFloats} />, document.body)}
 
-      {/* プリゲーム */}
       {preGame && (
         <PreGame
           coinResult={coinResult}
@@ -1200,30 +229,22 @@ export const GameField: React.FC<GameFieldProps> = ({
           mulliganTimer={mulliganTimer}
           swapIds={swapIds}
           onRouletteAnimEnd={() => {
-            // ルーレットアニメーション終了後、遅延を入れてから処理
             setTimeout(() => {
               const winner = Math.random() < 0.5 ? "player" : "enemy";
-              finalizeCoin(winner as "player" | "enemy");
+              finalizeCoin(winner);
               setRouletteRunning(false);
-              // コイン結果をポップアップで表示
               setShowCoinPopup(true);
-              // 2秒後にコイン結果を消してマリガン画面に遷移
-              setTimeout(() => {
-                setShowCoinPopup(false);
-              }, 2000);
+              setTimeout(() => setShowCoinPopup(false), 2000);
             }, 100);
           }}
           onSwapToggle={(cardId: string) => {
-            setSwapIds(swapIds.includes(cardId) ? swapIds.filter(id => id !== cardId) : [...swapIds, cardId]);
+            setSwapIds(swapIds.includes(cardId) ? swapIds.filter((id) => id !== cardId) : [...swapIds, cardId]);
           }}
           onMulliganSubmit={() => {
-            // マリガン実行
-            const keep = playerHandCards.filter(c => !swapIds.includes(c.uniqueId)).map(c => c.uniqueId);
-            // Call doMulligan first, then immediately clear swapIds to batch state updates
+            const keep = playerHandCards.filter((c) => !swapIds.includes(c.uniqueId)).map((c) => c.uniqueId);
             doMulligan(keep);
             setSwapIds([]);
             setShowCoinPopup(false);
-            // Use a longer delay and double rAF to ensure React has flushed all state updates to DOM
             setTimeout(() => {
               requestAnimationFrame(() => {
                 requestAnimationFrame(() => {
@@ -1244,137 +265,91 @@ export const GameField: React.FC<GameFieldProps> = ({
         />
       )}
 
-      {/* Canvas 矢印 */}
       <canvas ref={canvasRef} style={{ position: "fixed", left: 0, top: 0, pointerEvents: "none", zIndex: 900 }} />
 
-      {/* ドラッグ中のカード表示 */}
-      {draggingCard && (() => {
-        const card = playerHandCards.find(c => c.uniqueId === draggingCard) || playerFieldCards.find(c => c.uniqueId === draggingCard);
-        if (!card) return null;
+      {/* Drag clone */}
+      {draggingCard &&
+        (() => {
+          const card = playerHandCards.find((c) => c.uniqueId === draggingCard) || playerFieldCards.find((c) => c.uniqueId === draggingCard);
+          if (!card) return null;
+          const cardWidth = 70;
+          const cardHeight = 100;
+          const s = viewport?.scale ?? 1;
+          const displayW = Math.max(28, Math.round(cardWidth * s));
+          const displayH = Math.max(40, Math.round(cardHeight * s));
+          return createPortal(
+            <div
+              style={{
+                position: "fixed", left: dragPosition.x, top: dragPosition.y,
+                width: displayW, height: displayH, zIndex: 1600,
+                pointerEvents: "none", opacity: 0.98,
+                transform: "scale(1.12)", transition: "transform 120ms ease",
+              }}
+              data-drag-id={draggingCard}
+              className={styles.drag_clone}
+            >
+              <CardItem
+                {...card}
+                hp={card.hp ?? 0} maxHp={card.maxHp ?? 0} attack={card.attack ?? 0}
+                className={styles.drag_clone_card}
+                style={{ width: displayW, height: displayH, paddingTop: 0 }}
+              />
+            </div>,
+            document.body
+          );
+        })()}
 
-        const cardWidth = 70;
-        const cardHeight = 100;
-
-        // scale the drag preview to match viewport scale so it aligns visually with scaled content
-          let s = viewport && viewport.scale ? viewport.scale : 1;
-        const displayW = Math.max(28, Math.round(cardWidth * s));
-        const displayH = Math.max(40, Math.round(cardHeight * s));
-
-        const clone = (
-          <div
-            style={{
-              position: 'fixed',
-              left: dragPosition.x,
-              top: dragPosition.y,
-              width: displayW,
-              height: displayH,
-              zIndex: 1600,
-              pointerEvents: 'none',
-              opacity: 0.98,
-              transform: 'scale(1.12)',
-              transition: 'transform 120ms ease',
-            }}
-            data-drag-id={draggingCard}
-            className={styles.drag_clone}
-          >
-            <CardItem
-              {...card}
-              hp={card.hp ?? 0}
-              maxHp={card.maxHp ?? 0}
-              attack={card.attack ?? 0}
-              className={styles.drag_clone_card}
-              style={{ width: displayW, height: displayH, paddingTop: 0 }}
-            />
-          </div>
-        );
-
-        const portal = createPortal(clone, document.body);
-        if (DEBUG && typeof window !== 'undefined') {
-          // schedule after render to avoid setState during render
-          window.requestAnimationFrame(() => pushDebug('render clone', { id: draggingCard, pos: dragPosition }));
-        }
-        return portal;
-      })()}
-
-      {/* Debug HUD (visible when __GAME_DRAG_DEBUG__ = true) */}
-      {/* Debug toggle (visible always, toggles global flag) */}
-      <div style={{ position: 'fixed', left: 6, bottom: 6, zIndex: 99999, fontSize: 12, color: '#fff', pointerEvents: 'auto' }}>
-        <button onClick={() => { const current = (window as any).__GAME_DRAG_DEBUG__ === true; (window as any).__GAME_DRAG_DEBUG__ = !current; pushDebug(`debug ${(current ? 'disabled' : 'enabled')} via UI`, {}); }} style={{ padding: '6px 8px', borderRadius: 6, background: 'rgba(0,0,0,0.6)', color: '#fff', border: '1px solid rgba(255,255,255,0.08)' }}>🐞</button>
+      {/* Menu buttons */}
+      <div style={{ position: "fixed", top: 12, right: 12, zIndex: 1200, display: "flex", gap: 8 }}>
+        <button onClick={() => resetGame("cpu")}>リスタート</button>
+        <button onClick={() => resetGame("cpu")}>リタイア</button>
       </div>
 
-      {/* Debug HUD (visible when __GAME_DRAG_DEBUG__ = true) */}
-      {(typeof window !== 'undefined' && (window as any).__GAME_DRAG_DEBUG__ === true) && (
-        <div style={{ position: 'fixed', left: 6, bottom: 48, zIndex: 99999, fontSize: 11, color: '#fff', background: 'rgba(0,0,0,0.6)', padding: 6, borderRadius: 6, maxWidth: 360, maxHeight: 220, overflow: 'auto', pointerEvents: 'none' }}>
-          <div style={{ fontSize: 12, fontWeight: 'bold', marginBottom: 4, opacity: 0.9 }}>drag-debug</div>
-          {debugEvents.map((ev, i) => (
-            <div key={ev.t + '-' + i} style={{ opacity: 0.95, marginBottom: 3 }}>
-              <div style={{ fontSize: 10, opacity: 0.7 }}>{new Date(ev.t).toLocaleTimeString()}</div>
-              <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.text} {ev.data ? JSON.stringify(ev.data) : ''}</div>
-            </div>
-          ))}
-        </div>
-      )}
+      {/* AI attack clone portal */}
+      {typeof document !== "undefined" &&
+        attackClone &&
+        createPortal(
+          (() => {
+            const { start, end, card, started, duration } = attackClone;
+            const deltaX = end.left - start.left;
+            const deltaY = end.top - start.top;
+            const baseStyle: React.CSSProperties = {
+              position: "fixed", left: start.left, top: start.top,
+              width: start.width, height: start.height,
+              transform: started ? `translate(${deltaX}px, ${deltaY}px)` : "translate(0px, 0px)",
+              transition: `transform ${duration}ms ease, opacity ${Math.max(200, duration / 3)}ms ease`,
+              zIndex: 980, pointerEvents: "none", opacity: started ? 0.95 : 1,
+            };
+            return (
+              <div style={baseStyle} className={styles.card}>
+                {card.image && <Image src={card.image} alt={card.name} width={100} height={100} priority unoptimized />}
+                <div className={styles.card_hp}><p>{Math.min(card.hp ?? 0, card.maxHp ?? 0)}</p></div>
+                <div className={styles.card_attack}><p>{card.attack ?? 0}</p></div>
+              </div>
+            );
+          })(),
+          document.body
+        )}
 
-      {/* メニューボタン */}
-      <div style={{ position: 'fixed', top: 12, right: 12, zIndex: 1200, display: 'flex', gap: 8 }}>
-        <button onClick={() => { resetGame('cpu'); }}>リスタート</button>
-        <button onClick={() => { resetGame('cpu'); }}>リタイア</button>
-      </div>
-
-      {/* AI攻撃アニメーション（body に portal して viewport 座標で表示） */}
-      {typeof document !== "undefined" && attackClone && createPortal((() => {
-        const { start, end, card, started, duration } = attackClone;
-        const deltaX = end.left - start.left;
-        const deltaY = end.top - start.top;
-        const baseStyle: React.CSSProperties = {
-          position: "fixed",
-          left: start.left,
-          top: start.top,
-          width: start.width,
-          height: start.height,
-          transform: started ? `translate(${deltaX}px, ${deltaY}px)` : "translate(0px, 0px)",
-          transition: `transform ${duration}ms ease, opacity ${Math.max(200, duration / 3)}ms ease`,
-          zIndex: 980,
-          pointerEvents: "none",
-          opacity: started ? 0.95 : 1,
-        };
-        return (
-          <div style={baseStyle} className={styles.card}>
-            {card.image && (
-                <Image
-                  src={card.image}
-                  alt={card.name}
-                  width={100}
-                  height={100}
-                  priority
-                  unoptimized
-                />
-              )}
-            <div className={styles.card_hp}><p>{Math.min(card.hp ?? 0, card.maxHp ?? 0)}</p></div>
-            <div className={styles.card_attack}><p>{card.attack ?? 0}</p></div>
-          </div>
-        );
-      })(), document.body)}
-
-      {/* ターンモーダル */}
+      {/* Turn modal */}
       {showTurnModal && (
-        <div style={{ position: 'fixed', left: 0, top: 0, right: 0, bottom: 0, zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: 'rgba(0,0,0,0.85)', color: '#fff', padding: 20, borderRadius: 12 }}>
+        <div style={{ position: "fixed", left: 0, top: 0, right: 0, bottom: 0, zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: "rgba(0,0,0,0.85)", color: "#fff", padding: 20, borderRadius: 12 }}>
             <h1 style={{ fontSize: 45, margin: 0 }}>{isPlayerTurn ? "Your Turn" : "Enemy Turn"}</h1>
           </div>
         </div>
       )}
 
-      {/* GameStart 表示 */}
+      {/* GameStart overlay */}
       {showGameStart && (
-        <div style={{ position: 'fixed', left: 0, top: 0, right: 0, bottom: 0, zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ background: 'rgba(0,0,0,0.85)', color: '#fff', padding: 40, borderRadius: 12 }}>
+        <div style={{ position: "fixed", left: 0, top: 0, right: 0, bottom: 0, zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: "rgba(0,0,0,0.85)", color: "#fff", padding: 40, borderRadius: 12 }}>
             <h1 style={{ fontSize: 72, margin: 0 }}>GameStart</h1>
           </div>
         </div>
       )}
 
-      {/* 敵エリア */}
+      {/* Enemy area */}
       <EnemyArea
         enemyHeroHp={enemyHeroHp}
         enemyHandCards={preGame ? [] : enemyHandCards}
@@ -1410,13 +385,8 @@ export const GameField: React.FC<GameFieldProps> = ({
           setDraggingCard(null);
           arrowStartPos.current = null;
           dragOffsetRef.current = { x: 0, y: 0 };
-
-          // visual feedback for drop success
-          if (targetId === 'hero') {
-            setDropSuccess({ type: 'enemyHero' });
-          } else {
-            setDropSuccess({ type: 'enemyCard', id: targetId });
-          }
+          if (targetId === "hero") setDropSuccess({ type: "enemyHero" });
+          else setDropSuccess({ type: "enemyCard", id: targetId });
           setAttackTargets([]);
           setTimeout(() => setDropSuccess({ type: null }), 500);
         }}
@@ -1431,7 +401,7 @@ export const GameField: React.FC<GameFieldProps> = ({
         applySelection={applySelection}
       />
 
-      {/* プレイヤーエリア */}
+      {/* Player area */}
       <PlayerArea
         playerHeroHp={playerHeroHp}
         playerHandCards={preGame ? [] : playerHandCards}
@@ -1462,21 +432,15 @@ export const GameField: React.FC<GameFieldProps> = ({
           if (!isPlayerTurn) return;
           setArrowProgress(0);
           try {
-            // Suppress browser drag ghost and ensure the drag carries an identifier
-            e.dataTransfer?.setData('text/plain', card.uniqueId);
+            e.dataTransfer?.setData("text/plain", card.uniqueId);
             e.dataTransfer?.setDragImage(new window.Image(), 0, 0);
-          } catch (err) { /* ignore for browsers that restrict dataTransfer */ }
-
+          } catch {}
           const rect = e.currentTarget.getBoundingClientRect();
-          const startCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-          // store pointer offset relative to top-left so the grabbed point stays under pointer
           const offset = { x: (e as any).clientX - rect.left, y: (e as any).clientY - rect.top };
-          (dragOffsetRef as any).current = offset;
+          dragOffsetRef.current = offset;
           setDraggingCard(card.uniqueId);
-          arrowStartPos.current = startCenter;
+          arrowStartPos.current = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
           setDragPosition({ x: (e as any).clientX - offset.x, y: (e as any).clientY - offset.y });
-          const d = clientToDesign((e as any).clientX, (e as any).clientY);
-          if (d) dragDesignRef.current = d;
         }}
         onDragEnd={() => {
           setDraggingCard(null);
@@ -1507,58 +471,36 @@ export const GameField: React.FC<GameFieldProps> = ({
           const card = playerHandCards.find((c) => c.uniqueId === draggingCard);
           if (!card) return;
 
-          // ゲーム前（マリガン）の処理
-          if (preGame && coinResult !== 'deciding') {
-            setSwapIds(swapIds.includes(card.uniqueId) ? swapIds.filter(id => id !== card.uniqueId) : [...swapIds, card.uniqueId]);
+          if (preGame && coinResult !== "deciding") {
+            setSwapIds(swapIds.includes(card.uniqueId) ? swapIds.filter((id) => id !== card.uniqueId) : [...swapIds, card.uniqueId]);
             setDraggingCard(null);
             arrowStartPos.current = null;
             dragOffsetRef.current = { x: 0, y: 0 };
             return;
           }
 
-          // スペルの処理
           if (card.type === "spell") {
             const usageType = (card as any).usageType;
             if (usageType === "cast_spell_select_target" || usageType === "cast_spell_select_hand") {
-              // 選択型スペル：選択画面を開く
               const selectableTargets = (card as any).selectableTargets || (usageType === "cast_spell_select_target" ? ["hero", "field_card"] : ["hand_card"]);
               const selectCount = (card as any).selectCount || 1;
               initializeSelection({
-                sourceCardId: draggingCard,
-                selectableTargets,
-                selectCount,
-                onComplete: (selectedIds: string[]) => {
-                  if (selectedIds.length > 0) {
-                    castSpell(draggingCard, selectedIds[0] as string | "hero", true);
-                  }
-                },
-                onCancel: () => {
-                  // キャンセル処理
-                },
+                sourceCardId: draggingCard, selectableTargets, selectCount,
+                onComplete: (selectedIds: string[]) => { if (selectedIds.length > 0) castSpell(draggingCard, selectedIds[0], true); },
+                onCancel: () => {},
               });
             } else {
-              // 自動型スペル
               castSpell(draggingCard, "hero", true);
             }
           } else if (card.type === "follower") {
-            // フォロワーの処理
             const summonSelectableTargets = (card as any).summonSelectableTargets;
-            if (summonSelectableTargets && summonSelectableTargets.length > 0) {
-              // 選択型フォロワー（例：裏取引の商人）：選択画面を開く
+            if (summonSelectableTargets?.length > 0) {
               initializeSelection({
-                sourceCardId: draggingCard,
-                selectableTargets: summonSelectableTargets,
-                selectCount: 1,  // TODO: カード定義で selectCount を指定可能にする必要があるかも
-                onComplete: (selectedIds: string[]) => {
-                  // 選択完了後、フォロワーを場に出す
-                  playCardToField(card);
-                },
-                onCancel: () => {
-                  // キャンセル処理
-                },
+                sourceCardId: draggingCard, selectableTargets: summonSelectableTargets, selectCount: 1,
+                onComplete: () => playCardToField(card),
+                onCancel: () => {},
               });
             } else {
-              // 通常フォロワー：直接フィールドに配置
               playCardToField(card);
             }
           }
@@ -1569,7 +511,7 @@ export const GameField: React.FC<GameFieldProps> = ({
         }}
         onCardClick={(cardId: string) => setDescCardId(descCardId === cardId ? null : cardId)}
         onCardSwap={(cardId: string) => {
-          setSwapIds(swapIds.includes(cardId) ? swapIds.filter(id => id !== cardId) : [...swapIds, cardId]);
+          setSwapIds(swapIds.includes(cardId) ? swapIds.filter((id) => id !== cardId) : [...swapIds, cardId]);
         }}
         castSpell={castSpell}
         playCardToField={playCardToField}
@@ -1590,19 +532,13 @@ export const GameField: React.FC<GameFieldProps> = ({
         applySelection={applySelection}
       />
 
-      {/* ターンエンドボタン */}
+      {/* Turn End button */}
       <div className={styles.field_turn_wrapper}>
         <div className={styles.field_turn}>
           <button
             onClick={() => endTurn()}
-            disabled={
-              !isPlayerTurn || 
-              aiRunning || 
-              preGame ||           
-              showGameStart        
-            }
-            // 緊迫状態のクラスを適用
-            className={isTimeCritical ? styles.field_turn_end_critical : ''} // <--- ここを修正
+            disabled={!isPlayerTurn || aiRunning || preGame || showGameStart}
+            className={isTimeCritical ? styles.field_turn_end_critical : ""}
             title={
               preGame ? "ゲーム開始前です" :
               showTurnModal ? "ターン切替処理中です" :
@@ -1614,10 +550,12 @@ export const GameField: React.FC<GameFieldProps> = ({
         </div>
       </div>
 
-      {/* ゲーム終了 */}
+      <Toast toasts={toasts} />
+
       {gameOver.over && (
         <GameOver
           winner={gameOver.winner}
+          turn={turn}
           onRestart={() => resetGame("cpu")}
           onMenu={() => {}}
         />

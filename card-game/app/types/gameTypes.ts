@@ -54,3 +54,57 @@ export interface EnemySpellAnimation {
   targetId: string | "hero";
   effect: string;
 }
+
+// ---------------------------------------------------------------------------
+// enemyAI に渡すコンテキスト（25+個の引数を1つにまとめる）
+// ---------------------------------------------------------------------------
+export interface AIGameContext {
+  // 敵側 state
+  enemyDeck: Card[];
+  enemyHandCards: Card[];
+  enemyGraveyard: Card[];
+  enemyFieldCards: RuntimeCard[];
+  enemyCurrentMana: number;
+  enemyHeroHp: number;
+
+  // プレイヤー側 state (AI が参照する読み取り専用データ)
+  playerFieldCards: RuntimeCard[];
+  playerHeroHp: number;
+  playerHandCards: Card[];
+  playerGraveyard: Card[];
+
+  // 敵側 setter
+  setEnemyDeck: React.Dispatch<React.SetStateAction<Card[]>>;
+  setEnemyHandCards: React.Dispatch<React.SetStateAction<Card[]>>;
+  setEnemyFieldCards: React.Dispatch<React.SetStateAction<RuntimeCard[]>>;
+  setEnemyCurrentMana: React.Dispatch<React.SetStateAction<number>>;
+  setEnemyHeroHp: React.Dispatch<React.SetStateAction<number>>;
+  setEnemyGraveyard: React.Dispatch<React.SetStateAction<Card[]>>;
+
+  // プレイヤー側 setter
+  setPlayerHandCards: React.Dispatch<React.SetStateAction<Card[]>>;
+  setPlayerFieldCards: React.Dispatch<React.SetStateAction<RuntimeCard[]>>;
+  setPlayerHeroHp: React.Dispatch<React.SetStateAction<number>>;
+  setPlayerGraveyard: React.Dispatch<React.SetStateAction<Card[]>>;
+  setPlayerDeck: React.Dispatch<React.SetStateAction<Card[]>>;
+
+  // ゲーム制御
+  setGameOver: React.Dispatch<React.SetStateAction<GameOverState>>;
+  setAiRunning: React.Dispatch<React.SetStateAction<boolean>>;
+
+  // アニメーション
+  setMovingAttack: React.Dispatch<React.SetStateAction<AttackAnimation | null>>;
+  setEnemyAttackAnimation: React.Dispatch<React.SetStateAction<EnemyAttackAnimation | null>>;
+  setEnemySpellAnimation: React.Dispatch<React.SetStateAction<EnemySpellAnimation | null>>;
+
+  // アクション
+  attack: (attackerId: string, targetId: string | "hero", isPlayerAttacker: boolean) => void;
+  endTurn: () => void;
+  stopTimer: () => void;
+  drawPlayerCard: () => void;
+  drawEnemyCard: () => void;
+  drawPlayerCards: (count: number) => void;
+  drawEnemyCards: (count: number) => void;
+  addCardToDestroying: (cardIds: string[]) => void;
+  cancelRef: React.MutableRefObject<boolean>;
+}

@@ -8,6 +8,7 @@ import { cards } from "./data/cards";
 import { deck as initialDeck, drawInitialHand } from "./data/game";
 import { createDeck } from "./data/deck";
 import { runEnemyTurn } from "./data/enemyAI";
+import type { AIGameContext } from "./types/gameTypes";
 import { TurnTimer } from "./data/turnTimer";
 import { MAX_HAND, MAX_MANA, MAX_HERO_HP, MAX_FIELD_SIZE, TURN_DURATION_SECONDS } from "./constants/gameConstants";
 import { addCardToHand, createUniqueCard, createFieldCard } from "./services/cardService";
@@ -15,9 +16,8 @@ import { processStatusEffects } from "./services/statusEffectService";
 import { executeAttack } from "./services/attackService";
 import { applySpell } from "./services/effectService";
 import type { RuntimeCard, SelectionMode, SelectionConfig, CardUsageType } from "./types/gameTypes";
-
-// ターン開始処理の重複実行を防ぐ（React Strict Mode の二重マウント対策）
-let turnProcessedKeys = new Set<string>();
+import { useToast } from "./hooks/useToast";
+import type { ToastItem } from "./hooks/useToast";
 
 export function useGame(): {
   deck: Card[];
@@ -69,6 +69,9 @@ export function useGame(): {
   initializeSelection: (config: Omit<SelectionConfig, "selectedIds">) => void;
   applySelection: (targetIds: string[]) => void;
   cancelSelection: () => void;
+  // トースト通知
+  toasts: ToastItem[];
+  showToast: (message: string, type?: ToastItem["type"]) => void;
 } {
   // --- プレイヤー状態 ---
   const [deck, setDeck] = useState<Card[]>([...initialDeck]);
@@ -87,6 +90,11 @@ export function useGame(): {
   // --- 破壊アニメーション ---
   const [destroyingCards, setDestroyingCards] = useState<Set<string>>(new Set());
 
+  // --- ターン開始処理の重複実行を防ぐ（React Strict Mode の二重マウント対策） ---
+  const turnProcessedKeys = useRef<Set<string>>(new Set());
+
+  // --- トースト通知 ---
+  const { toasts, showToast } = useToast();
   // --- 破壊アニメーション管理 ---
   // カードが破壊される時に呼び出す。アニメーション後にフィールドから除外する場合は onAfterAnimation で setter を渡す
   const addCardToDestroying = (cardIds: string[], onAfterAnimation?: (ids: string[]) => void) => {
@@ -239,8 +247,8 @@ export function useGame(): {
   useEffect(() => {
     if (preGame) return;
     const key = `${gameSessionRef.current}-${turn}`;
-    if (turnProcessedKeys.has(key)) return;
-    turnProcessedKeys.add(key);
+    if (turnProcessedKeys.current.has(key)) return;
+    turnProcessedKeys.current.add(key);
 
     // --- 状態効果の処理（ターンごとに毒ダメージや凍結のデクリメントを行う） ---
     setPlayerFieldCards((prev) => {
@@ -468,27 +476,28 @@ export function useGame(): {
         // ターンが変わっていたらキャンセル
         if (turn !== scheduledTurn) return;
         if (!aiRunning) {
-          runEnemyTurn(
-            enemyDeckRef.current,
+          const aiCtx: AIGameContext = {
+            enemyDeck: enemyDeckRef.current,
+            enemyHandCards: enemyHandCardsRef.current,
+            enemyGraveyard: enemyGraveyardRef.current,
+            enemyFieldCards: enemyFieldCardsRef.current,
+            enemyCurrentMana: enemyCurrentManaRef.current,
+            enemyHeroHp: enemyHeroHpRef.current,
+            playerFieldCards: playerFieldCardsRef.current,
+            playerHeroHp: playerHeroHpRef.current,
+            playerHandCards: playerHandCardsRef.current,
+            playerGraveyard: playerGraveyardRef.current,
             setEnemyDeck,
-            enemyHandCardsRef.current,
-            enemyGraveyardRef.current,
             setEnemyHandCards,
-            enemyFieldCardsRef.current,
             setEnemyFieldCards,
-            enemyCurrentManaRef.current,
             setEnemyCurrentMana,
-            enemyHeroHpRef.current,
             setEnemyHeroHp,
-            playerFieldCardsRef.current,
-            playerHeroHpRef.current,
-            playerHandCardsRef.current,
+            setEnemyGraveyard,
             setPlayerHandCards,
-            playerGraveyardRef.current,
-            setPlayerHeroHp,
-            setDeck,
             setPlayerFieldCards,
+            setPlayerHeroHp,
             setPlayerGraveyard,
+            setPlayerDeck: setDeck,
             setGameOver,
             setAiRunning,
             setMovingAttack,
@@ -496,15 +505,15 @@ export function useGame(): {
             setEnemySpellAnimation,
             attack,
             endTurn,
-            () => { enemyTurnTimerRef.current?.stop(); },
-            setEnemyGraveyard,
+            stopTimer: () => { enemyTurnTimerRef.current?.stop(); },
             drawPlayerCard,
             drawEnemyCard,
             drawPlayerCards,
             drawEnemyCards,
             addCardToDestroying,
-            aiCancelRef
-          );
+            cancelRef: aiCancelRef,
+          };
+          runEnemyTurn(aiCtx);
         }
       }, 1000);
     }
@@ -529,7 +538,7 @@ export function useGame(): {
     enemyGraveyardRef.current = enemyGraveyard;
     playerHandCardsRef.current = playerHandCards;
     playerGraveyardRef.current = playerGraveyard;
-  }, [enemyHandCards]);
+  }, [enemyHandCards, enemyDeck, enemyGraveyard, playerHandCards, playerGraveyard]);
   useEffect(() => {
     enemyCurrentManaRef.current = enemyCurrentMana;
   }, [enemyCurrentMana]);
@@ -551,19 +560,35 @@ export function useGame(): {
     console.debug("[Game] gameOver -> cleared timers and cancelled AI");
   }, [gameOver]);
 
-  // --- ドロー ---
+  // --- ドロー（setter 内で最新 state を参照し、stale closure を回避） ---
   const drawPlayerCard = () => {
-    if (deck.length === 0) return;
-    const card = createUniqueCard(deck[0]);
-    setDeck((prev) => prev.slice(1));
-    addCardToHand(card, playerHandCards, setPlayerHandCards, playerGraveyard, setPlayerGraveyard);
+    setDeck((prev) => {
+      if (prev.length === 0) return prev;
+      const card = createUniqueCard(prev[0]);
+      setPlayerHandCards((h) => {
+        if (h.length >= MAX_HAND) {
+          setPlayerGraveyard((g) => [...g, card]);
+          return h;
+        }
+        return [...h, card];
+      });
+      return prev.slice(1);
+    });
   };
 
   const drawEnemyCard = () => {
-    if (enemyDeck.length === 0) return;
-    const card = createUniqueCard(enemyDeck[0]);
-    setEnemyDeck((prev) => prev.slice(1));
-    addCardToHand(card, enemyHandCards, setEnemyHandCards, enemyGraveyard, setEnemyGraveyard);
+    setEnemyDeck((prev) => {
+      if (prev.length === 0) return prev;
+      const card = createUniqueCard(prev[0]);
+      setEnemyHandCards((h) => {
+        if (h.length >= MAX_HAND) {
+          setEnemyGraveyard((g) => [...g, card]);
+          return h;
+        }
+        return [...h, card];
+      });
+      return prev.slice(1);
+    });
   };
 
   const drawPlayerCards = (count: number) => {
@@ -655,7 +680,7 @@ export function useGame(): {
     initialTurnRef.current = true;
     lastRoundIncreasedRef.current = null;
     gameSessionRef.current += 1;
-    turnProcessedKeys.clear();
+    turnProcessedKeys.current.clear();
     lastTurnDrawnRef.current = null;
     drewCardForTurnRef.current = null;
   };
@@ -720,18 +745,18 @@ export function useGame(): {
   const playCardToField = (card: Card) => {
     // スペルはフィールドに出せない（ターゲットへドラッグして使用する仕様）
     if (card.type === "spell") {
-      console.log("スペルはフィールドに出せません。ターゲットにドロップして使用してください。");
+      showToast("スペルはフィールドに出せません。ターゲットにドロップして使用してください。");
       return;
     }
 
     // フィールドには最大5体まで
     if (playerFieldCards.length >= MAX_FIELD_SIZE) {
-      console.log("フィールドは最大5体までです。");
+      showToast("フィールドは最大5体までです。");
       return;
     }
 
     if (card.cost > currentMana) {
-      console.log("マナが足りません！");
+      showToast("マナが足りません！");
       return;
     }
     setCurrentMana((m) => m - card.cost);
@@ -859,7 +884,7 @@ export function useGame(): {
     // マナチェック
     const currentManaToUse = isPlayer ? currentMana : enemyCurrentMana;
     if (card.cost > currentManaToUse) {
-      console.log("マナが足りません（spell）");
+      if (isPlayer) showToast("マナが足りません（spell）");
       return;
     }
 
@@ -870,9 +895,10 @@ export function useGame(): {
       setEnemyCurrentMana((m) => m - card.cost);
     }
 
+    // ref から最新の state を渡して stale closure を回避
     applySpell(card, targetId, isPlayer, {
-      playerFieldCards,
-      enemyFieldCards,
+      playerFieldCards: playerFieldCardsRef.current,
+      enemyFieldCards: enemyFieldCardsRef.current,
       setPlayerFieldCards,
       setEnemyFieldCards,
       setPlayerHeroHp,
@@ -885,78 +911,22 @@ export function useGame(): {
       },
       setAiRunning,
       addCardToDestroying,
-      playerHandCards,
-      enemyHandCards,
+      playerHandCards: playerHandCardsRef.current,
+      enemyHandCards: enemyHandCardsRef.current,
       setPlayerHandCards,
       setEnemyHandCards,
-      playerGraveyard,
-      enemyGraveyard,
+      playerGraveyard: playerGraveyardRef.current,
+      enemyGraveyard: enemyGraveyardRef.current,
       setDeck,
       setEnemyDeck,
       currentMana,
       setCurrentMana,
       enemyCurrentMana,
       setEnemyCurrentMana,
-      drawPlayerCard: () => {
-        // プレイヤー側のシングルドロー処理
-        setDeck((prev) => {
-          if (prev.length === 0) return prev;
-          const drawnCard = { ...prev[0], uniqueId: crypto.randomUUID() };
-          setPlayerHandCards((h) => (h.length < MAX_HAND ? [...h, drawnCard] : h));
-          return prev.slice(1);
-        });
-      },
-      drawEnemyCard: () => {
-        // 敵側のシングルドロー処理
-        setEnemyDeck((prev) => {
-          if (prev.length === 0) return prev;
-          const drawnCard = { ...prev[0], uniqueId: crypto.randomUUID() };
-          setEnemyHandCards((h) => (h.length < MAX_HAND ? [...h, drawnCard] : h));
-          return prev.slice(1);
-        });
-      },
-      drawPlayerCards: (count: number) => {
-        // プレイヤー側の複数ドロー処理（ループ内での複数setState回避）
-        setDeck((prev) => {
-          const cards: Card[] = [];
-          let remaining = [...prev];
-          for (let i = 0; i < count && remaining.length > 0; i++) {
-            cards.push({ ...remaining[0], uniqueId: crypto.randomUUID() });
-            remaining = remaining.slice(1);
-          }
-          setPlayerHandCards((h) => {
-            const newHand = [...h];
-            for (const card of cards) {
-              if (newHand.length < MAX_HAND) {
-                newHand.push(card);
-              }
-            }
-            return newHand;
-          });
-          return remaining;
-        });
-      },
-      drawEnemyCards: (count: number) => {
-        // 敵側の複数ドロー処理（ループ内での複数setState回避）
-        setEnemyDeck((prev) => {
-          const cards: Card[] = [];
-          let remaining = [...prev];
-          for (let i = 0; i < count && remaining.length > 0; i++) {
-            cards.push({ ...remaining[0], uniqueId: crypto.randomUUID() });
-            remaining = remaining.slice(1);
-          }
-          setEnemyHandCards((h) => {
-            const newHand = [...h];
-            for (const card of cards) {
-              if (newHand.length < MAX_HAND) {
-                newHand.push(card);
-              }
-            }
-            return newHand;
-          });
-          return remaining;
-        });
-      },
+      drawPlayerCard,
+      drawEnemyCard,
+      drawPlayerCards,
+      drawEnemyCards,
     });
 
     // 手札から除去して墓地へ
@@ -1026,6 +996,9 @@ export function useGame(): {
     initializeSelection,
     applySelection,
     cancelSelection,
+    // トースト通知
+    toasts,
+    showToast,
   };
 }
 

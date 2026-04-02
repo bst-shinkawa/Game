@@ -6,14 +6,13 @@ import { createDeck } from "./deck";
 export const deck: Card[] = createDeck("king");
 
 // 初期手札を引く関数（修正版：使用したデッキも返す）
+// デッキは既にシャッフル済みのため、先頭から引く
 export function drawInitialHand(deck: Card[], count: number): { hand: Card[]; remaining: Card[] } {
   const deckCopy = [...deck];
   const hand: Card[] = [];
   for (let i = 0; i < count; i++) {
     if (!deckCopy.length) break;
-    hand.push(deckCopy.splice(Math.floor(Math.random() * deckCopy.length), 1)[0]);
+    hand.push(deckCopy.splice(0, 1)[0]);
   }
   return { hand, remaining: deckCopy };
 }
-
-export const MAX_MANA = 10;

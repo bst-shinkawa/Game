@@ -8,6 +8,7 @@ import { cards } from "../data/cards";
 import { addCardToHand, createFieldCard } from "./cardService";
 import { MAX_FIELD_SIZE, MAX_HAND } from "../constants/gameConstants";
 import type { SpellContext } from "./spellService"; // reuse existing context
+import { castSpell as spellServiceCastSpell } from "./spellService"; // 静的インポート（動的import()を廃止）
 
 // -----------------------------------------------------------------------------
 // contextual types used by both play and spell handling
@@ -90,10 +91,10 @@ export function applySpell(
     drawEnemyCard,
   } = context;
 
-  // apply base effect
-  // note: spellService.castSpell is imported dynamically to avoid cyclic deps
-  import("./spellService").then((svc) => {
-    svc.castSpell(card, targetId, isPlayer, context);
+  // apply base effect（静的インポートにより同期的に実行）
+  spellServiceCastSpell(card, targetId, isPlayer, context);
+
+  {
 
     // additional "custom" effects that are easier to handle here
     switch (card.effect) {
@@ -128,25 +129,13 @@ export function applySpell(
         break;
       }
       case "return_to_deck": {
+        // window.prompt を廃止し、ランダム選択に統一
+        // （敵の手札内容をプレイヤーに公開しないためセキュリティ改善）
         const count = card.effectValue ?? 1;
         for (let i = 0; i < count; i++) {
           if (isPlayer) {
             if (enemyHandCards.length > 0) {
-              let idx: number;
-              if (typeof window !== 'undefined') {
-                const choice = window.prompt(
-                  `敵の手札から戻すカード番号を選んでください\n` +
-                    enemyHandCards.map((c, j: number) => `${j}: ${c.name}`).join("\n")
-                );
-                const parsed = parseInt(choice || "", 10);
-                if (!isNaN(parsed) && parsed >= 0 && parsed < enemyHandCards.length) {
-                  idx = parsed;
-                } else {
-                  idx = Math.floor(Math.random() * enemyHandCards.length);
-                }
-              } else {
-                idx = Math.floor(Math.random() * enemyHandCards.length);
-              }
+              const idx = Math.floor(Math.random() * enemyHandCards.length);
               const c = enemyHandCards[idx];
               setEnemyHandCards((h: Card[]) => h.filter((_, j: number) => j !== idx));
               setEnemyDeck((d: Card[]) => [...d, c]);
@@ -277,7 +266,7 @@ export function applySpell(
       }
     }
 
-  });
+  }
 }
 
 /**
