@@ -11,10 +11,11 @@ import { runEnemyTurn } from "./data/enemyAI";
 import type { AIGameContext } from "./types/gameTypes";
 import { TurnTimer } from "./data/turnTimer";
 import { MAX_HAND, MAX_MANA, MAX_HERO_HP, MAX_FIELD_SIZE, TURN_DURATION_SECONDS } from "./constants/gameConstants";
-import { addCardToHand, createUniqueCard, createFieldCard } from "./services/cardService";
+import { createUniqueCard, createFieldCard } from "./services/cardService";
 import { processStatusEffects } from "./services/statusEffectService";
 import { executeAttack } from "./services/attackService";
-import { applySpell } from "./services/effectService";
+import { applySpell, executePlayEffects } from "./services/effectService";
+import type { PlayContext } from "./services/effectService";
 import type { RuntimeCard, SelectionMode, SelectionConfig, CardUsageType } from "./types/gameTypes";
 import { useToast } from "./hooks/useToast";
 import type { ToastItem } from "./hooks/useToast";
@@ -22,12 +23,12 @@ import type { ToastItem } from "./hooks/useToast";
 export function useGame(): {
   deck: Card[];
   playerHandCards: Card[];
-  playerFieldCards: (Card & { maxHp: number; canAttack?: boolean })[];
+  playerFieldCards: RuntimeCard[];
   playerGraveyard: Card[];
   playerHeroHp: number;
   enemyDeck: Card[];
   enemyHandCards: Card[];
-  enemyFieldCards: (Card & { maxHp: number; canAttack?: boolean })[];
+  enemyFieldCards: RuntimeCard[];
   enemyGraveyard: Card[];
   enemyHeroHp: number;
   draggingCard: string | null;
@@ -742,52 +743,76 @@ export function useGame(): {
   };
 
   // --- 手札 → フィールド ---
+  const buildPlayContext = (): PlayContext => ({
+    playerFieldCards: playerFieldCardsRef.current,
+    enemyFieldCards: enemyFieldCardsRef.current,
+    setPlayerFieldCards,
+    setEnemyFieldCards,
+    playerHandCards: playerHandCardsRef.current,
+    enemyHandCards: enemyHandCardsRef.current,
+    setPlayerHandCards,
+    setEnemyHandCards,
+    playerGraveyard: playerGraveyardRef.current,
+    enemyGraveyard: enemyGraveyardRef.current,
+    setPlayerGraveyard,
+    setEnemyGraveyard,
+    setPlayerHeroHp,
+    setEnemyHeroHp,
+    setGameOver,
+    stopTimer: () => {
+      try { playerTurnTimerRef.current?.stop(); enemyTurnTimerRef.current?.stop(); } catch (_) {}
+    },
+    setAiRunning,
+    addCardToDestroying,
+    setDeck,
+    setEnemyDeck,
+    currentMana,
+    setCurrentMana,
+    enemyCurrentMana,
+    setEnemyCurrentMana,
+    drawPlayerCard,
+    drawEnemyCard,
+    drawPlayerCards,
+    drawEnemyCards,
+  });
+
   const playCardToField = (card: Card) => {
-    // スペルはフィールドに出せない（ターゲットへドラッグして使用する仕様）
     if (card.type === "spell") {
       showToast("スペルはフィールドに出せません。ターゲットにドロップして使用してください。");
       return;
     }
-
-    // フィールドには最大5体まで
     if (playerFieldCards.length >= MAX_FIELD_SIZE) {
       showToast("フィールドは最大5体までです。");
       return;
     }
-
     if (card.cost > currentMana) {
       showToast("マナが足りません！");
       return;
     }
     setCurrentMana((m) => m - card.cost);
 
-    // canAttack: rush または superHaste がある場合は出したターンから攻撃可能
     const canAttack = !!(card.rush || card.superHaste);
     const fieldCard = createFieldCard(card, canAttack);
     setPlayerFieldCards((f) => [...f, fieldCard]);
-
     setPlayerHandCards((h) => h.filter((c) => c.uniqueId !== card.uniqueId));
 
-    // アニメーション終了
     setTimeout(() => {
       setPlayerFieldCards((list) => list.map((c) => (c.uniqueId === card.uniqueId ? { ...c, isAnimating: false } : c)));
     }, 600);
 
-    // 召喚時効果の発動（例: 騎士の召喚時全体ダメージなど）
+    // 召喚時効果 + トリガー + データ駆動効果を一括で処理
+    const ctx = buildPlayContext();
+
     if (card.summonEffect) {
       const se = card.summonEffect;
       if (se.type === "damage_all" && (se.value ?? 0) > 0) {
         const dmg = se.value ?? 1;
-        // 敵フィールドとヒーローにダメージ
         setEnemyFieldCards((list) => {
           const updated = list.map((c) => ({ ...c, hp: (c.hp ?? 0) - dmg }));
           const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
           if (dead.length) {
-            const deadIds = dead.map(d => d.uniqueId);
             setEnemyGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
-            addCardToDestroying(deadIds, (ids) => {
-              setEnemyFieldCards((prev) => prev.filter((c) => !ids.includes(c.uniqueId)));
-            });
+            addCardToDestroying(dead.map((d) => d.uniqueId));
           }
           return updated;
         });
@@ -795,7 +820,7 @@ export function useGame(): {
           const next = Math.max(h - dmg, 0);
           if (next <= 0) {
             setGameOver({ over: true, winner: "player" });
-            try { playerTurnTimerRef.current?.stop(); enemyTurnTimerRef.current?.stop(); } catch (e) { /* ignore */ }
+            ctx.stopTimer();
             setAiRunning(false);
           }
           return next;
@@ -803,27 +828,15 @@ export function useGame(): {
       }
     }
 
-    // 召喚時トリガーの発動（例: 魔導士の召喚時に火球を手札に加える）
-    if (card.summonTrigger) {
-      const trigger = card.summonTrigger;
-      if (trigger.type === "add_card_hand" && trigger.cardId) {
-        const addCard = cards.find((c) => c.id === trigger.cardId);
-        if (addCard) {
-          const newCard = { ...addCard, uniqueId: crypto.randomUUID() };
-          setPlayerHandCards((h) => (h.length < MAX_HAND ? [...h, newCard] : h));
-        }
+    if (card.summonTrigger?.type === "add_card_hand" && card.summonTrigger.cardId) {
+      const addCard = cards.find((c) => c.id === card.summonTrigger!.cardId);
+      if (addCard) {
+        const newCard = { ...addCard, uniqueId: crypto.randomUUID() };
+        setPlayerHandCards((h) => (h.length < MAX_HAND ? [...h, newCard] : h));
       }
     }
 
-    // 策士（id: 12）の召喚時ドロー効果
-    if (card.id === 12) {
-      // デッキからカード1枚ドロー
-      if (deck.length > 0) {
-        const drawnCard = { ...deck[0], uniqueId: crypto.randomUUID() };
-        setPlayerHandCards((h) => (h.length < MAX_HAND ? [...h, drawnCard] : h));
-        setDeck((d) => d.slice(1));
-      }
-    }
+    executePlayEffects(card, true, ctx);
   };
 
   // --- HP回復 ---

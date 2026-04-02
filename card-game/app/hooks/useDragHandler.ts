@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useContext, useCallback } from "react";
 import type { Card } from "../data/cards";
 import type { RuntimeCard } from "../types/gameTypes";
+// RuntimeCard is now used in the interface definitions below
 import styles from "../assets/css/Game.Master.module.css";
 import ViewportContext from "../context/ViewportContext";
 
@@ -22,8 +23,8 @@ interface DragActions {
 
 interface UseDragHandlerProps {
   playerHandCards: Card[];
-  playerFieldCards: (Card & { maxHp: number; canAttack?: boolean })[];
-  enemyFieldCards: (Card & { maxHp: number; canAttack?: boolean })[];
+  playerFieldCards: RuntimeCard[];
+  enemyFieldCards: RuntimeCard[];
   isPlayerTurn: boolean;
   preGame: boolean;
   coinResult: string;

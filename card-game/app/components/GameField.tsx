@@ -15,7 +15,7 @@ import Image from "next/image";
 import { handleSpellUsage } from "@/app/services/spellUsageService";
 import type { Card } from "@/app/data/cards";
 import type { DamageFloat } from "@/app/hooks/useGameUI";
-import type { SelectionMode, SelectionConfig } from "@/app/types/gameTypes";
+import type { RuntimeCard, SelectionMode, SelectionConfig } from "@/app/types/gameTypes";
 import styles from "@/app/assets/css/Game.Master.module.css";
 import { TimerController } from "./TimerCircle";
 import ViewportContext from "@/app/context/ViewportContext";
@@ -27,10 +27,10 @@ import { useAttackClone } from "@/app/hooks/useAttackClone";
 
 interface GameFieldProps {
   playerHandCards: Card[];
-  playerFieldCards: (Card & { maxHp: number; canAttack?: boolean })[];
+  playerFieldCards: RuntimeCard[];
   playerHeroHp: number;
   enemyHandCards: Card[];
-  enemyFieldCards: (Card & { maxHp: number; canAttack?: boolean })[];
+  enemyFieldCards: RuntimeCard[];
   enemyHeroHp: number;
   playerGraveyard: Card[];
   enemyGraveyard: Card[];

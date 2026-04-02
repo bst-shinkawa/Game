@@ -5,7 +5,7 @@ import CardItem from "./CardItem";
 import ManaBar from "./ManaBar";
 import Image from "next/image";
 import type { Card } from "@/app/data/cards";
-import type { SelectionConfig } from "@/app/types/gameTypes";
+import type { RuntimeCard, SelectionConfig } from "@/app/types/gameTypes";
 import styles from "@/app/assets/css/Game.Master.module.css";
 import handIcon from "@/public/img/field/hand-icon.png";
 import deckIcon from "@/public/img/field/deck-icon.png";
@@ -17,7 +17,7 @@ import ViewportContext from "@/app/context/ViewportContext";
 interface PlayerAreaProps {
   playerHeroHp: number;
   playerHandCards: Card[];
-  playerFieldCards: (Card & { maxHp: number; canAttack?: boolean })[];
+  playerFieldCards: RuntimeCard[];
   playerDeck: Card[];
   playerGraveyard: Card[];
   currentMana: number;

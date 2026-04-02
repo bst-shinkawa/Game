@@ -2,13 +2,14 @@
 
 import { useEffect, useRef } from "react";
 import type { Card } from "../data/cards";
+import type { RuntimeCard } from "../types/gameTypes";
 import type { DamageFloat } from "./useGameUI";
 
 interface UseDamageMonitorProps {
   playerHeroHp: number;
   enemyHeroHp: number;
-  playerFieldCards: (Card & { maxHp: number })[];
-  enemyFieldCards: (Card & { maxHp: number })[];
+  playerFieldCards: RuntimeCard[];
+  enemyFieldCards: RuntimeCard[];
   damageFloats: DamageFloat[];
   setDamageFloats: (floats: DamageFloat[]) => void;
   playerHeroRef: React.MutableRefObject<HTMLDivElement | null>;
@@ -64,7 +65,7 @@ export function useDamageMonitor({
     prevEnemyHeroHp.current = enemyHeroHp;
 
     const checkFieldHp = (
-      fieldCards: (Card & { maxHp: number })[],
+      fieldCards: RuntimeCard[],
       fieldRefs: React.MutableRefObject<{ [key: string]: HTMLDivElement | null }>
     ) => {
       fieldCards.forEach((c) => {

@@ -2,7 +2,8 @@ import { v4 as uuidv4 } from "uuid";
 import type { Card } from "./cards";
 import { cards } from "./cards";
 import type { AIGameContext, RuntimeCard } from "../types/gameTypes";
-import { applySpell } from "../services/effectService";
+import { applySpell, executePlayEffects } from "../services/effectService";
+import type { PlayContext } from "../services/effectService";
 import { MAX_MANA, MAX_HAND } from "../constants/gameConstants";
 
 export function evaluateBoardState({
@@ -64,6 +65,39 @@ export function startEnemyTurn(ctx: AIGameContext) {
 }
 
 const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
+
+function buildPlayContextFromAI(ctx: AIGameContext): PlayContext {
+  return {
+    playerFieldCards: ctx.playerFieldCards as RuntimeCard[],
+    enemyFieldCards: ctx.enemyFieldCards,
+    setPlayerFieldCards: ctx.setPlayerFieldCards,
+    setEnemyFieldCards: ctx.setEnemyFieldCards,
+    playerHandCards: ctx.playerHandCards,
+    enemyHandCards: ctx.enemyHandCards,
+    setPlayerHandCards: ctx.setPlayerHandCards,
+    setEnemyHandCards: ctx.setEnemyHandCards,
+    playerGraveyard: ctx.playerGraveyard,
+    enemyGraveyard: ctx.enemyGraveyard,
+    setPlayerGraveyard: ctx.setPlayerGraveyard,
+    setEnemyGraveyard: ctx.setEnemyGraveyard,
+    setPlayerHeroHp: ctx.setPlayerHeroHp,
+    setEnemyHeroHp: ctx.setEnemyHeroHp,
+    setGameOver: ctx.setGameOver,
+    stopTimer: ctx.stopTimer,
+    setAiRunning: ctx.setAiRunning,
+    addCardToDestroying: ctx.addCardToDestroying,
+    setDeck: ctx.setPlayerDeck,
+    setEnemyDeck: ctx.setEnemyDeck,
+    currentMana: 0,
+    setCurrentMana: () => {},
+    enemyCurrentMana: ctx.enemyCurrentMana,
+    setEnemyCurrentMana: ctx.setEnemyCurrentMana,
+    drawPlayerCard: ctx.drawPlayerCard,
+    drawEnemyCard: ctx.drawEnemyCard,
+    drawPlayerCards: ctx.drawPlayerCards,
+    drawEnemyCards: ctx.drawEnemyCards,
+  };
+}
 
 export async function runEnemyTurn(ctx: AIGameContext) {
   const {
@@ -258,31 +292,8 @@ export async function runEnemyTurn(ctx: AIGameContext) {
         }
       }
 
-      // フォロワー固有効果
-      if (card.id === 18) {
-        const valid = playerGraveyard.filter((c) => c.cost <= 2);
-        if (valid.length > 0) {
-          const chosen = valid[Math.floor(Math.random() * valid.length)];
-          setEnemyHandCards((h) => [...h, { ...chosen, uniqueId: uuidv4() }]);
-        }
-        const dagger = cards.find((c) => c.id === 15);
-        if (dagger) setEnemyHandCards((h) => [...h, { ...dagger, uniqueId: uuidv4() }]);
-      }
-      if (card.id === 22) {
-        setEnemyHandCards((prev) => {
-          if (prev.length === 0) return prev;
-          const idx = Math.floor(Math.random() * prev.length);
-          const discarded = prev[idx];
-          setEnemyGraveyard((g) => [...g, discarded]);
-          return prev.filter((_, i) => i !== idx);
-        });
-        const chalice = cards.find((c) => c.id === 5);
-        if (chalice) setEnemyHandCards((h) => [...h, { ...chalice, uniqueId: uuidv4() }]);
-      }
-      if (card.id === 24 && playerFieldCards.length > 0) {
-        const idx = Math.floor(Math.random() * playerFieldCards.length);
-        setPlayerFieldCards((list) => list.map((c, i) => (i === idx ? { ...c, frozen: 1 } : c)));
-      }
+      // データ駆動のプレイ時効果を実行（旧 card.id ハードコードを置換）
+      executePlayEffects(card, false, buildPlayContextFromAI(ctx));
 
       (async () => {
         await sleep(600);

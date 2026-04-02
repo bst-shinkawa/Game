@@ -2,11 +2,12 @@
 
 import { useEffect } from "react";
 import type { Card } from "../data/cards";
+import type { RuntimeCard } from "../types/gameTypes";
 import type { DamageFloat } from "./useGameUI";
 
 interface UseAttackCloneProps {
   movingAttack: { attackerId: string; targetId: string | "hero" } | null;
-  enemyFieldCards: (Card & { maxHp: number })[];
+  enemyFieldCards: RuntimeCard[];
   enemyFieldRefs: React.MutableRefObject<{ [key: string]: HTMLDivElement | null }>;
   playerFieldRefs: React.MutableRefObject<{ [key: string]: HTMLDivElement | null }>;
   playerHeroRef: React.MutableRefObject<HTMLDivElement | null>;

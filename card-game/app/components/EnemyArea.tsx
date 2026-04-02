@@ -9,7 +9,7 @@ import {
   isEnemyFieldCardSelectable,
 } from "@/app/services/selectionService";
 import type { Card } from "@/app/data/cards";
-import type { SelectionMode, SelectionConfig } from "@/app/types/gameTypes";
+import type { RuntimeCard, SelectionMode, SelectionConfig } from "@/app/types/gameTypes";
 import styles from "@/app/assets/css/Game.Master.module.css";
 import handIcon from "@/public/img/field/hand-icon.png";
 import deckIcon from "@/public/img/field/deck-icon.png";
@@ -20,7 +20,7 @@ import { TurnTimer } from "@/app/data/turnTimer";
 interface EnemyAreaProps {
   enemyHeroHp: number;
   enemyHandCards: Card[];
-  enemyFieldCards: (Card & { maxHp: number; canAttack?: boolean })[];
+  enemyFieldCards: RuntimeCard[];
   enemyDeck: Card[];
   enemyGraveyard: Card[];
   enemyCurrentMana: number;

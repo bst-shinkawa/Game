@@ -8,8 +8,8 @@ interface UseArrowCanvasProps {
   draggingCard: string | null;
   dragPosition: { x: number; y: number };
   playerHandCards: Card[];
-  playerFieldCards: (Card & { maxHp: number; canAttack?: boolean })[];
-  enemyFieldCards: (Card & { maxHp: number; canAttack?: boolean })[];
+  playerFieldCards: RuntimeCard[];
+  enemyFieldCards: RuntimeCard[];
   hoverTarget: { type: string | null; id?: string | null };
   arrowStartPos: React.MutableRefObject<{ x: number; y: number } | null>;
   enemyHeroRef: React.MutableRefObject<HTMLDivElement | null>;
