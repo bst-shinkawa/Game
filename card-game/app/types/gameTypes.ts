@@ -55,6 +55,12 @@ export interface EnemySpellAnimation {
   effect: string;
 }
 
+export interface CardRevealState {
+  card: Card;
+  targetId?: string | "hero";
+  type: "spell" | "follower";
+}
+
 // ---------------------------------------------------------------------------
 // enemyAI に渡すコンテキスト（25+個の引数を1つにまとめる）
 // ---------------------------------------------------------------------------
@@ -107,4 +113,11 @@ export interface AIGameContext {
   drawEnemyCards: (count: number) => void;
   addCardToDestroying: (cardIds: string[]) => void;
   cancelRef: React.MutableRefObject<boolean>;
+
+  // AI行動ログ
+  addActionLog: (message: string, icon?: string) => void;
+
+  // カード演出（中央表示→ターゲットへ飛ぶ）
+  showCardReveal: (card: Card, targetId: string | "hero" | undefined, type: "spell" | "follower") => void;
+  clearCardReveal: () => void;
 }

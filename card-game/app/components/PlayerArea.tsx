@@ -11,6 +11,7 @@ import handIcon from "@/public/img/field/hand-icon.png";
 import deckIcon from "@/public/img/field/deck-icon.png";
 import deathIcon from "@/public/img/field/void-icon.png";
 import TimerCircle, { TimerController } from "./TimerCircle";
+import HeroHpBar from "./HeroHpBar";
 import { TurnTimer } from "@/app/data/turnTimer";
 import ViewportContext from "@/app/context/ViewportContext";
 
@@ -51,7 +52,7 @@ interface PlayerAreaProps {
   onCardSwap: (cardId: string) => void;
   // スペル使用
   castSpell: (cardUniqueId: string, targetId: string | "hero", isPlayer?: boolean) => void;
-  playCardToField: (card: Card) => void;
+  playCardToField: (card: Card, selectedTargetIds?: string[]) => void;
   initializeSelection: (config: Omit<SelectionConfig, "selectedIds">) => void;
   cancelSelection: () => void;
   // 選択モード
@@ -286,6 +287,7 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
           >
             <p className={getHpClass(playerHeroHp)}>{playerHeroHp}</p>
           </div>
+          <HeroHpBar hp={playerHeroHp} side="player" />
         </div>
       </div>
 

@@ -10,7 +10,11 @@ import CardItem from "./CardItem";
 import { PreGame } from "./PreGame";
 import GameOver from "./GameOver";
 import Toast from "./Toast";
+import ActionLog from "./ActionLog";
+import EnemyCardReveal from "./EnemyCardReveal";
 import type { ToastItem } from "@/app/hooks/useToast";
+import type { ActionLogEntry } from "@/app/hooks/useActionLog";
+import type { CardRevealState } from "@/app/types/gameTypes";
 import Image from "next/image";
 import { handleSpellUsage } from "@/app/services/spellUsageService";
 import type { Card } from "@/app/data/cards";
@@ -46,6 +50,9 @@ interface GameFieldProps {
   aiRunning: boolean;
   destroyingCards: Set<string>;
   toasts: ToastItem[];
+  actionLogEntries: ActionLogEntry[];
+  cardReveal: CardRevealState | null;
+  clearCardReveal: () => void;
   damageFloats: DamageFloat[];
   draggingCard: string | null;
   dragPosition: { x: number; y: number };
@@ -66,7 +73,7 @@ interface GameFieldProps {
   enemySpellAnimation: { targetId: string | "hero"; effect: string } | null;
   selectionMode: SelectionMode;
   selectionConfig: SelectionConfig | null;
-  playCardToField: (card: Card) => void;
+  playCardToField: (card: Card, selectedTargetIds?: string[]) => void;
   endTurn: () => void;
   attack: (attackerId: string, targetId: string | "hero", isPlayerAttacker?: boolean) => void;
   castSpell: (cardUniqueId: string, targetId: string | "hero", isPlayer?: boolean, setAttackTargets?: (targets: string[]) => void) => void;
@@ -107,7 +114,8 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
     playerGraveyard, enemyGraveyard, deck, enemyDeck,
     currentMana, enemyCurrentMana, turn, turnSecondsRemaining,
     gameOver, preGame, coinResult, aiRunning, destroyingCards,
-    toasts, damageFloats, draggingCard, dragPosition,
+    toasts, actionLogEntries, cardReveal, clearCardReveal,
+    damageFloats, draggingCard, dragPosition,
     isHandExpanded, activeHandCardId, showTurnModal,
     descCardId, rouletteRunning, rouletteLabel,
     showCoinPopup, mulliganTimer, swapIds, showGameStart,
@@ -497,7 +505,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
             if (summonSelectableTargets?.length > 0) {
               initializeSelection({
                 sourceCardId: draggingCard, selectableTargets: summonSelectableTargets, selectCount: 1,
-                onComplete: () => playCardToField(card),
+                onComplete: (selectedIds: string[]) => playCardToField(card, selectedIds),
                 onCancel: () => {},
               });
             } else {
@@ -551,6 +559,20 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
       </div>
 
       <Toast toasts={toasts} />
+      <ActionLog entries={actionLogEntries} />
+
+      {/* 敵カード演出（中央表示→ターゲットへ飛ぶ） */}
+      {cardReveal && typeof document !== "undefined" && createPortal(
+        <EnemyCardReveal
+          reveal={cardReveal}
+          onComplete={clearCardReveal}
+          playerHeroRef={playerHeroRef}
+          enemyHeroRef={enemyHeroRef}
+          playerFieldRefs={playerFieldRefs}
+          enemyFieldRefs={enemyFieldRefs}
+        />,
+        document.body,
+      )}
 
       {gameOver.over && (
         <GameOver

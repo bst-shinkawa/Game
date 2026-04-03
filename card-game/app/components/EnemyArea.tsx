@@ -16,6 +16,7 @@ import deckIcon from "@/public/img/field/deck-icon.png";
 import deathIcon from "@/public/img/field/void-icon.png";
 import cardBack from "@/public/img/field/card_back.png";
 import TimerCircle, { TimerController } from "./TimerCircle";
+import HeroHpBar from "./HeroHpBar";
 import { TurnTimer } from "@/app/data/turnTimer";
 interface EnemyAreaProps {
   enemyHeroHp: number;
@@ -145,6 +146,7 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
           <div className={styles.field_enemy_hero_hp}>
             <p className={getHpClass(enemyHeroHp)}>{enemyHeroHp}</p>
           </div>
+          <HeroHpBar hp={enemyHeroHp} side="enemy" />
         </div>
       </div>
 

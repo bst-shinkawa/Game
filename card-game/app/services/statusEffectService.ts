@@ -20,10 +20,10 @@ export function processStatusEffects(
       card.poison = Math.max(0, card.poison - 1);
     }
     
-    // 凍結ターンをデクリメント
+    // 凍結中: このターンは攻撃不可。カウンターをデクリメント。
     if (card.frozen && card.frozen > 0) {
+      card.canAttack = false;
       card.frozen = Math.max(0, card.frozen - 1);
-      if (card.frozen === 0) card.canAttack = true;
     }
     
     return card;

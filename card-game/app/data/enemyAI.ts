@@ -136,6 +136,9 @@ export async function runEnemyTurn(ctx: AIGameContext) {
     drawEnemyCards,
     addCardToDestroying,
     cancelRef,
+    addActionLog,
+    showCardReveal,
+    clearCardReveal,
   } = ctx;
 
   // mutable local copies to track what the AI still has available
@@ -164,6 +167,13 @@ export async function runEnemyTurn(ctx: AIGameContext) {
         setEnemyHandCards((h) => h.filter((c) => c.uniqueId !== spellId));
         setEnemyGraveyard((g) => [...g, { ...lethalSpell!, uniqueId: uuidv4() }]);
         remainingMana -= lethalSpell.cost;
+        addActionLog(`${lethalSpell.name} を発動`, "✨");
+
+        showCardReveal(lethalSpell, "hero", "spell");
+        await sleep(1350);
+        clearCardReveal();
+        if (cancelRef.current) return;
+
         const dmg = lethalSpell.effectValue ?? 1;
         setPlayerHeroHp((hp) => {
           const next = Math.max(hp - dmg, 0);
@@ -257,6 +267,12 @@ export async function runEnemyTurn(ctx: AIGameContext) {
         rushInitialTurn,
       } as RuntimeCard;
 
+      addActionLog(`${card.name} を召喚`, "⚔️");
+      showCardReveal(card, undefined, "follower");
+      await sleep(1000);
+      clearCardReveal();
+      if (cancelRef.current) return;
+
       localSummoned.push(created);
       localHand = localHand.filter((c) => c.uniqueId !== card.uniqueId);
       setEnemyFieldCards((f) => [...f, created]);
@@ -273,14 +289,23 @@ export async function runEnemyTurn(ctx: AIGameContext) {
             setPlayerGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
           return updated.filter((c) => (c.hp ?? 0) > 0);
         });
-        setPlayerHeroHp((hp) => {
-          const next = Math.max(hp - dmg, 0);
-          if (next <= 0) {
-            setGameOver({ over: true, winner: "enemy" });
-            try { stopTimer(); } catch (_) {}
-            return 0;
+      } else if (card.summonEffect?.type === "damage_single") {
+        const dmg = card.summonEffect.value ?? 1;
+        setPlayerFieldCards((list) => {
+          if (list.length === 0) {
+            setPlayerHeroHp((hp) => {
+              const next = Math.max(hp - dmg, 0);
+              if (next <= 0) { setGameOver({ over: true, winner: "enemy" }); try { stopTimer(); } catch (_) {} return 0; }
+              return next;
+            });
+            return list;
           }
-          return next;
+          const idx = Math.floor(Math.random() * list.length);
+          const updated = list.map((c, i) => (i === idx ? { ...c, hp: (c.hp ?? 0) - dmg } : c));
+          const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
+          if (dead.length)
+            setPlayerGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
+          return updated.filter((c) => (c.hp ?? 0) > 0);
         });
       }
 
@@ -353,6 +378,13 @@ export async function runEnemyTurn(ctx: AIGameContext) {
         default:
           targetId = "hero";
       }
+
+      addActionLog(`${spell.name} を発動`, "✨");
+
+      showCardReveal(spell, targetId, "spell");
+      await sleep(1350);
+      clearCardReveal();
+      if (cancelRef.current) return;
 
       setEnemySpellAnimation({ targetId, effect: spell.effect! });
       applySpell(spell, targetId, false, {
@@ -449,6 +481,13 @@ export async function runEnemyTurn(ctx: AIGameContext) {
         setEnemyAttackAnimation({ sourceCardId: enemyCard.uniqueId, targetId: target as string | "hero" });
         await sleep(50);
 
+        {
+          const targetLabel =
+            target === "hero"
+              ? "ヒーロー"
+              : playerFieldCards.find((c) => c.uniqueId === target)?.name ?? "フォロワー";
+          addActionLog(`${enemyCard.name} → ${targetLabel} に攻撃`, "💥");
+        }
         attack(enemyCard.uniqueId, target as string | "hero", false);
         await sleep(850);
         setMovingAttack(null);

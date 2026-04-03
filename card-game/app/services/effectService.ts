@@ -50,7 +50,8 @@ export interface PlayContext {
 export function executePlayEffects(
   card: Card,
   isPlayer: boolean,
-  ctx: PlayContext
+  ctx: PlayContext,
+  selectedTargetIds?: string[]
 ): void {
   const effects = card.onPlayEffects;
   if (!effects || effects.length === 0) return;
@@ -125,9 +126,16 @@ export function executePlayEffects(
         const setOwnHand = isPlayer ? ctx.setPlayerHandCards : ctx.setEnemyHandCards;
         const setOwnGrave = isPlayer ? ctx.setPlayerGraveyard : ctx.setEnemyGraveyard;
         for (let i = 0; i < count; i++) {
+          const targetId = selectedTargetIds?.[i];
           setOwnHand((hand) => {
             if (hand.length === 0) return hand;
-            const idx = Math.floor(Math.random() * hand.length);
+            let idx: number;
+            if (targetId) {
+              idx = hand.findIndex((c) => c.uniqueId === targetId);
+              if (idx === -1) idx = Math.floor(Math.random() * hand.length);
+            } else {
+              idx = Math.floor(Math.random() * hand.length);
+            }
             const discarded = hand[idx];
             setOwnGrave((g) => [...g, discarded]);
             return hand.filter((_, j) => j !== idx);
@@ -202,10 +210,14 @@ export function applySpell(
       const delta = card.effectValue ?? 1;
       const hand = isPlayer ? playerHandCards : enemyHandCards;
       const setter = isPlayer ? setPlayerHandCards : setEnemyHandCards;
-      const idx = hand.findIndex((c: Card) => c.cost > 0 && c.uniqueId !== card.uniqueId);
+      let idx = hand.findIndex((c: Card) => c.uniqueId === targetId && c.cost > 0);
+      if (idx === -1) {
+        idx = hand.findIndex((c: Card) => c.cost > 0 && c.uniqueId !== card.uniqueId);
+      }
       if (idx !== -1) {
-        const newCard = { ...hand[idx], cost: Math.max(0, hand[idx].cost - delta) };
-        setter((h: Card[]) => h.map((c: Card, i: number) => (i === idx ? newCard : c)));
+        const targetUniqueId = hand[idx].uniqueId;
+        const newCost = Math.max(0, hand[idx].cost - delta);
+        setter((h: Card[]) => h.map((c: Card) => (c.uniqueId === targetUniqueId ? { ...c, cost: newCost } : c)));
       }
       break;
     }
@@ -266,11 +278,9 @@ export function applySpell(
         if (stolen && (isPlayer ? playerFieldCards.length : enemyFieldCards.length) < MAX_FIELD_SIZE) {
           sourceSetter((list) => list.filter((c) => c.uniqueId !== targetId));
           destSetter((list) => [...list, { ...stolen }]);
-          if (stolen.summonEffect?.type === "damage_all" && (stolen.summonEffect.value ?? 0) > 0) {
-            const dmg = stolen.summonEffect.value ?? 1;
-            const oppSetter = isPlayer ? setEnemyFieldCards : setPlayerFieldCards;
-            oppSetter((list) => list.map((c) => ({ ...c, hp: (c.hp ?? 0) - dmg })));
-          }
+          handleSummonEffect(stolen, isPlayer, context);
+          handleSummonTrigger(stolen, isPlayer, context);
+          executePlayEffects(stolen, isPlayer, context);
         }
       }
       break;
@@ -279,7 +289,6 @@ export function applySpell(
       break;
   }
 
-  // データ駆動の追加効果を実行（card.onPlayEffects）
   executePlayEffects(card, isPlayer, context);
 }
 
@@ -287,7 +296,7 @@ export function applySpell(
 // フォロワー召喚処理
 // ---------------------------------------------------------------------------
 
-export function playCardToField(card: Card, isPlayer: boolean, context: PlayContext): void {
+export function playCardToField(card: Card, isPlayer: boolean, context: PlayContext, selectedTargetIds?: string[]): void {
   if (card.type === "spell") return;
 
   const {
@@ -325,18 +334,17 @@ export function playCardToField(card: Card, isPlayer: boolean, context: PlayCont
     );
   }, 600);
 
-  handleSummonEffect(card, isPlayer, context);
+  handleSummonEffect(card, isPlayer, context, selectedTargetIds);
   handleSummonTrigger(card, isPlayer, context);
 
-  // データ駆動の追加効果を実行（旧 handleIdSpecificPlay を完全置換）
-  executePlayEffects(card, isPlayer, context);
+  executePlayEffects(card, isPlayer, context, selectedTargetIds);
 }
 
 // ---------------------------------------------------------------------------
 // internal helpers
 // ---------------------------------------------------------------------------
 
-function handleSummonEffect(card: Card, isPlayer: boolean, ctx: PlayContext) {
+function handleSummonEffect(card: Card, isPlayer: boolean, ctx: PlayContext, selectedTargetIds?: string[]) {
   const se = card.summonEffect;
   if (!se) return;
 
@@ -356,28 +364,42 @@ function handleSummonEffect(card: Card, isPlayer: boolean, ctx: PlayContext) {
       }
       return updated.filter((c) => (c.hp ?? 0) > 0);
     });
-    heroSetter((h) => {
-      const next = Math.max(h - (se.value ?? 0), 0);
-      if (next <= 0) {
-        ctx.setGameOver({ over: true, winner: isPlayer ? "player" : "enemy" });
-        try { ctx.stopTimer(); } catch (_) {}
-        ctx.setAiRunning(false);
-      }
-      return next;
-    });
   } else if (se.type === "damage_single" && (se.value ?? 0) > 0) {
     const dmg = se.value ?? 1;
-    if (fieldCards.length > 0) {
+    const selectedTarget = selectedTargetIds?.[0];
+
+    if (selectedTarget === "hero") {
+      heroSetter((h) => {
+        const next = Math.max(h - dmg, 0);
+        if (next <= 0) {
+          ctx.setGameOver({ over: true, winner: isPlayer ? "player" : "enemy" });
+          try { ctx.stopTimer(); } catch (_) {}
+          ctx.setAiRunning(false);
+        }
+        return next;
+      });
+    } else if (selectedTarget) {
+      dmgTargetSetter((list) => {
+        const updated = list.map((c) => (c.uniqueId === selectedTarget ? { ...c, hp: (c.hp ?? 0) - dmg } : c));
+        const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
+        if (dead.length) {
+          ctx.addCardToDestroying(dead.map((d) => d.uniqueId));
+          graveSetter((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
+        }
+        return updated.filter((c) => (c.hp ?? 0) > 0);
+      });
+    } else if (fieldCards.length > 0) {
       const idx = Math.floor(Math.random() * fieldCards.length);
       const target = fieldCards[idx];
-      dmgTargetSetter((list) =>
-        list.map((c) => (c.uniqueId === target.uniqueId ? { ...c, hp: (c.hp ?? 0) - dmg } : c))
-      );
-      const dead = fieldCards.filter((c) => (c.hp ?? 0) - dmg <= 0);
-      if (dead.length) {
-        ctx.addCardToDestroying(dead.map((d) => d.uniqueId));
-        graveSetter((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
-      }
+      dmgTargetSetter((list) => {
+        const updated = list.map((c) => (c.uniqueId === target.uniqueId ? { ...c, hp: (c.hp ?? 0) - dmg } : c));
+        const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
+        if (dead.length) {
+          ctx.addCardToDestroying(dead.map((d) => d.uniqueId));
+          graveSetter((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
+        }
+        return updated.filter((c) => (c.hp ?? 0) > 0);
+      });
     } else {
       heroSetter((h) => {
         const next = Math.max(h - dmg, 0);

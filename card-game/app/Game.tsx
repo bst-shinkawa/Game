@@ -11,14 +11,16 @@ import { runEnemyTurn } from "./data/enemyAI";
 import type { AIGameContext } from "./types/gameTypes";
 import { TurnTimer } from "./data/turnTimer";
 import { MAX_HAND, MAX_MANA, MAX_HERO_HP, MAX_FIELD_SIZE, TURN_DURATION_SECONDS } from "./constants/gameConstants";
-import { createUniqueCard, createFieldCard } from "./services/cardService";
+import { createUniqueCard, createFieldCard, addCardToHand } from "./services/cardService";
 import { processStatusEffects } from "./services/statusEffectService";
 import { executeAttack } from "./services/attackService";
 import { applySpell, executePlayEffects } from "./services/effectService";
 import type { PlayContext } from "./services/effectService";
-import type { RuntimeCard, SelectionMode, SelectionConfig, CardUsageType } from "./types/gameTypes";
+import type { RuntimeCard, SelectionMode, SelectionConfig, CardUsageType, CardRevealState } from "./types/gameTypes";
 import { useToast } from "./hooks/useToast";
 import type { ToastItem } from "./hooks/useToast";
+import { useActionLog } from "./hooks/useActionLog";
+import type { ActionLogEntry } from "./hooks/useActionLog";
 
 export function useGame(): {
   deck: Card[];
@@ -73,6 +75,11 @@ export function useGame(): {
   // トースト通知
   toasts: ToastItem[];
   showToast: (message: string, type?: ToastItem["type"]) => void;
+  // AI行動ログ
+  actionLogEntries: ActionLogEntry[];
+  // カード演出
+  cardReveal: CardRevealState | null;
+  clearCardReveal: () => void;
 } {
   // --- プレイヤー状態 ---
   const [deck, setDeck] = useState<Card[]>([...initialDeck]);
@@ -96,6 +103,14 @@ export function useGame(): {
 
   // --- トースト通知 ---
   const { toasts, showToast } = useToast();
+  // --- AI行動ログ ---
+  const { entries: actionLogEntries, addLog: addActionLog, clearLog: clearActionLog } = useActionLog();
+  // --- カード演出 ---
+  const [cardReveal, setCardReveal] = useState<CardRevealState | null>(null);
+  const showCardReveal = (card: Card, targetId: string | "hero" | undefined, type: "spell" | "follower") => {
+    setCardReveal({ card, targetId, type });
+  };
+  const clearCardReveal = () => setCardReveal(null);
   // --- 破壊アニメーション管理 ---
   // カードが破壊される時に呼び出す。アニメーション後にフィールドから除外する場合は onAfterAnimation で setter を渡す
   const addCardToDestroying = (cardIds: string[], onAfterAnimation?: (ids: string[]) => void) => {
@@ -251,7 +266,19 @@ export function useGame(): {
     if (turnProcessedKeys.current.has(key)) return;
     turnProcessedKeys.current.add(key);
 
-    // --- 状態効果の処理（ターンごとに毒ダメージや凍結のデクリメントを行う） ---
+    // 1) canAttack リセット
+    setPlayerFieldCards((prev) => prev.map((c) => ({ ...c, canAttack: false, rushInitialTurn: undefined })));
+    setEnemyFieldCards((prev) => prev.map((c) => ({ ...c, canAttack: false, rushInitialTurn: undefined })));
+
+    // 2) アクティブ側の canAttack 復元
+    if (turn % 2 === 1) {
+      setPlayerFieldCards((prev) => prev.map((c) => ({ ...c, canAttack: true })));
+    } else {
+      setEnemyFieldCards((prev) => prev.map((c) => ({ ...c, canAttack: true })));
+    }
+
+    // 3) 状態効果（毒ダメージ + 凍結デクリメント）
+    //    凍結中のカードは canAttack: false に上書きされるため、2) の後に実行する
     setPlayerFieldCards((prev) => {
       const result = processStatusEffects(prev);
       if (result.dead.length > 0) {
@@ -276,10 +303,7 @@ export function useGame(): {
       return result.updated;
     });
 
-    setPlayerFieldCards((prev) => prev.map((c) => ({ ...c, canAttack: false, rushInitialTurn: undefined })));
-    setEnemyFieldCards((prev) => prev.map((c) => ({ ...c, canAttack: false, rushInitialTurn: undefined })));
-
-    // マナ: 先行・後攻とも1ターン目・2ターン目は1マナのまま。3ターン目で先行のマナ上限+1、4ターン目で後攻のマナ上限+1。
+    // マナ増加
     if (turn >= 3) {
       if (turn % 2 === 1) {
         if (coinResult === "player") setMaxMana((prevMax) => Math.min(prevMax + 1, MAX_MANA));
@@ -288,12 +312,6 @@ export function useGame(): {
         if (coinResult === "player") setEnemyMaxMana((prevMax) => Math.min(prevMax + 1, MAX_MANA));
         else setMaxMana((prevMax) => Math.min(prevMax + 1, MAX_MANA));
       }
-    }
-
-    if (turn % 2 === 1) {
-      setPlayerFieldCards((prev) => prev.map((c) => ({ ...c, canAttack: true })));
-    } else {
-      setEnemyFieldCards((prev) => prev.map((c) => ({ ...c, canAttack: true })));
     }
   }, [turn, preGame, coinResult]);
 
@@ -513,6 +531,9 @@ export function useGame(): {
             drawEnemyCards,
             addCardToDestroying,
             cancelRef: aiCancelRef,
+            addActionLog,
+            showCardReveal,
+            clearCardReveal,
           };
           runEnemyTurn(aiCtx);
         }
@@ -639,6 +660,25 @@ export function useGame(): {
   // --- ターン終了 ---
   const endTurn = () => {
     console.debug(`[Game] endTurn called (current turn=${turn})`);
+
+    // end_turn_add_card トリガー: フィールド上の該当カード毎にカードを手札に加える
+    const isPlayerTurn = turn % 2 === 1;
+    const fieldRef = isPlayerTurn ? playerFieldCardsRef.current : enemyFieldCardsRef.current;
+    const setHand = isPlayerTurn ? setPlayerHandCards : setEnemyHandCards;
+    const setGrave = isPlayerTurn ? setPlayerGraveyard : setEnemyGraveyard;
+
+    for (const fc of fieldRef) {
+      if (fc.summonTrigger?.type === "end_turn_add_card" && fc.summonTrigger.cardIds) {
+        for (const cid of fc.summonTrigger.cardIds) {
+          const base = cards.find((c) => c.id === cid);
+          if (base) {
+            const newCard = { ...base, uniqueId: uuidv4() };
+            addCardToHand(newCard, setHand, setGrave);
+          }
+        }
+      }
+    }
+
     setTurn((t) => t + 1);
   };
 
@@ -776,7 +816,7 @@ export function useGame(): {
     drawEnemyCards,
   });
 
-  const playCardToField = (card: Card) => {
+  const playCardToField = (card: Card, selectedTargetIds?: string[]) => {
     if (card.type === "spell") {
       showToast("スペルはフィールドに出せません。ターゲットにドロップして使用してください。");
       return;
@@ -800,7 +840,6 @@ export function useGame(): {
       setPlayerFieldCards((list) => list.map((c) => (c.uniqueId === card.uniqueId ? { ...c, isAnimating: false } : c)));
     }, 600);
 
-    // 召喚時効果 + トリガー + データ駆動効果を一括で処理
     const ctx = buildPlayContext();
 
     if (card.summonEffect) {
@@ -816,27 +855,38 @@ export function useGame(): {
           }
           return updated;
         });
-        setEnemyHeroHp((h) => {
-          const next = Math.max(h - dmg, 0);
-          if (next <= 0) {
-            setGameOver({ over: true, winner: "player" });
-            ctx.stopTimer();
-            setAiRunning(false);
-          }
-          return next;
-        });
+      } else if (se.type === "damage_single" && (se.value ?? 0) > 0) {
+        const dmg = se.value ?? 1;
+        const target = selectedTargetIds?.[0];
+        if (target === "hero") {
+          setEnemyHeroHp((h) => {
+            const next = Math.max(h - dmg, 0);
+            if (next <= 0) { setGameOver({ over: true, winner: "player" }); ctx.stopTimer(); setAiRunning(false); }
+            return next;
+          });
+        } else if (target) {
+          setEnemyFieldCards((list) => {
+            const updated = list.map((c) => (c.uniqueId === target ? { ...c, hp: (c.hp ?? 0) - dmg } : c));
+            const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
+            if (dead.length) {
+              setEnemyGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
+              addCardToDestroying(dead.map((d) => d.uniqueId));
+            }
+            return updated.filter((c) => (c.hp ?? 0) > 0);
+          });
+        }
       }
     }
 
     if (card.summonTrigger?.type === "add_card_hand" && card.summonTrigger.cardId) {
-      const addCard = cards.find((c) => c.id === card.summonTrigger!.cardId);
-      if (addCard) {
-        const newCard = { ...addCard, uniqueId: crypto.randomUUID() };
+      const base = cards.find((c) => c.id === card.summonTrigger!.cardId);
+      if (base) {
+        const newCard = { ...base, uniqueId: uuidv4() };
         setPlayerHandCards((h) => (h.length < MAX_HAND ? [...h, newCard] : h));
       }
     }
 
-    executePlayEffects(card, true, ctx);
+    executePlayEffects(card, true, ctx, selectedTargetIds);
   };
 
   // --- HP回復 ---
@@ -1012,6 +1062,11 @@ export function useGame(): {
     // トースト通知
     toasts,
     showToast,
+    // AI行動ログ
+    actionLogEntries,
+    // カード演出
+    cardReveal,
+    clearCardReveal,
   };
 }
 
