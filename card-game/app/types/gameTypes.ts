@@ -18,7 +18,7 @@ export type SelectionMode = "none" | "select_target" | "select_hand_card";
 
 export interface SelectionConfig {
   sourceCardId: string;          // 効果を発動したカード
-  selectableTargets: ("hero" | "field_card" | "hand_card")[];
+  selectableTargets: ("hero" | "field_card" | "hand_card" | "own_hero" | "own_field_card")[];
   selectCount: number;           // 選択対象数
   selectedIds: string[];         // 既に選択されたID
   onCancel?: () => void;
@@ -38,6 +38,8 @@ export interface RuntimeCard extends Card {
   poisonDamage?: number;
   frozen?: number;
   rushInitialTurn?: boolean;
+  baseAttack?: number;  // バフ前の基礎攻撃力（緑色表示用）
+  baseHp?: number;      // バフ前の基礎HP（緑色表示用）
 }
 
 export interface AttackAnimation {

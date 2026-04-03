@@ -73,9 +73,9 @@ export interface Card {
   canAttack?: boolean;
   guard?: boolean;
   usageType?: CardUsageType;
-  selectableTargets?: ("hero" | "field_card" | "hand_card")[];
+  selectableTargets?: ("hero" | "field_card" | "hand_card" | "own_hero" | "own_field_card")[];
   selectCount?: number;
-  summonSelectableTargets?: ("hero" | "field_card" | "hand_card")[];
+  summonSelectableTargets?: ("hero" | "field_card" | "hand_card" | "own_hero" | "own_field_card")[];
   onPlayEffects?: CardPlayEffect[];
 }
 
@@ -90,7 +90,7 @@ export const cards: Card[] = [
   { id: 2, name: "近衛兵", type: "follower", description: "守護", attack: 1, hp: 2, maxHp: 2, image: `${basePath}/img/cards/royal_guard.webp`, uniqueId: "", cost: 1, wallGuard: true, owner: "king", usageType: "play_follower" },
   { id: 3, name: "弓兵", type: "follower", description: "召喚時相手の場のヒーローかフォロワーへ1ダメージを与える", attack: 2, hp: 1, maxHp: 1, image: `${basePath}/img/cards/archer.webp`, uniqueId: "", cost: 2, summonEffect: { type: "damage_single", value: 1 }, owner: "king", usageType: "play_follower", summonSelectableTargets: ["hero", "field_card"] },
   { id: 4, name: "騎兵", type: "follower", description: "召喚時相手の場の全体に1ダメージ", attack: 4, hp: 3, maxHp: 3, image: `${basePath}/img/cards/cavalry.webp`, uniqueId: "", cost: 4, summonEffect: { type: "damage_all", value: 1 }, owner: "king", usageType: "play_follower" },
-  { id: 5, name: "金の盃", type: "spell", description: "ヒーローかフォロワーの体力を2回復", effect: "heal_single", effectValue: 2, image: `${basePath}/img/cards/golden_goblet.webp`, uniqueId: "", cost: 2, owner: "king", usageType: "cast_spell_select_target", selectableTargets: ["hero", "field_card"] },
+  { id: 5, name: "金の盃", type: "spell", description: "ヒーローかフォロワーの体力を2回復", effect: "heal_single", effectValue: 2, image: `${basePath}/img/cards/golden_goblet.webp`, uniqueId: "", cost: 2, owner: "king", usageType: "cast_spell_select_target", selectableTargets: ["own_hero", "own_field_card"] },
   { id: 6, name: "砲撃", type: "spell", description: "敵のヒーローか場のフォロワーに対して3ダメージ", effect: "damage_single", effectValue: 3, image: `${basePath}/img/cards/artillery_strike.webp`, uniqueId: "", cost: 3, owner: "king", usageType: "cast_spell_select_target", selectableTargets: ["hero", "field_card"] },
   { id: 7, name: "招集", type: "spell", description: "フィールドに近衛兵を2枚召喚する", effect: "summon_token", image: `${basePath}/img/cards/mobilize.webp`, uniqueId: "", cost: 3, owner: "king", usageType: "cast_spell_auto", onPlayEffects: [{ type: "summon_token", cardId: 2, count: 2 }] },
   { id: 8, name: "隊長", type: "follower", description: "召喚時フィールドに突撃兵を2枚だしスタッツを+2ずつする", attack: 4, hp: 5, maxHp: 5, image: `${basePath}/img/cards/captain.webp`, uniqueId: "", cost: 6, owner: "king", usageType: "play_follower", onPlayEffects: [{ type: "summon_buffed", cardId: 9, count: 2, buff: { attack: 2, hp: 2 }, canAttack: true }] },

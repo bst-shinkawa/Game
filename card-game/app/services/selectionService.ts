@@ -23,7 +23,7 @@ export interface SelectionManager {
 export function isSelectableTarget(
   selectionMode: SelectionMode,
   selectionConfig: SelectionConfig | null,
-  targetType: "hero" | "field_card" | "hand_card"
+  targetType: "hero" | "field_card" | "hand_card" | "own_hero" | "own_field_card"
 ): boolean {
   if (selectionMode === "none" || !selectionConfig) {
     return false;
@@ -50,6 +50,26 @@ export function isEnemyFieldCardSelectable(
   selectionConfig: SelectionConfig | null
 ): boolean {
   return isSelectableTarget(selectionMode, selectionConfig, "field_card");
+}
+
+/**
+ * 自陣ヒーローが選択可能か（heal_single など自陣対象スペル用）
+ */
+export function isOwnHeroSelectable(
+  selectionMode: SelectionMode,
+  selectionConfig: SelectionConfig | null
+): boolean {
+  return isSelectableTarget(selectionMode, selectionConfig, "own_hero");
+}
+
+/**
+ * 自陣フィールドカードが選択可能か（heal_single など自陣対象スペル用）
+ */
+export function isOwnFieldCardSelectable(
+  selectionMode: SelectionMode,
+  selectionConfig: SelectionConfig | null
+): boolean {
+  return isSelectableTarget(selectionMode, selectionConfig, "own_field_card");
 }
 
 /**

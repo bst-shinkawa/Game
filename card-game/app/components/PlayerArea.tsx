@@ -6,6 +6,7 @@ import ManaBar from "./ManaBar";
 import Image from "next/image";
 import type { Card } from "@/app/data/cards";
 import type { RuntimeCard, SelectionConfig } from "@/app/types/gameTypes";
+import { isOwnHeroSelectable, isOwnFieldCardSelectable } from "@/app/services/selectionService";
 import styles from "@/app/assets/css/Game.Master.module.css";
 import handIcon from "@/public/img/field/hand-icon.png";
 import deckIcon from "@/public/img/field/deck-icon.png";
@@ -266,27 +267,21 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
       {/* プレイヤーヒーロー */}
       <div className={styles.field_player_hero}>
         <div className={styles.field_player_hero_wrap}>
-          <div
-            ref={playerHeroRef}
-            className={`${styles.field_player_hero_hp} ${hoverTarget?.type === 'playerHero' && attackTargets.includes('playerHero') ? styles.attack_highlight : ''}`}
-            onDragOver={(e) => {
-              const handCard = playerHandCards.find((c) => c.uniqueId === draggingCard);
-              const isHeal = handCard && handCard.effect === "heal_single";
-              if (draggingCard && isHeal) e.preventDefault();
-            }}
-            onDrop={() => {
-              if (!draggingCard) return;
-              const handCard = playerHandCards.find((c) => c.uniqueId === draggingCard);
-              const isHeal = handCard && handCard.effect === "heal_single";
-              if (handCard && handCard.type === "spell" && isHeal) {
-                onCardClick(draggingCard);
-              }
-              setDraggingCard(null);
-              setArrowStartPos(null);
-            }}
-          >
-            <p className={getHpClass(playerHeroHp)}>{playerHeroHp}</p>
-          </div>
+          {(() => {
+            const isOwnHeroSel = isOwnHeroSelectable(selectionMode, selectionConfig);
+            return (
+              <div
+                ref={playerHeroRef}
+                className={`${styles.field_player_hero_hp} ${hoverTarget?.type === 'playerHero' && attackTargets.includes('playerHero') ? styles.attack_highlight : ''} ${isOwnHeroSel ? styles.selection_highlight : ''}`}
+                style={isOwnHeroSel ? { cursor: "pointer" } : {}}
+                onClick={() => {
+                  if (isOwnHeroSel) applySelection(["hero"]);
+                }}
+              >
+                <p className={getHpClass(playerHeroHp)}>{playerHeroHp}</p>
+              </div>
+            );
+          })()}
           <HeroHpBar hp={playerHeroHp} side="player" />
         </div>
       </div>
@@ -308,6 +303,7 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
             const isHovered = hoverTarget?.id === card.uniqueId && hoverTarget?.type === 'playerCard';
             const isDropped = dropSuccess?.id === card.uniqueId && dropSuccess?.type === 'playerCard';
             const isSummoning = (card as { isAnimating?: boolean }).isAnimating;
+            const isOwnFieldSel = isOwnFieldCardSelectable(selectionMode, selectionConfig);
             return (
               <CardItem
                 key={card.uniqueId}
@@ -315,23 +311,32 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
                 hp={card.hp ?? 0}
                 maxHp={card.maxHp ?? 0}
                 attack={card.attack ?? 0}
-                draggable={card.canAttack}
+                baseAttack={(card as any).baseAttack}
+                baseHp={(card as any).baseHp}
+                draggable={card.canAttack && !isOwnFieldSel}
                 onDragStart={(e) => {
-                  if (!isPlayerTurn) return;
+                  if (!isPlayerTurn || isOwnFieldSel) return;
                   onDragStart(card, e);
                 }}
                 onDragEnd={onDragEnd}
                 onDragOver={onDragOver}
                 onDrop={() => onCardClick(card.uniqueId)}
                 isTarget={attackTargets.includes(card.uniqueId)}
-                className={`${isSummoning ? styles.enemy_follower_summon : ""} ${isHovered ? styles.target_highlight : ''} ${isDropped ? styles.drop_success : ''} ${attackTargets.includes(card.uniqueId) ? styles.attack_highlight : ''} ${destroyingCards.has(card.uniqueId) ? styles.card_destroying : ""}`}
+                className={`${isSummoning ? styles.enemy_follower_summon : ""} ${isHovered ? styles.target_highlight : ''} ${isDropped ? styles.drop_success : ''} ${attackTargets.includes(card.uniqueId) ? styles.attack_highlight : ''} ${destroyingCards.has(card.uniqueId) ? styles.card_destroying : ""} ${isOwnFieldSel ? styles.selection_highlight : ""}`}
                 style={{
                   opacity: isDragging ? 0.15 : 1,
                   transition: 'opacity 0.1s ease',
                   ...((card as { isAnimating?: boolean }).isAnimating ? { transform: "translateY(-40px)", opacity: 0 } : {}),
+                  ...(isOwnFieldSel ? { cursor: "pointer" } : {}),
                 }}
                 ref={(el: HTMLDivElement | null) => { playerFieldRefs.current[card.uniqueId] = el; }}
-                onClick={() => onCardClick(card.uniqueId)}
+                onClick={() => {
+                  if (isOwnFieldSel) {
+                    applySelection([card.uniqueId]);
+                  } else {
+                    onCardClick(card.uniqueId);
+                  }
+                }}
               />
             );
           } else {

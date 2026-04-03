@@ -66,55 +66,30 @@ export function useArrowCanvas({
       ctx2d.clearRect(0, 0, canvas.width, canvas.height);
       if (!draggingCard || !arrowStartPos.current) return;
 
+      // 手札カード（スペル・フォロワー問わず）はドラッグ中にアロー/ハイライトを表示しない
+      // スペルはプレイヤーフィールドへドロップ→選択画面でターゲット指定する仕様のため
       const isHandCard = playerHandCards.some((c) => c.uniqueId === draggingCard);
-      const draggingCardObj = playerHandCards.find((c) => c.uniqueId === draggingCard) || playerFieldCards.find((c) => c.uniqueId === draggingCard);
-      const isHandSpell = isHandCard && draggingCardObj?.type === "spell";
-      const isHealSpell = isHandSpell && draggingCardObj?.effect === "heal_single";
-      const isHasteSpell = isHandSpell && draggingCardObj?.effect === "haste";
-      const isDamageSpell = isHandSpell && !isHealSpell && !isHasteSpell;
-      if (isHandCard && !isHandSpell) return;
+      if (isHandCard) return;
 
+      // フィールドカード（攻撃可能なもの）のみアロー表示
       const attackingCard = playerFieldCards.find((c) => c.uniqueId === draggingCard && c.canAttack);
-      if (!attackingCard && !isHandSpell) return;
+      if (!attackingCard) return;
 
       const targets: { x: number; y: number; kind: "damage" | "heal"; id: string }[] = [];
 
-      if (isDamageSpell || attackingCard) {
-        const canTargetHero = !(attackingCard as { rushInitialTurn?: boolean })?.rushInitialTurn;
-        const hasWallGuardOnEnemy = enemyFieldCards.some((c) => (c as { wallGuard?: boolean }).wallGuard);
-        if (canTargetHero && !hasWallGuardOnEnemy && enemyHeroRef.current) {
-          const rect = enemyHeroRef.current.getBoundingClientRect();
-          targets.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height, kind: "damage", id: "hero" });
-        }
-        for (const c of enemyFieldCards) {
-          if ((c as { stealth?: boolean }).stealth) continue;
-          const ref = enemyFieldRefs.current[c.uniqueId];
-          if (ref) {
-            const rect = ref.getBoundingClientRect();
-            targets.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, kind: "damage", id: c.uniqueId });
-          }
-        }
+      // 攻撃対象（敵ヒーロー・敵フォロワー）
+      const canTargetHero = !(attackingCard as { rushInitialTurn?: boolean })?.rushInitialTurn;
+      const hasWallGuardOnEnemy = enemyFieldCards.some((c) => (c as { wallGuard?: boolean }).wallGuard);
+      if (canTargetHero && !hasWallGuardOnEnemy && enemyHeroRef.current) {
+        const rect = enemyHeroRef.current.getBoundingClientRect();
+        targets.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height, kind: "damage", id: "hero" });
       }
-
-      if (isHealSpell) {
-        for (const c of playerFieldCards) {
-          const ref = playerFieldRefs.current[c.uniqueId];
-          if (ref) {
-            const rect = ref.getBoundingClientRect();
-            targets.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, kind: "heal", id: c.uniqueId });
-          }
-        }
-      }
-
-      if (isHasteSpell) {
-        for (const c of playerFieldCards) {
-          if (c.canAttack) {
-            const ref = playerFieldRefs.current[c.uniqueId];
-            if (ref) {
-              const rect = ref.getBoundingClientRect();
-              targets.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, kind: "heal", id: c.uniqueId });
-            }
-          }
+      for (const c of enemyFieldCards) {
+        if ((c as { stealth?: boolean }).stealth) continue;
+        const ref = enemyFieldRefs.current[c.uniqueId];
+        if (ref) {
+          const rect = ref.getBoundingClientRect();
+          targets.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2, kind: "damage", id: c.uniqueId });
         }
       }
 

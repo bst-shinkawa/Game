@@ -29,7 +29,7 @@ export interface PlayContext {
   setGameOver: React.Dispatch<React.SetStateAction<{ over: boolean; winner: null | "player" | "enemy" }>>;
   stopTimer: () => void;
   setAiRunning: React.Dispatch<React.SetStateAction<boolean>>;
-  addCardToDestroying: (cardIds: string[]) => void;
+  addCardToDestroying: (cardIds: string[], onAfterAnimation?: (ids: string[]) => void) => void;
   setDeck: React.Dispatch<React.SetStateAction<Card[]>>;
   setEnemyDeck: React.Dispatch<React.SetStateAction<Card[]>>;
   currentMana: number;
@@ -87,6 +87,11 @@ export function executePlayEffects(
           const token = createFieldCard(tokenBase, eff.canAttack ?? false);
           if (eff.noTrigger) delete (token as any).summonTrigger;
           setOwnField((f) => [...f, token]);
+          // 召喚アニメーション後に isAnimating をクリアする
+          const tokenId = token.uniqueId;
+          setTimeout(() => {
+            setOwnField((f) => f.map((c) => c.uniqueId === tokenId ? { ...c, isAnimating: false } : c));
+          }, 600);
         }
         break;
       }
@@ -100,11 +105,19 @@ export function executePlayEffects(
           if (ownLen + i >= MAX_FIELD_SIZE) break;
           const token = createFieldCard(baseCard, eff.canAttack ?? false);
           if (eff.buff) {
+            // バフ前の基礎スタッツを保存（CardItemで緑色表示に使用）
+            (token as any).baseAttack = baseCard.attack ?? 0;
+            (token as any).baseHp = baseCard.hp ?? 0;
             token.attack = (token.attack ?? 0) + (eff.buff.attack ?? 0);
             token.hp = (token.hp ?? 0) + (eff.buff.hp ?? 0);
             token.maxHp = (token.maxHp ?? 0) + (eff.buff.hp ?? 0);
           }
           setOwnField((f) => [...f, token]);
+          // 召喚アニメーション後に isAnimating をクリアする
+          const tokenId = token.uniqueId;
+          setTimeout(() => {
+            setOwnField((f) => f.map((c) => c.uniqueId === tokenId ? { ...c, isAnimating: false } : c));
+          }, 600);
         }
         break;
       }

@@ -12,6 +12,8 @@ type Props = {
   hp?: number;
   maxHp?: number;
   attack?: number;
+  baseAttack?: number;  // バフ前の基礎攻撃力（緑色表示用）
+  baseHp?: number;      // バフ前の基礎HP（緑色表示用）
   cost?: number;
   image?: string;
   poison?: number;
@@ -63,6 +65,8 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
   hp = 0,
   maxHp = 20,
   attack,
+  baseAttack,
+  baseHp,
   cost,
   image,
   poison,
@@ -189,11 +193,15 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
       {type === "follower" && (
           <>
             <div className={`${styles.card_hp} ${hpClass}`}>
-              <p>{Math.min(hp, maxHp)}</p>
+              <p style={baseHp !== undefined && maxHp > baseHp ? { color: "#4ade80" } : undefined}>
+                {Math.min(hp, maxHp)}
+              </p>
             </div>
 
             <div className={styles.card_attack}>
-              <p>{attack ?? 0}</p>
+              <p style={baseAttack !== undefined && (attack ?? 0) > baseAttack ? { color: "#4ade80" } : undefined}>
+                {attack ?? 0}
+              </p>
             </div>
           </>
         )}

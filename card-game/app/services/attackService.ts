@@ -190,7 +190,7 @@ function attackFollower(
   const deadTargets = newTargetList.filter((c) => (c.hp ?? 0) <= 0);
   const deadTargetIds = deadTargets.map(d => d.uniqueId);
   if (deadTargets.length) {
-      // don't add return-to-hand-once cards to graveyard, handle them separately
+      // return_to_hand_once カードは墓地に加えず手札に戻す
       setTargetGraveyard((g) => {
         const added = deadTargets.filter(d => {
           if (d.deathTrigger && d.deathTrigger.type === "return_to_hand_once") return false;
@@ -205,20 +205,14 @@ function attackFollower(
           const addCard = cards.find((c) => c.id === trigger.cardId);
           if (addCard) {
             const newCard = { ...addCard, uniqueId: crypto.randomUUID() };
-            if (isPlayerAttacker) {
-              setTargetHandCards((h) => (h.length < MAX_HAND ? [...h, newCard] : h));
-            } else {
-              setAttackerHandCards((h) => (h.length < MAX_HAND ? [...h, newCard] : h));
-            }
+            // 死亡したターゲット側のカードなので、ターゲット側の手札に加える
+            setTargetHandCards((h) => (h.length < MAX_HAND ? [...h, newCard] : h));
           }
         } else if (trigger.type === "return_to_hand_once") {
+          // カードをdeathTrigger削除して持ち主（ターゲット側）の手札に戻す
           const returned = { ...deadCard } as any;
           delete returned.deathTrigger;
-          if (isPlayerAttacker) {
-            setTargetHandCards((h) => (h.length < MAX_HAND ? [...h, returned] : h));
-          } else {
-            setAttackerHandCards((h) => (h.length < MAX_HAND ? [...h, returned] : h));
-          }
+          setTargetHandCards((h) => (h.length < MAX_HAND ? [...h, returned] : h));
         }
       });
       addCardToDestroying(deadTargetIds, (ids) => {
@@ -229,7 +223,27 @@ function attackFollower(
   const deadAttackers = newAttackerList.filter((c) => (c.hp ?? 0) <= 0);
   const deadAttackerIds = deadAttackers.map(d => d.uniqueId);
   if (deadAttackers.length) {
-    setAttackerGraveyard((g) => [...g, ...deadAttackers.filter(d => !g.some(x => x.uniqueId === d.uniqueId))]);
+    // return_to_hand_once カードは墓地に加えず手札に戻す
+    setAttackerGraveyard((g) => [...g, ...deadAttackers.filter(d => {
+      if ((d as any).deathTrigger && (d as any).deathTrigger.type === "return_to_hand_once") return false;
+      return !g.some(x => x.uniqueId === d.uniqueId);
+    })]);
+    // 攻撃側カードの deathTrigger 処理
+    deadAttackers.forEach((deadCard: any) => {
+      if (!deadCard.deathTrigger) return;
+      const trigger = deadCard.deathTrigger;
+      if (trigger.type === "return_to_hand_once") {
+        const returned = { ...deadCard } as any;
+        delete returned.deathTrigger;
+        setAttackerHandCards((h) => (h.length < MAX_HAND ? [...h, returned] : h));
+      } else if (trigger.type === "add_card_hand" && trigger.cardId) {
+        const addCard = cards.find((c) => c.id === trigger.cardId);
+        if (addCard) {
+          const newCard = { ...addCard, uniqueId: crypto.randomUUID() };
+          setAttackerHandCards((h) => (h.length < MAX_HAND ? [...h, newCard] : h));
+        }
+      }
+    });
     addCardToDestroying(deadAttackerIds, (ids) => {
       setAttackerList((list) => list.filter((c) => !ids.includes(c.uniqueId)));
     });

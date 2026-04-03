@@ -16,7 +16,7 @@ export interface SpellContext {
   setGameOver: React.Dispatch<React.SetStateAction<{ over: boolean; winner: null | "player" | "enemy" }>>;
   stopTimer: () => void;
   setAiRunning: React.Dispatch<React.SetStateAction<boolean>>;
-  addCardToDestroying: (cardIds: string[]) => void;
+  addCardToDestroying: (cardIds: string[], onAfterAnimation?: (ids: string[]) => void) => void;
 }
 
 /**
@@ -79,6 +79,7 @@ export function castSpell(
         card,
         targetId,
         isPlayer,
+        oppFieldCards,
         setOppFieldCards,
         setOppHeroHp,
         setOppGraveyard,
@@ -150,19 +151,21 @@ function handleDamageAllSpell(
   setGameOver: React.Dispatch<React.SetStateAction<{ over: boolean; winner: null | "player" | "enemy" }>>,
   stopTimer: () => void,
   setAiRunning: React.Dispatch<React.SetStateAction<boolean>>,
-  addCardToDestroying: (cardIds: string[]) => void
+  addCardToDestroying: (cardIds: string[], onAfterAnimation?: (ids: string[]) => void) => void
 ): void {
   const dmg = card.effectValue ?? 1;
 
-  setTargetFieldCards((list) => {
-    const updated = list.map((c) => ({ ...c, hp: (c.hp ?? 0) - dmg }));
-    const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
-    if (dead.length) {
-      addCardToDestroying(dead.map(d => d.uniqueId));
-      setTargetGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
-    }
-    return updated.filter((c) => (c.hp ?? 0) > 0);
-  });
+  // HP を減らす（死亡カードは即除去せず、アニメーション完了後に除去する）
+  setTargetFieldCards((list) => list.map((c) => ({ ...c, hp: (c.hp ?? 0) - dmg })));
+
+  const dead = targetFieldCards.filter((c) => (c.hp ?? 0) - dmg <= 0);
+  if (dead.length) {
+    const deadIds = dead.map((d) => d.uniqueId);
+    setTargetGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
+    addCardToDestroying(deadIds, (ids) => {
+      setTargetFieldCards((l) => l.filter((c) => !ids.includes(c.uniqueId)));
+    });
+  }
 
   setTargetHeroHp((h) => {
     const hasWallGuard = targetFieldCards.some((c) => (c as { wallGuard?: boolean }).wallGuard);
@@ -184,13 +187,14 @@ function handleDamageSingleSpell(
   card: Card,
   targetId: string | "hero",
   isPlayer: boolean,
+  targetFieldCards: RuntimeCard[],
   setTargetFieldCards: React.Dispatch<React.SetStateAction<RuntimeCard[]>>,
   setTargetHeroHp: React.Dispatch<React.SetStateAction<number>>,
   setTargetGraveyard: React.Dispatch<React.SetStateAction<Card[]>>,
   setGameOver: React.Dispatch<React.SetStateAction<{ over: boolean; winner: null | "player" | "enemy" }>>,
   stopTimer: () => void,
   setAiRunning: React.Dispatch<React.SetStateAction<boolean>>,
-  addCardToDestroying: (cardIds: string[]) => void
+  addCardToDestroying: (cardIds: string[], onAfterAnimation?: (ids: string[]) => void) => void
 ): void {
   const dmg = card.effectValue ?? 1;
   if (targetId === "hero") {
@@ -204,15 +208,16 @@ function handleDamageSingleSpell(
       return next;
     });
   } else {
-    setTargetFieldCards((list) => {
-      const updated = list.map((c) => (c.uniqueId === targetId ? { ...c, hp: (c.hp ?? 0) - dmg } : c));
-      const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
-      if (dead.length) {
-        addCardToDestroying(dead.map(d => d.uniqueId));
-        setTargetGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
-      }
-      return updated.filter((c) => (c.hp ?? 0) > 0);
-    });
+    // HP を減らす（死亡カードは即除去せず、アニメーション完了後に除去する）
+    setTargetFieldCards((list) => list.map((c) => (c.uniqueId === targetId ? { ...c, hp: (c.hp ?? 0) - dmg } : c)));
+
+    const target = targetFieldCards.find((c) => c.uniqueId === targetId);
+    if (target && (target.hp ?? 0) - dmg <= 0) {
+      setTargetGraveyard((g) => [...g, ...(g.some((x) => x.uniqueId === target.uniqueId) ? [] : [target])]);
+      addCardToDestroying([target.uniqueId], (ids) => {
+        setTargetFieldCards((l) => l.filter((c) => !ids.includes(c.uniqueId)));
+      });
+    }
   }
 }
 

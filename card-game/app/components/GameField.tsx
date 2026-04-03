@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useContext, useMemo } from "react";
+import React, { useEffect, useRef, useContext, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { TurnTimer } from "@/app/data/turnTimer";
 import { DamageFloater } from "./DamageFloater";
@@ -150,10 +150,68 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
 
   // --- Memoized action objects (stable refs for hooks) ---
   const dragRefs = useMemo(() => ({ enemyHeroRef, playerHeroRef, playerBattleRef }), [playerBattleRef]);
+
+  // 二重発火防止: pointer/touch イベントと HTML5 drag イベントが同時に発火するのを防ぐ
+  const lastDropTimeRef = useRef(0);
+
+  // スペル・フォロワーを問わず「カードをプレイする」唯一の正規ルート。
+  // cardId を引数で受け取ることで、stale closure を回避する。
+  // cleanup（setDraggingCard(null) など）は呼び出し側が行う。
+  const onPlayerFieldDropCallback = useCallback((cardId: string) => {
+    const now = Date.now();
+    if (now - lastDropTimeRef.current < 150) return; // 二重発火ガード
+    lastDropTimeRef.current = now;
+
+    const card = playerHandCards.find((c) => c.uniqueId === cardId);
+    if (!card) return;
+
+    if (card.type === "spell") {
+      const usageType = (card as any).usageType;
+      if (usageType === "cast_spell_select_target") {
+        const selectableTargets = (card as any).selectableTargets || ["hero", "field_card"];
+        const selectCount = (card as any).selectCount || 1;
+        initializeSelection({
+          sourceCardId: cardId, selectableTargets, selectCount,
+          onComplete: (selectedIds: string[]) => { if (selectedIds.length > 0) castSpell(cardId, selectedIds[0], true); },
+          onCancel: () => {},
+        });
+      } else {
+        castSpell(cardId, "hero", true);
+      }
+    } else if (card.type === "follower") {
+      const summonSelectableTargets = (card as any).summonSelectableTargets;
+      if (summonSelectableTargets?.length > 0) {
+        initializeSelection({
+          sourceCardId: cardId, selectableTargets: summonSelectableTargets, selectCount: 1,
+          onComplete: (selectedIds: string[]) => playCardToField(card, selectedIds),
+          onCancel: () => {},
+        });
+      } else {
+        playCardToField(card);
+      }
+    }
+  }, [playerHandCards, castSpell, playCardToField, initializeSelection]);
+
+  // HTML5 drag イベント（PlayerArea の onDrop）用ラッパー。
+  // こちらは draggingCard state が確実に存在するタイミングで呼ばれるため state を使用可。
+  const onPlayerFieldDropHTMLDrag = useCallback(() => {
+    if (!draggingCard) return;
+
+    if (preGame && coinResult !== "deciding") {
+      setSwapIds(swapIds.includes(draggingCard) ? swapIds.filter((id) => id !== draggingCard) : [...swapIds, draggingCard]);
+      setDraggingCard(null);
+      return;
+    }
+
+    onPlayerFieldDropCallback(draggingCard);
+    setDraggingCard(null);
+  }, [draggingCard, preGame, coinResult, swapIds, setDraggingCard, setSwapIds, onPlayerFieldDropCallback]);
+
   const dragActions = useMemo(() => ({
-    castSpell, attack, playCardToField, initializeSelection,
+    attack,
     setSwapIds: setSwapIds as React.Dispatch<React.SetStateAction<string[]>>,
-  }), [castSpell, attack, playCardToField, initializeSelection, setSwapIds]);
+    onPlayerFieldDrop: onPlayerFieldDropCallback,
+  }), [attack, setSwapIds, onPlayerFieldDropCallback]);
 
   // --- Custom hooks ---
   const {
@@ -456,67 +514,9 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
           dragOffsetRef.current = { x: 0, y: 0 };
           setAttackTargets([]);
         }}
-        onDragOver={(e) => {
-          const handCard = playerHandCards.find((c) => c.uniqueId === draggingCard);
-          const isHeal = handCard && handCard.effect === "heal_single";
-          if (draggingCard && isHeal) e.preventDefault();
-        }}
-        onDrop={(card) => {
-          if (!draggingCard) return;
-          const handCard = playerHandCards.find((c) => c.uniqueId === draggingCard);
-          const isHeal = handCard && handCard.effect === "heal_single";
-          if (handCard && handCard.type === "spell" && isHeal) {
-            setAttackTargets([]);
-            castSpell(draggingCard, card?.uniqueId || "hero", true, setAttackTargets);
-          }
-          setDraggingCard(null);
-          arrowStartPos.current = null;
-          dragOffsetRef.current = { x: 0, y: 0 };
-          setAttackTargets([]);
-        }}
-        onPlayerFieldDrop={() => {
-          if (!draggingCard) return;
-          const card = playerHandCards.find((c) => c.uniqueId === draggingCard);
-          if (!card) return;
-
-          if (preGame && coinResult !== "deciding") {
-            setSwapIds(swapIds.includes(card.uniqueId) ? swapIds.filter((id) => id !== card.uniqueId) : [...swapIds, card.uniqueId]);
-            setDraggingCard(null);
-            arrowStartPos.current = null;
-            dragOffsetRef.current = { x: 0, y: 0 };
-            return;
-          }
-
-          if (card.type === "spell") {
-            const usageType = (card as any).usageType;
-            if (usageType === "cast_spell_select_target" || usageType === "cast_spell_select_hand") {
-              const selectableTargets = (card as any).selectableTargets || (usageType === "cast_spell_select_target" ? ["hero", "field_card"] : ["hand_card"]);
-              const selectCount = (card as any).selectCount || 1;
-              initializeSelection({
-                sourceCardId: draggingCard, selectableTargets, selectCount,
-                onComplete: (selectedIds: string[]) => { if (selectedIds.length > 0) castSpell(draggingCard, selectedIds[0], true); },
-                onCancel: () => {},
-              });
-            } else {
-              castSpell(draggingCard, "hero", true);
-            }
-          } else if (card.type === "follower") {
-            const summonSelectableTargets = (card as any).summonSelectableTargets;
-            if (summonSelectableTargets?.length > 0) {
-              initializeSelection({
-                sourceCardId: draggingCard, selectableTargets: summonSelectableTargets, selectCount: 1,
-                onComplete: (selectedIds: string[]) => playCardToField(card, selectedIds),
-                onCancel: () => {},
-              });
-            } else {
-              playCardToField(card);
-            }
-          }
-
-          setDraggingCard(null);
-          arrowStartPos.current = null;
-          dragOffsetRef.current = { x: 0, y: 0 };
-        }}
+        onDragOver={(_e) => {}}
+        onDrop={() => {}}
+        onPlayerFieldDrop={onPlayerFieldDropHTMLDrag}
         onCardClick={(cardId: string) => setDescCardId(descCardId === cardId ? null : cardId)}
         onCardSwap={(cardId: string) => {
           setSwapIds(swapIds.includes(cardId) ? swapIds.filter((id) => id !== cardId) : [...swapIds, cardId]);

@@ -14,11 +14,10 @@ interface DragRefs {
 }
 
 interface DragActions {
-  castSpell: (cardUniqueId: string, targetId: string | "hero", isPlayer?: boolean, setAttackTargets?: (t: string[]) => void) => void;
   attack: (attackerId: string, targetId: string | "hero", isPlayerAttacker?: boolean) => void;
-  playCardToField: (card: Card) => void;
-  initializeSelection: (config: any) => void;
   setSwapIds: React.Dispatch<React.SetStateAction<string[]>>;
+  /** プレイヤーフィールドへのドロップを統一的に処理するコールバック。cardId を引数で渡す（stale closure 回避）*/
+  onPlayerFieldDrop: (cardId: string) => void;
 }
 
 interface UseDragHandlerProps {
@@ -103,12 +102,15 @@ export function useDragHandler({
               const playerBattleEl = el.closest("." + styles.field_player_battle);
               const cardEl = el.closest("[data-uniqueid]") as HTMLElement | null;
 
-              if (enemyHeroEl) setHoverTarget({ type: "enemyHero" });
+              // 手札カードをドラッグ中は敵ユニットのハイライトをしない（スペルのD&D誤ハイライト防止）
+              const isDraggingHandCard = playerHandCards.some((c) => c.uniqueId === draggingCard);
+
+              if (enemyHeroEl && !isDraggingHandCard) setHoverTarget({ type: "enemyHero" });
               else if (playerHeroEl) setHoverTarget({ type: "playerHero" });
-              else if (cardEl && enemyBattleEl) setHoverTarget({ type: "enemyCard", id: cardEl.getAttribute("data-uniqueid") });
+              else if (cardEl && enemyBattleEl && !isDraggingHandCard) setHoverTarget({ type: "enemyCard", id: cardEl.getAttribute("data-uniqueid") });
               else if (cardEl && playerBattleEl) setHoverTarget({ type: "playerCard", id: cardEl.getAttribute("data-uniqueid") });
               else if (playerBattleEl) setHoverTarget({ type: "playerBattle" });
-              else if (enemyBattleEl) setHoverTarget({ type: "enemyBattle" });
+              else if (enemyBattleEl && !isDraggingHandCard) setHoverTarget({ type: "enemyBattle" });
               else setHoverTarget({ type: null });
             } else {
               setHoverTarget({ type: null });
@@ -168,7 +170,7 @@ export function useDragHandler({
     const DRAG_START_THRESHOLD = 6;
     const LONG_PRESS_MS = 180;
 
-    const { castSpell, attack: attackAction, playCardToField, initializeSelection, setSwapIds: setSwapIdsAction } = actions;
+    const { attack: attackAction, setSwapIds: setSwapIdsAction, onPlayerFieldDrop: onPlayerFieldDropAction } = actions;
     const { enemyHeroRef, playerHeroRef, playerBattleRef } = refs;
 
     const beginPotentialDrag = (startX: number, startY: number, el: HTMLElement, id: string, idForPointer?: number | null) => {
@@ -238,31 +240,21 @@ export function useDragHandler({
       const dropFieldCardId = dropFieldCardEl?.getAttribute("data-uniqueid") || null;
 
       if (handCard) {
-        if (isDropOnEnemyHero) {
-          if (handCard.type === "spell") castSpell(handCard.uniqueId, "hero", true, setAttackTargets);
-          else attackAction(handCard.uniqueId, "hero", true);
-        } else if (dropFieldCardId && enemyFieldCards.some((c) => c.uniqueId === dropFieldCardId)) {
-          if (handCard.type === "spell") castSpell(handCard.uniqueId, dropFieldCardId, true, setAttackTargets);
-          else attackAction(handCard.uniqueId, dropFieldCardId, true);
-        } else if (dropFieldCardId && playerFieldCards.some((c) => c.uniqueId === dropFieldCardId)) {
-          if (handCard.type === "spell" && handCard.effect === "heal_single") {
-            castSpell(handCard.uniqueId, dropFieldCardId, true, setAttackTargets);
-          }
-        } else if (dropEl && playerHeroRef.current && (playerHeroRef.current === dropEl || playerHeroRef.current.contains(dropEl))) {
-          if (handCard.type === "spell" && handCard.effect === "heal_single") {
-            castSpell(handCard.uniqueId, "hero", true, setAttackTargets);
-          }
-        } else if (dropEl && playerBattleRef.current && (playerBattleRef.current === dropEl || playerBattleRef.current.contains(dropEl))) {
+        // 手札カードはプレイヤーフィールドへのドロップのみ受け付ける
+        // スペルはフィールドへドロップ → 選択画面で対象を選ぶ仕様のため、
+        // 敵ヒーロー/敵フィールドへの直接ドロップは無効
+        const isDropOnPlayerField = dropEl && playerBattleRef.current && (playerBattleRef.current === dropEl || playerBattleRef.current.contains(dropEl));
+        if (isDropOnPlayerField) {
           if (preGame && coinResult !== "deciding") {
             setSwapIdsAction((prev) => prev.includes(handCard.uniqueId) ? prev.filter((sid) => sid !== handCard.uniqueId) : [...prev, handCard.uniqueId]);
-          } else if (handCard.type === "spell") {
-            const { handleSpellUsage } = require("../services/spellUsageService");
-            handleSpellUsage({ card: handCard, cardId: handCard.uniqueId, isPlayer: true, castSpell, playCardToField, initializeSelection });
-          } else if (handCard.type === "follower") {
-            playCardToField(handCard);
+          } else {
+            // cardId を明示的に渡すことで stale closure を回避
+            onPlayerFieldDropAction(id);
           }
         }
+        // それ以外へのドロップ（敵ヒーロー・敵フィールド・味方ヒーロー・味方フィールドカード）は何もしない
       } else if (fieldCard) {
+        // フィールドカードは敵への攻撃のみ
         if (isDropOnEnemyHero) {
           attackAction(fieldCard.uniqueId, "hero", true);
         } else if (dropFieldCardId && enemyFieldCards.some((c) => c.uniqueId === dropFieldCardId)) {

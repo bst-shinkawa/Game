@@ -158,6 +158,7 @@ export function useGame(): {
   const enemyFieldRef = useRef<RuntimeCard[]>([]);
   const enemyHandCardsRef = useRef<Card[]>([]);
   const enemyDeckRef = useRef<Card[]>([]);
+  const playerDeckRef = useRef<Card[]>([...initialDeck]);
   const enemyGraveyardRef = useRef<Card[]>([]);
   const playerHandCardsRef = useRef<Card[]>([]);
   const playerGraveyardRef = useRef<Card[]>([]);
@@ -555,6 +556,10 @@ export function useGame(): {
     enemyFieldCardsRef.current = enemyFieldCards;
   }, [enemyFieldCards]);
   useEffect(() => {
+    playerDeckRef.current = deck;
+  }, [deck]);
+
+  useEffect(() => {
     enemyHandCardsRef.current = enemyHandCards;
     enemyDeckRef.current = enemyDeck;
     enemyGraveyardRef.current = enemyGraveyard;
@@ -582,78 +587,64 @@ export function useGame(): {
     console.debug("[Game] gameOver -> cleared timers and cancelled AI");
   }, [gameOver]);
 
-  // --- ドロー（setter 内で最新 state を参照し、stale closure を回避） ---
+  // --- ドロー（refで最新デッキを参照し、setState内のネストを避けてStrictMode二重描画バグを防ぐ） ---
   const drawPlayerCard = () => {
-    setDeck((prev) => {
-      if (prev.length === 0) return prev;
-      const card = createUniqueCard(prev[0]);
-      setPlayerHandCards((h) => {
-        if (h.length >= MAX_HAND) {
-          setPlayerGraveyard((g) => [...g, card]);
-          return h;
-        }
-        return [...h, card];
-      });
-      return prev.slice(1);
+    const currentDeck = playerDeckRef.current;
+    if (currentDeck.length === 0) return;
+    const card = createUniqueCard(currentDeck[0]);
+    const nextDeck = currentDeck.slice(1);
+    playerDeckRef.current = nextDeck;
+    setDeck(nextDeck);
+    setPlayerHandCards((h) => {
+      if (h.length >= MAX_HAND) return h;
+      return [...h, card];
     });
   };
 
   const drawEnemyCard = () => {
-    setEnemyDeck((prev) => {
-      if (prev.length === 0) return prev;
-      const card = createUniqueCard(prev[0]);
-      setEnemyHandCards((h) => {
-        if (h.length >= MAX_HAND) {
-          setEnemyGraveyard((g) => [...g, card]);
-          return h;
-        }
-        return [...h, card];
-      });
-      return prev.slice(1);
+    const currentDeck = enemyDeckRef.current;
+    if (currentDeck.length === 0) return;
+    const card = createUniqueCard(currentDeck[0]);
+    const nextDeck = currentDeck.slice(1);
+    enemyDeckRef.current = nextDeck;
+    setEnemyDeck(nextDeck);
+    setEnemyHandCards((h) => {
+      if (h.length >= MAX_HAND) return h;
+      return [...h, card];
     });
   };
 
   const drawPlayerCards = (count: number) => {
-    // 複数のプレイヤーカードを一度にドロー
-    setDeck((prev) => {
-      const cards: Card[] = [];
-      let remaining = [...prev];
-      for (let i = 0; i < count && remaining.length > 0; i++) {
-        cards.push(createUniqueCard(remaining[0]));
-        remaining = remaining.slice(1);
+    const currentDeck = playerDeckRef.current;
+    const actualCount = Math.min(count, currentDeck.length);
+    if (actualCount === 0) return;
+    const drawn = currentDeck.slice(0, actualCount).map(createUniqueCard);
+    const nextDeck = currentDeck.slice(actualCount);
+    playerDeckRef.current = nextDeck;
+    setDeck(nextDeck);
+    setPlayerHandCards((h) => {
+      const newHand = [...h];
+      for (const card of drawn) {
+        if (newHand.length < MAX_HAND) newHand.push(card);
       }
-      setPlayerHandCards((h) => {
-        const newHand = [...h];
-        for (const card of cards) {
-          if (newHand.length < MAX_HAND) {
-            newHand.push(card);
-          }
-        }
-        return newHand;
-      });
-      return remaining;
+      return newHand;
     });
   };
 
   const drawEnemyCards = (count: number) => {
-    // 複数の敵カードを一度にドロー
-    setEnemyDeck((prev) => {
-      const cards: Card[] = [];
-      let remaining = [...prev];
-      for (let i = 0; i < count && remaining.length > 0; i++) {
-        cards.push(createUniqueCard(remaining[0]));
-        remaining = remaining.slice(1);
+    const currentDeck = enemyDeckRef.current;
+    const actualCount = Math.min(count, currentDeck.length);
+    if (actualCount === 0) return;
+    const drawn = currentDeck.slice(0, actualCount).map(createUniqueCard);
+    const nextDeck = currentDeck.slice(actualCount);
+    enemyDeckRef.current = nextDeck;
+    setEnemyDeck(nextDeck);
+    setEnemyHandCards((h) => {
+      const newHand = [...h];
+      for (const card of drawn) {
+        if (newHand.length < MAX_HAND) newHand.push(card);
       }
-      setEnemyHandCards((h) => {
-        const newHand = [...h];
-        for (const card of cards) {
-          if (newHand.length < MAX_HAND) {
-            newHand.push(card);
-          }
-        }
-        return newHand;
-      });
-      return remaining;
+      return newHand;
     });
   };
 
