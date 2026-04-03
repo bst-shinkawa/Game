@@ -1,6 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import type { Card, EffectType, TriggerType, CardPlayEffect } from "../data/cards";
-import type { RuntimeCard } from "../types/gameTypes";
+import type { RuntimeCard, GameOverState } from "../types/gameTypes";
+import { checkSynergy } from "./synergyUtils";
 import { cards } from "../data/cards";
 import { addCardToHand, createFieldCard } from "./cardService";
 import { MAX_FIELD_SIZE, MAX_HAND } from "../constants/gameConstants";
@@ -26,7 +27,7 @@ export interface PlayContext {
   setEnemyGraveyard: React.Dispatch<React.SetStateAction<Card[]>>;
   setPlayerHeroHp: React.Dispatch<React.SetStateAction<number>>;
   setEnemyHeroHp: React.Dispatch<React.SetStateAction<number>>;
-  setGameOver: React.Dispatch<React.SetStateAction<{ over: boolean; winner: null | "player" | "enemy" }>>;
+  setGameOver: React.Dispatch<React.SetStateAction<GameOverState>>;
   stopTimer: () => void;
   setAiRunning: React.Dispatch<React.SetStateAction<boolean>>;
   addCardToDestroying: (cardIds: string[], onAfterAnimation?: (ids: string[]) => void) => void;
@@ -40,6 +41,9 @@ export interface PlayContext {
   drawEnemyCard: () => void;
   drawPlayerCards: (count: number) => void;
   drawEnemyCards: (count: number) => void;
+  // シナジー評価に使用するコンテキスト情報
+  daggerCount?: number;    // このターン中に使用した暗器の枚数
+  fieldSize?: number;      // 自分の場のフォロワー数
 }
 
 // ---------------------------------------------------------------------------
@@ -81,13 +85,24 @@ export function executePlayEffects(
         if (!tokenBase) break;
         const count = eff.count ?? 1;
         const setOwnField = isPlayer ? ctx.setPlayerFieldCards : ctx.setEnemyFieldCards;
+        // token_buff シナジー：招集などが場3体以上のときに召喚トークンをバフ
+        const tokenBuff = (card.synergy?.effect.type === "token_buff" &&
+          checkSynergy(card, ctx.fieldSize ?? 0, ctx.daggerCount ?? 0))
+          ? { attack: card.synergy.effect.attack ?? 0, hp: card.synergy.effect.hp ?? 0 }
+          : null;
         for (let i = 0; i < count; i++) {
           const ownLen = (isPlayer ? ctx.playerFieldCards : ctx.enemyFieldCards).length;
           if (ownLen + i >= MAX_FIELD_SIZE) break;
           const token = createFieldCard(tokenBase, eff.canAttack ?? false);
           if (eff.noTrigger) delete (token as any).summonTrigger;
+          if (tokenBuff) {
+            token.baseAttack = token.attack ?? 0;
+            token.baseHp = token.hp ?? 0;
+            token.attack = (token.attack ?? 0) + tokenBuff.attack;
+            token.hp = (token.hp ?? 0) + tokenBuff.hp;
+            token.maxHp = (token.maxHp ?? 0) + tokenBuff.hp;
+          }
           setOwnField((f) => [...f, token]);
-          // 召喚アニメーション後に isAnimating をクリアする
           const tokenId = token.uniqueId;
           setTimeout(() => {
             setOwnField((f) => f.map((c) => c.uniqueId === tokenId ? { ...c, isAnimating: false } : c));
@@ -158,12 +173,16 @@ export function executePlayEffects(
       }
       case "freeze_random_enemy": {
         const setOppField = isPlayer ? ctx.setEnemyFieldCards : ctx.setPlayerFieldCards;
-        const oppLen = (isPlayer ? ctx.enemyFieldCards : ctx.playerFieldCards).length;
-        if (oppLen > 0) {
+        const oppField = isPlayer ? ctx.enemyFieldCards : ctx.playerFieldCards;
+        // extra_freeze シナジー：暗器2回以上使用時にもう1体凍結
+        const freezeCount = (eff.count ?? 1) +
+          (card.synergy?.effect.type === "extra_freeze" && checkSynergy(card, ctx.fieldSize ?? 0, ctx.daggerCount ?? 0) ? 1 : 0);
+        if (oppField.length > 0) {
           setOppField((list) => {
             if (list.length === 0) return list;
-            const idx = Math.floor(Math.random() * list.length);
-            return list.map((c, i) => (i === idx ? { ...c, frozen: 1 } : c));
+            const notFrozen = list.map((_, i) => i).filter((i) => !(list[i] as any).frozen);
+            const toFreeze = [...notFrozen].sort(() => Math.random() - 0.5).slice(0, freezeCount);
+            return list.map((c, i) => (toFreeze.includes(i) ? { ...c, frozen: 1, canAttack: false } : c));
           });
         }
         break;
@@ -235,7 +254,10 @@ export function applySpell(
       break;
     }
     case "return_to_deck": {
-      const count = card.effectValue ?? 1;
+      // extra_hand_return シナジー：暗器2回以上使用でもう1枚戻す
+      const extraReturn = (card.synergy?.effect.type === "extra_hand_return" &&
+        checkSynergy(card, context.fieldSize ?? 0, context.daggerCount ?? 0)) ? 1 : 0;
+      const count = (card.effectValue ?? 1) + extraReturn;
       for (let i = 0; i < count; i++) {
         if (isPlayer) {
           if (enemyHandCards.length > 0) {

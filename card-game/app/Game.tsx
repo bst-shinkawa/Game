@@ -13,10 +13,11 @@ import { TurnTimer } from "./data/turnTimer";
 import { MAX_HAND, MAX_MANA, MAX_HERO_HP, MAX_FIELD_SIZE, TURN_DURATION_SECONDS } from "./constants/gameConstants";
 import { createUniqueCard, createFieldCard, addCardToHand } from "./services/cardService";
 import { processStatusEffects } from "./services/statusEffectService";
+import { getEffectiveCost, getSynergyAttackBonus, checkSynergy } from "./services/synergyUtils";
 import { executeAttack } from "./services/attackService";
 import { applySpell, executePlayEffects } from "./services/effectService";
 import type { PlayContext } from "./services/effectService";
-import type { RuntimeCard, SelectionMode, SelectionConfig, CardUsageType, CardRevealState } from "./types/gameTypes";
+import type { RuntimeCard, SelectionMode, SelectionConfig, CardUsageType, CardRevealState, GameOverState } from "./types/gameTypes";
 import { useToast } from "./hooks/useToast";
 import type { ToastItem } from "./hooks/useToast";
 import { useActionLog } from "./hooks/useActionLog";
@@ -54,7 +55,11 @@ export function useGame(): {
   playerAttackAnimation: { sourceCardId: string; targetId: string | "hero" } | null;
   enemyAttackAnimation: { sourceCardId: string | null; targetId: string | "hero" } | null;
   enemySpellAnimation: { targetId: string | "hero"; effect: string } | null;
-  gameOver: { over: boolean; winner: null | "player" | "enemy" };
+  gameOver: GameOverState;
+  playerRole: "king" | "usurper" | null;
+  round: number;
+  playerDaggerCount: number;
+  enemyDaggerCount: number;
   resetGame: (mode: "cpu" | "pvp") => void;
   preGame: boolean;
   coinResult: "deciding" | "player" | "enemy";
@@ -168,6 +173,12 @@ export function useGame(): {
   const playerFieldCardsRef = useRef<RuntimeCard[]>([]);
   const playerHeroHpRef = useRef<number>(MAX_HERO_HP);
 
+  // --- 暗器使用カウント（ターン中のみ有効。ターン開始時にリセット） ---
+  const [playerDaggerCount, setPlayerDaggerCount] = useState(0);
+  const [enemyDaggerCount, setEnemyDaggerCount] = useState(0);
+  const playerDaggerCountRef = useRef(0);
+  const enemyDaggerCountRef = useRef(0);
+
   // --- マナ・ターン ---
   const [turn, setTurn] = useState(1);
   const [maxMana, setMaxMana] = useState(1);
@@ -191,7 +202,7 @@ export function useGame(): {
   const [coinResult, setCoinResult] = useState<"deciding" | "player" | "enemy">("deciding");
 
   // ゲーム終了フラグと勝者
-  const [gameOver, setGameOver] = useState<{ over: boolean; winner: null | "player" | "enemy" }>({ over: false, winner: null });
+  const [gameOver, setGameOver] = useState<GameOverState>({ over: false, winner: null });
 
   // 敵AI実行中フラグ（再入防止）
   const [aiRunning, setAiRunning] = useState<boolean>(false);
@@ -303,6 +314,15 @@ export function useGame(): {
       }
       return result.updated;
     });
+
+    // 暗器カウントリセット（アクティブ側のみ）
+    if (turn % 2 === 1) {
+      setPlayerDaggerCount(0);
+      playerDaggerCountRef.current = 0;
+    } else {
+      setEnemyDaggerCount(0);
+      enemyDaggerCountRef.current = 0;
+    }
 
     // マナ増加
     if (turn >= 3) {
@@ -587,6 +607,34 @@ export function useGame(): {
     console.debug("[Game] gameOver -> cleared timers and cancelled AI");
   }, [gameOver]);
 
+  // 手札0 → 即敗北（プレイヤー）
+  useEffect(() => {
+    if (preGame || gameOver.over) return;
+    if (playerHandCards.length === 0) {
+      setGameOver({ over: true, winner: "enemy", reason: "hand_empty" });
+    }
+  }, [playerHandCards.length, preGame, gameOver.over]);
+
+  // 手札0 → 即敗北（敵）
+  useEffect(() => {
+    if (preGame || gameOver.over) return;
+    if (enemyHandCards.length === 0) {
+      setGameOver({ over: true, winner: "player", reason: "hand_empty" });
+    }
+  }, [enemyHandCards.length, preGame, gameOver.over]);
+
+  // 10ラウンド耐久 → 王の勝利
+  // 先攻開始(turn=1): ラウンド10終了 = turn > 20
+  // 後攻開始(turn=2): ラウンド10終了 = turn > 21
+  useEffect(() => {
+    if (preGame || gameOver.over) return;
+    const survivalThreshold = coinResult === "enemy" ? 21 : 20;
+    if (turn > survivalThreshold) {
+      const kingIsPlayer = coinResult === "player";
+      setGameOver({ over: true, winner: kingIsPlayer ? "player" : "enemy", reason: "survival" });
+    }
+  }, [turn, preGame, gameOver.over, coinResult]);
+
   // --- ドロー（refで最新デッキを参照し、setState内のネストを避けてStrictMode二重描画バグを防ぐ） ---
   const drawPlayerCard = () => {
     const currentDeck = playerDeckRef.current;
@@ -658,10 +706,25 @@ export function useGame(): {
     const setHand = isPlayerTurn ? setPlayerHandCards : setEnemyHandCards;
     const setGrave = isPlayerTurn ? setPlayerGraveyard : setEnemyGraveyard;
 
+    const fieldSizeForSynergy = fieldRef.length;
+    const daggerCountForSynergy = isPlayerTurn ? playerDaggerCountRef.current : enemyDaggerCountRef.current;
+
     for (const fc of fieldRef) {
+      // 従来の end_turn_add_card（unconditional）
       if (fc.summonTrigger?.type === "end_turn_add_card" && fc.summonTrigger.cardIds) {
         for (const cid of fc.summonTrigger.cardIds) {
           const base = cards.find((c) => c.id === cid);
+          if (base) {
+            const newCard = { ...base, uniqueId: uuidv4() };
+            addCardToHand(newCard, setHand, setGrave);
+          }
+        }
+      }
+      // end_turn_add_card シナジー（条件付き）
+      if (fc.synergy?.effect.type === "end_turn_add_card" && fc.synergy.effect.cardId) {
+        const synergyMet = checkSynergy(fc, fieldSizeForSynergy, daggerCountForSynergy);
+        if (synergyMet) {
+          const base = cards.find((c) => c.id === fc.synergy!.effect.cardId);
           if (base) {
             const newCard = { ...base, uniqueId: uuidv4() };
             addCardToHand(newCard, setHand, setGrave);
@@ -694,6 +757,10 @@ export function useGame(): {
     setEnemyGraveyard([]);
     setPlayerHeroHp(MAX_HERO_HP);
     setEnemyHeroHp(MAX_HERO_HP);
+    setPlayerDaggerCount(0);
+    setEnemyDaggerCount(0);
+    playerDaggerCountRef.current = 0;
+    enemyDaggerCountRef.current = 0;
     setTurn(1);
     setMaxMana(1);
     setCurrentMana(1);
@@ -805,6 +872,8 @@ export function useGame(): {
     drawEnemyCard,
     drawPlayerCards,
     drawEnemyCards,
+    daggerCount: playerDaggerCountRef.current,
+    fieldSize: playerFieldCardsRef.current.length,
   });
 
   const playCardToField = (card: Card, selectedTargetIds?: string[]) => {
@@ -816,14 +885,22 @@ export function useGame(): {
       showToast("フィールドは最大5体までです。");
       return;
     }
-    if (card.cost > currentMana) {
+    const currentFieldSize = playerFieldCardsRef.current.length;
+    const effectiveCost = getEffectiveCost(card, currentFieldSize, playerDaggerCountRef.current);
+    if (effectiveCost > currentMana) {
       showToast("マナが足りません！");
       return;
     }
-    setCurrentMana((m) => m - card.cost);
+    setCurrentMana((m) => m - effectiveCost);
 
     const canAttack = !!(card.rush || card.superHaste);
     const fieldCard = createFieldCard(card, canAttack);
+    // attack_bonus シナジー：召喚時に場のフォロワー数を参照して攻撃力を上げる
+    const attackBonus = getSynergyAttackBonus(card, currentFieldSize, playerDaggerCountRef.current);
+    if (attackBonus > 0) {
+      fieldCard.baseAttack = fieldCard.attack ?? 0;
+      fieldCard.attack = (fieldCard.attack ?? 0) + attackBonus;
+    }
     setPlayerFieldCards((f) => [...f, fieldCard]);
     setPlayerHandCards((h) => h.filter((c) => c.uniqueId !== card.uniqueId));
 
@@ -836,7 +913,10 @@ export function useGame(): {
     if (card.summonEffect) {
       const se = card.summonEffect;
       if (se.type === "damage_all" && (se.value ?? 0) > 0) {
-        const dmg = se.value ?? 1;
+        // summon_damage_bonus シナジー：条件を満たしている場合はダメージ増加
+        const bonusDmg = (card.synergy?.effect.type === "summon_damage_bonus" && checkSynergy(card, currentFieldSize, playerDaggerCountRef.current))
+          ? (card.synergy.effect.value ?? 0) : 0;
+        const dmg = (se.value ?? 1) + bonusDmg;
         setEnemyFieldCards((list) => {
           const updated = list.map((c) => ({ ...c, hp: (c.hp ?? 0) - dmg }));
           const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
@@ -983,6 +1063,17 @@ export function useGame(): {
       drawEnemyCards,
     });
 
+    // 暗器（id:15）使用時にカウントアップ
+    if (card.id === 15) {
+      if (isPlayer) {
+        setPlayerDaggerCount((c) => c + 1);
+        playerDaggerCountRef.current += 1;
+      } else {
+        setEnemyDaggerCount((c) => c + 1);
+        enemyDaggerCountRef.current += 1;
+      }
+    }
+
     // 手札から除去して墓地へ
     if (isPlayer) {
       setPlayerHandCards((h) => h.filter((c) => c.uniqueId !== cardUniqueId));
@@ -1032,6 +1123,10 @@ export function useGame(): {
     enemyAttackAnimation,
     enemySpellAnimation,
     gameOver,
+    playerRole: coinResult === "player" ? "king" as const : coinResult === "enemy" ? "usurper" as const : null,
+    round: coinResult === "enemy" ? Math.ceil((turn - 1) / 2) : Math.ceil(turn / 2),
+    playerDaggerCount,
+    enemyDaggerCount,
     resetGame,
     // pre-game (coin/mulligan)
     preGame,

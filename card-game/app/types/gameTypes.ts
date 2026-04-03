@@ -25,9 +25,12 @@ export interface SelectionConfig {
   onComplete?: (selectedIds: string[]) => void;
 }
 
+export type GameOverReason = "hp" | "hand_empty" | "survival";
+
 export interface GameOverState {
   over: boolean;
   winner: Winner;
+  reason?: GameOverReason;
 }
 
 export interface RuntimeCard extends Card {

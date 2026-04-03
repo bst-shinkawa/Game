@@ -15,6 +15,7 @@ type Props = {
   baseAttack?: number;  // バフ前の基礎攻撃力（緑色表示用）
   baseHp?: number;      // バフ前の基礎HP（緑色表示用）
   cost?: number;
+  effectiveCost?: number; // シナジーによるコスト軽減後の実効コスト
   image?: string;
   poison?: number;
   frozen?: number;
@@ -68,6 +69,7 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
   baseAttack,
   baseHp,
   cost,
+  effectiveCost,
   image,
   poison,
   frozen,
@@ -185,7 +187,9 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
       )}
       {cost !== undefined && (
         <div className={styles.card_cost}>
-          <p>{cost}</p>
+          <p style={effectiveCost !== undefined && effectiveCost < cost ? { color: "#4ade80" } : undefined}>
+            {effectiveCost !== undefined ? effectiveCost : cost}
+          </p>
         </div>
       )}
 

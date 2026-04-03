@@ -6,6 +6,7 @@ import ManaBar from "./ManaBar";
 import Image from "next/image";
 import type { Card } from "@/app/data/cards";
 import type { RuntimeCard, SelectionConfig } from "@/app/types/gameTypes";
+import { getEffectiveCost } from "@/app/services/synergyUtils";
 import { isOwnHeroSelectable, isOwnFieldCardSelectable } from "@/app/services/selectionService";
 import styles from "@/app/assets/css/Game.Master.module.css";
 import handIcon from "@/public/img/field/hand-icon.png";
@@ -23,6 +24,7 @@ interface PlayerAreaProps {
   playerDeck: Card[];
   playerGraveyard: Card[];
   currentMana: number;
+  playerDaggerCount?: number;
   turnSecondsRemaining: number;
   isPlayerTurn: boolean;
   draggingCard: string | null;
@@ -79,6 +81,7 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
   playerDeck = [],
   playerGraveyard = [],
   currentMana,
+  playerDaggerCount = 0,
   turnSecondsRemaining,
   isPlayerTurn,
   draggingCard,
@@ -392,6 +395,7 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
                   hp={card.hp ?? 0}
                   maxHp={card.maxHp ?? 0}
                   attack={card.attack ?? 0}
+                  effectiveCost={getEffectiveCost(card, playerFieldCards.length, playerDaggerCount)}
                   draggable
                   inHand
                   currentMana={currentMana}
@@ -410,6 +414,7 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
                   hp={card.hp ?? 0}
                   maxHp={card.maxHp ?? 0}
                   attack={card.attack ?? 0}
+                  effectiveCost={getEffectiveCost(card, playerFieldCards.length, playerDaggerCount)}
                   draggable
                   inHand
                   currentMana={currentMana}

@@ -1,8 +1,9 @@
 // スペル処理に関するサービス
 import { v4 as uuidv4 } from "uuid";
 import type { Card } from "../data/cards";
-import type { RuntimeCard } from "../types/gameTypes";
+import type { RuntimeCard, GameOverState } from "../types/gameTypes";
 import { MAX_HERO_HP, MAX_HAND } from "../constants/gameConstants";
+import { getSynergyDamageBonus } from "./synergyUtils";
 
 export interface SpellContext {
   playerFieldCards: RuntimeCard[];
@@ -13,10 +14,12 @@ export interface SpellContext {
   setEnemyHeroHp: React.Dispatch<React.SetStateAction<number>>;
   setPlayerGraveyard: React.Dispatch<React.SetStateAction<Card[]>>;
   setEnemyGraveyard: React.Dispatch<React.SetStateAction<Card[]>>;
-  setGameOver: React.Dispatch<React.SetStateAction<{ over: boolean; winner: null | "player" | "enemy" }>>;
+  setGameOver: React.Dispatch<React.SetStateAction<GameOverState>>;
   stopTimer: () => void;
   setAiRunning: React.Dispatch<React.SetStateAction<boolean>>;
   addCardToDestroying: (cardIds: string[], onAfterAnimation?: (ids: string[]) => void) => void;
+  daggerCount?: number;
+  fieldSize?: number;
 }
 
 /**
@@ -42,6 +45,8 @@ export function castSpell(
     stopTimer,
     setAiRunning,
     addCardToDestroying,
+    daggerCount = 0,
+    fieldSize = 0,
   } = context;
 
   // the following variables represent the caster's side (own) and the opponent's side (opp)
@@ -71,7 +76,9 @@ export function castSpell(
         setGameOver,
         stopTimer,
         setAiRunning,
-        addCardToDestroying
+        addCardToDestroying,
+        fieldSize,
+        daggerCount
       );
       break;
     case "damage_single":
@@ -86,7 +93,9 @@ export function castSpell(
         setGameOver,
         stopTimer,
         setAiRunning,
-        addCardToDestroying
+        addCardToDestroying,
+        fieldSize,
+        daggerCount
       );
       break;
     case "poison":
@@ -148,12 +157,14 @@ function handleDamageAllSpell(
   setTargetFieldCards: React.Dispatch<React.SetStateAction<RuntimeCard[]>>,
   setTargetHeroHp: React.Dispatch<React.SetStateAction<number>>,
   setTargetGraveyard: React.Dispatch<React.SetStateAction<Card[]>>,
-  setGameOver: React.Dispatch<React.SetStateAction<{ over: boolean; winner: null | "player" | "enemy" }>>,
+  setGameOver: React.Dispatch<React.SetStateAction<GameOverState>>,
   stopTimer: () => void,
   setAiRunning: React.Dispatch<React.SetStateAction<boolean>>,
-  addCardToDestroying: (cardIds: string[], onAfterAnimation?: (ids: string[]) => void) => void
+  addCardToDestroying: (cardIds: string[], onAfterAnimation?: (ids: string[]) => void) => void,
+  fieldSize: number = 0,
+  daggerCount: number = 0
 ): void {
-  const dmg = card.effectValue ?? 1;
+  const dmg = (card.effectValue ?? 1) + getSynergyDamageBonus(card, fieldSize, daggerCount);
 
   // HP を減らす（死亡カードは即除去せず、アニメーション完了後に除去する）
   setTargetFieldCards((list) => list.map((c) => ({ ...c, hp: (c.hp ?? 0) - dmg })));
@@ -191,12 +202,14 @@ function handleDamageSingleSpell(
   setTargetFieldCards: React.Dispatch<React.SetStateAction<RuntimeCard[]>>,
   setTargetHeroHp: React.Dispatch<React.SetStateAction<number>>,
   setTargetGraveyard: React.Dispatch<React.SetStateAction<Card[]>>,
-  setGameOver: React.Dispatch<React.SetStateAction<{ over: boolean; winner: null | "player" | "enemy" }>>,
+  setGameOver: React.Dispatch<React.SetStateAction<GameOverState>>,
   stopTimer: () => void,
   setAiRunning: React.Dispatch<React.SetStateAction<boolean>>,
-  addCardToDestroying: (cardIds: string[], onAfterAnimation?: (ids: string[]) => void) => void
+  addCardToDestroying: (cardIds: string[], onAfterAnimation?: (ids: string[]) => void) => void,
+  fieldSize: number = 0,
+  daggerCount: number = 0
 ): void {
-  const dmg = card.effectValue ?? 1;
+  const dmg = (card.effectValue ?? 1) + getSynergyDamageBonus(card, fieldSize, daggerCount);
   if (targetId === "hero") {
     setTargetHeroHp((h) => {
       const next = Math.max(h - dmg, 0);

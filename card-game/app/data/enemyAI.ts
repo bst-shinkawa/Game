@@ -5,6 +5,7 @@ import type { AIGameContext, RuntimeCard } from "../types/gameTypes";
 import { applySpell, executePlayEffects } from "../services/effectService";
 import type { PlayContext } from "../services/effectService";
 import { MAX_MANA, MAX_HAND } from "../constants/gameConstants";
+import { getEffectiveCost } from "../services/synergyUtils";
 
 export function evaluateBoardState({
   enemyFieldCards,
@@ -66,7 +67,7 @@ export function startEnemyTurn(ctx: AIGameContext) {
 
 const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
-function buildPlayContextFromAI(ctx: AIGameContext): PlayContext {
+function buildPlayContextFromAI(ctx: AIGameContext, localDaggerCount: number = 0, fieldSize: number = 0): PlayContext {
   return {
     playerFieldCards: ctx.playerFieldCards as RuntimeCard[],
     enemyFieldCards: ctx.enemyFieldCards,
@@ -96,6 +97,8 @@ function buildPlayContextFromAI(ctx: AIGameContext): PlayContext {
     drawEnemyCard: ctx.drawEnemyCard,
     drawPlayerCards: ctx.drawPlayerCards,
     drawEnemyCards: ctx.drawEnemyCards,
+    daggerCount: localDaggerCount,
+    fieldSize,
   };
 }
 
@@ -144,6 +147,8 @@ export async function runEnemyTurn(ctx: AIGameContext) {
   // mutable local copies to track what the AI still has available
   let localHand = [...enemyHandCards];
   let localEnemyDeck = [...enemyDeck];
+  // このターン中に使用した暗器の枚数（シナジー判定用）
+  let localDaggerCount = 0;
 
   try {
     await sleep(800);
@@ -217,11 +222,15 @@ export async function runEnemyTurn(ctx: AIGameContext) {
 
     let followerCandidates = localHand
       .filter((c) => c.type === "follower")
-      .map((c) => ({
-        card: c,
-        score: (c.attack ?? 0) + (c.hp ?? 0) / 2,
-        efficiency: ((c.attack ?? 0) + (c.hp ?? 0) / 2) / Math.max(1, c.cost),
-      }));
+      .map((c) => {
+        const effCost = getEffectiveCost(c, fieldCount, localDaggerCount);
+        return {
+          card: c,
+          effectiveCost: effCost,
+          score: (c.attack ?? 0) + (c.hp ?? 0) / 2,
+          efficiency: ((c.attack ?? 0) + (c.hp ?? 0) / 2) / Math.max(1, effCost),
+        };
+      });
 
     if (Math.random() < 0.5) {
       followerCandidates.sort((a, b) =>
@@ -234,26 +243,32 @@ export async function runEnemyTurn(ctx: AIGameContext) {
     const localSummoned: (RuntimeCard & { uniqueId: string; isAnimating?: boolean })[] = [];
 
     while (remainingMana > 0 && fieldCount < 5 && followerCandidates.length > 0) {
+      // 有効コストを再計算（暗器使用後にコストが変わる場合に対応）
+      followerCandidates = followerCandidates.map((e) => ({
+        ...e,
+        effectiveCost: getEffectiveCost(e.card, fieldCount, localDaggerCount),
+      }));
+
       let entry;
       if (isDefensiveTurn) {
         const wallCandidates = followerCandidates.filter(
-          (e) => (e.card.hp ?? 0) >= 5 || ["guard", "shield", "heal"].includes(e.card.effect ?? "")
+          (e) => (e.card.hp ?? 0) >= 5 || (e.card as any).wallGuard
         );
         entry =
-          wallCandidates.find((e) => e.card.cost <= remainingMana) ||
-          followerCandidates.find((e) => e.card.cost <= remainingMana);
+          wallCandidates.find((e) => e.effectiveCost <= remainingMana) ||
+          followerCandidates.find((e) => e.effectiveCost <= remainingMana);
       } else {
         if (Math.random() < 0.7) {
-          entry = followerCandidates.find((e) => e.card.cost <= remainingMana);
+          entry = followerCandidates.find((e) => e.effectiveCost <= remainingMana);
         } else {
-          const affordable = followerCandidates.filter((e) => e.card.cost <= remainingMana);
+          const affordable = followerCandidates.filter((e) => e.effectiveCost <= remainingMana);
           entry = affordable.length > 0 ? affordable[Math.floor(Math.random() * affordable.length)] : undefined;
         }
       }
       if (!entry) break;
 
       const card = entry.card;
-      remainingMana -= card.cost;
+      remainingMana -= entry.effectiveCost;
       fieldCount += 1;
       const animId = uuidv4();
       const canAttackInitial = !!(card.rush || card.superHaste);
@@ -318,7 +333,7 @@ export async function runEnemyTurn(ctx: AIGameContext) {
       }
 
       // データ駆動のプレイ時効果を実行（旧 card.id ハードコードを置換）
-      executePlayEffects(card, false, buildPlayContextFromAI(ctx));
+      executePlayEffects(card, false, buildPlayContextFromAI(ctx, localDaggerCount, fieldCount));
 
       (async () => {
         await sleep(600);
@@ -330,6 +345,8 @@ export async function runEnemyTurn(ctx: AIGameContext) {
     }
 
     // --- スペルフェイズ ---
+    // 相手手札が少ない場合は手札攻撃スペルを優先する（手札0勝利を狙う）
+    const playerHandIsLow = playerHandCards.length <= 4;
     let spellCandidates = localHand.filter((c) => c.type === "spell" && c.cost <= remainingMana);
     const spellPriority = [
       "poison", "freeze_single", "damage_single", "damage_all",
@@ -337,13 +354,34 @@ export async function runEnemyTurn(ctx: AIGameContext) {
       "return_to_deck", "steal_follower", "summon_token",
     ] as const;
 
+    // 暗器（id:15）は他のシナジースペルの前に必ず先に使う
+    const sortSpellsForPlay = (candidates: Card[]): Card[] => {
+      return [...candidates].sort((a, b) => {
+        if (a.id === 15 && b.id !== 15) return -1;
+        if (a.id !== 15 && b.id === 15) return 1;
+        // 手札が少ない場合は手札攻撃を優先
+        if (playerHandIsLow) {
+          if ((a.effect === "return_to_deck" || a.effect === "discard_hand") &&
+              b.effect !== "return_to_deck" && b.effect !== "discard_hand") return -1;
+          if ((b.effect === "return_to_deck" || b.effect === "discard_hand") &&
+              a.effect !== "return_to_deck" && a.effect !== "discard_hand") return 1;
+        }
+        return 0;
+      });
+    };
+
     while (remainingMana > 0 && spellCandidates.length > 0) {
-      const priorityOrder = Math.random() < 0.5;
-      const order = priorityOrder ? [...spellPriority] : [...spellPriority].sort(() => Math.random() - 0.5);
-      let spell: Card | undefined;
-      for (const type of order) {
-        spell = spellCandidates.find((c) => c.effect === type && c.cost <= remainingMana);
-        if (spell) break;
+      // 暗器優先 + 手札攻撃優先でソート
+      const sortedCandidates = sortSpellsForPlay(spellCandidates);
+      // まず暗器または手札攻撃スペルを先にチェックし、なければ通常優先度
+      let spell: Card | undefined = sortedCandidates.find((c) => c.cost <= remainingMana);
+      if (!spell) {
+        const priorityOrder = Math.random() < 0.5;
+        const order = priorityOrder ? [...spellPriority] : [...spellPriority].sort(() => Math.random() - 0.5);
+        for (const type of order) {
+          spell = spellCandidates.find((c) => c.effect === type && c.cost <= remainingMana);
+          if (spell) break;
+        }
       }
       if (!spell) break;
 
@@ -386,6 +424,9 @@ export async function runEnemyTurn(ctx: AIGameContext) {
       clearCardReveal();
       if (cancelRef.current) return;
 
+      // 暗器（id:15）使用時にカウントアップ
+      if (spell.id === 15) localDaggerCount += 1;
+
       setEnemySpellAnimation({ targetId, effect: spell.effect! });
       applySpell(spell, targetId, false, {
         playerFieldCards,
@@ -416,6 +457,8 @@ export async function runEnemyTurn(ctx: AIGameContext) {
         setCurrentMana: () => {},
         enemyCurrentMana: remainingMana,
         setEnemyCurrentMana,
+        daggerCount: localDaggerCount,
+        fieldSize: fieldCount,
       });
 
       await sleep(600);

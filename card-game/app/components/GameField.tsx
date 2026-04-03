@@ -44,7 +44,11 @@ interface GameFieldProps {
   enemyCurrentMana: number;
   turn: number;
   turnSecondsRemaining: number;
-  gameOver: { over: boolean; winner: null | "player" | "enemy" };
+  gameOver: { over: boolean; winner: null | "player" | "enemy"; reason?: string };
+  playerRole?: "king" | "usurper" | null;
+  round?: number;
+  playerDaggerCount?: number;
+  enemyDaggerCount?: number;
   preGame: boolean;
   coinResult: "deciding" | "player" | "enemy";
   aiRunning: boolean;
@@ -113,7 +117,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
     enemyHandCards, enemyFieldCards, enemyHeroHp,
     playerGraveyard, enemyGraveyard, deck, enemyDeck,
     currentMana, enemyCurrentMana, turn, turnSecondsRemaining,
-    gameOver, preGame, coinResult, aiRunning, destroyingCards,
+    gameOver, playerRole, round, playerDaggerCount, preGame, coinResult, aiRunning, destroyingCards,
     toasts, actionLogEntries, cardReveal, clearCardReveal,
     damageFloats, draggingCard, dragPosition,
     isHandExpanded, activeHandCardId, showTurnModal,
@@ -475,6 +479,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
         playerDeck={deck}
         playerGraveyard={playerGraveyard}
         currentMana={currentMana}
+        playerDaggerCount={playerDaggerCount ?? 0}
         turnSecondsRemaining={turnSecondsRemaining}
         isPlayerTurn={isPlayerTurn}
         draggingCard={draggingCard}
@@ -574,9 +579,78 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
         document.body,
       )}
 
+      {/* ラウンドカウンター・シナジーインジケーター・手札警告 */}
+      {!preGame && !gameOver.over && (() => {
+        const currentRound = round ?? Math.ceil(turn / 2);
+        const computedPlayerRole = playerRole ?? (coinResult === "player" ? "king" : coinResult === "enemy" ? "usurper" : null);
+        const isKing = computedPlayerRole === "king";
+        const isUsurper = computedPlayerRole === "usurper";
+        const handLow = playerHandCards.length <= 2;
+        const fieldBonusActive = isKing && playerFieldCards.length >= 3;
+        const daggerCount = playerDaggerCount ?? 0;
+        return (
+          <div style={{
+            position: "fixed", top: 12, left: "50%", transform: "translateX(-50%)",
+            zIndex: 1100, display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+            pointerEvents: "none",
+          }}>
+            {/* ラウンド表示 */}
+            <div style={{
+              background: "rgba(0,0,0,0.7)", color: "#eee",
+              padding: "4px 16px", borderRadius: 20, fontSize: 13, fontWeight: "bold",
+              border: "1px solid rgba(255,255,255,0.2)",
+              display: "flex", alignItems: "center", gap: 10,
+            }}>
+              <span>ラウンド {currentRound} / 10</span>
+              {isKing && (
+                <span style={{ color: "#a0c8ff", fontSize: 11 }}>
+                  残り {Math.max(0, 11 - currentRound)} R
+                </span>
+              )}
+            </div>
+
+            {/* シナジーインジケーター */}
+            <div style={{ display: "flex", gap: 6 }}>
+              {/* 王：陣形ボーナス発動中 */}
+              {fieldBonusActive && (
+                <div style={{
+                  background: "rgba(30,90,180,0.85)", color: "#fff",
+                  padding: "2px 12px", borderRadius: 12, fontSize: 12, fontWeight: "bold",
+                  border: "1px solid #60a8ff",
+                }}>
+                  ⚔ 陣形ボーナス
+                </div>
+              )}
+              {/* 簒奪者：暗器カウンター */}
+              {isUsurper && daggerCount > 0 && (
+                <div style={{
+                  background: "rgba(60,20,90,0.88)", color: "#e0b0ff",
+                  padding: "2px 12px", borderRadius: 12, fontSize: 12, fontWeight: "bold",
+                  border: "1px solid #c060ff",
+                }}>
+                  🗡 暗器 ×{daggerCount}
+                </div>
+              )}
+            </div>
+
+            {/* 手札警告 */}
+            {handLow && (
+              <div style={{
+                background: "rgba(180,0,0,0.85)", color: "#fff",
+                padding: "3px 14px", borderRadius: 12, fontSize: 12, fontWeight: "bold",
+              }}>
+                ⚠ 手札残り {playerHandCards.length} 枚
+              </div>
+            )}
+          </div>
+        );
+      })()}
+
       {gameOver.over && (
         <GameOver
           winner={gameOver.winner}
+          reason={gameOver.reason as any}
+          playerRole={playerRole ?? (coinResult === "player" ? "king" : coinResult === "enemy" ? "usurper" : null)}
           turn={turn}
           onRestart={() => resetGame("cpu")}
           onMenu={() => {}}

@@ -1,6 +1,6 @@
 // 攻撃処理に関するサービス
 import type { Card } from "../data/cards";
-import type { RuntimeCard } from "../types/gameTypes";
+import type { RuntimeCard, GameOverState } from "../types/gameTypes";
 import { cards } from "../data/cards";
 import { MAX_HAND } from "../constants/gameConstants";
 
@@ -14,7 +14,7 @@ interface AttackContext {
   setTargetGraveyard: React.Dispatch<React.SetStateAction<Card[]>>;
   setAttackerHandCards: React.Dispatch<React.SetStateAction<Card[]>>;
   setTargetHandCards: React.Dispatch<React.SetStateAction<Card[]>>;
-  setGameOver: React.Dispatch<React.SetStateAction<{ over: boolean; winner: null | "player" | "enemy" }>>;
+  setGameOver: React.Dispatch<React.SetStateAction<GameOverState>>;
   stopTimer: () => void;
   setAiRunning: React.Dispatch<React.SetStateAction<boolean>>;
   isPlayerAttacker: boolean;
@@ -59,9 +59,8 @@ export function executeAttack(
     return;
   }
 
-  // wallGuard チェック
-  const defendList = isPlayerAttacker ? targetList : attackerList;
-  const hasWallGuard = defendList.some((c) => (c as { wallGuard?: boolean }).wallGuard);
+  // wallGuard チェック（防御側＝攻撃対象側のフィールドに wallGuard があれば直接ヒーローを攻撃できない）
+  const hasWallGuard = targetList.some((c) => (c as { wallGuard?: boolean }).wallGuard);
   if (hasWallGuard && targetId === "hero") {
     console.log("相手は鉄壁を持っているため、ヒーローは攻撃できません");
     return;
@@ -97,7 +96,7 @@ function attackHero(
   setAttackerList: React.Dispatch<React.SetStateAction<RuntimeCard[]>>,
   attackerId: string,
   setAttackerGraveyard: React.Dispatch<React.SetStateAction<Card[]>>,
-  setGameOver: React.Dispatch<React.SetStateAction<{ over: boolean; winner: null | "player" | "enemy" }>>,
+  setGameOver: React.Dispatch<React.SetStateAction<GameOverState>>,
   stopTimer: () => void,
   setAiRunning: React.Dispatch<React.SetStateAction<boolean>>,
   isPlayerAttacker: boolean
