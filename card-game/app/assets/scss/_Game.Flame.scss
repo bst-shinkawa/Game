@@ -1201,3 +1201,196 @@
 }
 
 
+// ============== トースト通知 ==============
+.toast_container {
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast_item {
+  padding: 10px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  pointer-events: auto;
+  animation: toastSlideIn 0.3s ease-out, toastFadeOut 0.4s ease-in 2.1s forwards;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+  max-width: 400px;
+  text-align: center;
+}
+
+.toast_error  { background: rgba(220, 53,  69,  0.92); }
+.toast_info   { background: rgba(23,  162, 184, 0.92); }
+.toast_success{ background: rgba(40,  167, 69,  0.92); }
+
+@keyframes toastSlideIn {
+  from { opacity: 0; transform: translateY(-20px); }
+  to   { opacity: 1; transform: translateY(0);     }
+}
+
+@keyframes toastFadeOut {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+
+// ============== タイマー残り10秒パルスアニメーション ==============
+@keyframes timerPulse {
+  0%   { transform: scale(1);    }
+  50%  { transform: scale(1.08); }
+  100% { transform: scale(1);    }
+}
+
+.field_player_timer,
+.field_enemy_timer {
+  .critical {
+    stroke: #d9534f;
+    filter: drop-shadow(0 6px 8px rgba(217, 83, 79, 0.18));
+    animation: timerPulse 0.8s ease-in-out infinite;
+  }
+}
+
+
+// ============== AI行動ログ ==============
+.action_log_container {
+  position: fixed;
+  left: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1800;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: none;
+  max-width: 280px;
+}
+
+.action_log_item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: rgba(0, 0, 0, 0.82);
+  border-left: 3px solid #ff6b35;
+  border-radius: 0 8px 8px 0;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  backdrop-filter: blur(6px);
+  animation: actionLogSlideIn 0.3s ease-out, actionLogFadeOut 0.4s ease-in 1.8s forwards;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.5);
+  white-space: nowrap;
+}
+
+.action_log_icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.action_log_text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@keyframes actionLogSlideIn {
+  from { opacity: 0; transform: translateX(-30px); }
+  to   { opacity: 1; transform: translateX(0);     }
+}
+
+@keyframes actionLogFadeOut {
+  from { opacity: 1; }
+  to   { opacity: 0; transform: translateX(-20px); }
+}
+
+
+// ============== ヒーローHPバー ==============
+.hero_hp_bar_wrap {
+  position: absolute;
+  width: 120px;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.6);
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+
+  &_enemy {
+    bottom: -44px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+
+  &_player {
+    top: -44px;
+    left: 50%;
+    transform: translateX(-50%);
+  }
+}
+
+.hero_hp_bar_fill {
+  height: 100%;
+  border-radius: 3px;
+  transition: width 0.5s ease, background-color 0.5s ease;
+}
+
+.hero_hp_bar_high {
+  background: linear-gradient(90deg, #4caf50, #66bb6a);
+  box-shadow: 0 0 6px rgba(76, 175, 80, 0.5);
+}
+
+.hero_hp_bar_mid {
+  background: linear-gradient(90deg, #ff9800, #ffc107);
+  box-shadow: 0 0 6px rgba(255, 152, 0, 0.5);
+}
+
+.hero_hp_bar_low {
+  background: linear-gradient(90deg, #f44336, #e53935);
+  box-shadow: 0 0 6px rgba(244, 67, 54, 0.5);
+  animation: hpBarPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes hpBarPulse {
+  0%, 100% { opacity: 1;   }
+  50%       { opacity: 0.7; }
+}
+
+
+// ============== 敵カード演出 ==============
+.card_reveal_wrapper {
+  filter:
+    drop-shadow(0 0 24px rgba(255, 120, 50, 0.6))
+    drop-shadow(0 0 60px rgba(255,  60, 20, 0.3));
+}
+
+.card_reveal_name {
+  position: absolute;
+  bottom: -32px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.8);
+  letter-spacing: 0.05em;
+  background: rgba(0, 0, 0, 0.55);
+  padding: 3px 12px;
+  border-radius: 6px;
+  animation: revealNameFade 0.3s ease-out;
+}
+
+@keyframes revealNameFade {
+  from { opacity: 0; transform: translateX(-50%) translateY(6px); }
+  to   { opacity: 1; transform: translateX(-50%) translateY(0);   }
+}
+
+
