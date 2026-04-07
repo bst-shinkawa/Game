@@ -343,14 +343,18 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
               />
             );
           } else {
-            // 空スロット
-            const isHighlight = draggingCard && playerHandCards.some(c => c.uniqueId === draggingCard && c.type === 'follower');
+            // 空スロット（フォロワー: 召喚可能 / スペル: 使用可能）
+            const draggingHandCard = draggingCard
+              ? playerHandCards.find((c) => c.uniqueId === draggingCard)
+              : undefined;
+            const isHighlight = !!draggingHandCard && (draggingHandCard.type === "follower" || draggingHandCard.type === "spell");
+            const hintText = draggingHandCard?.type === "spell" ? "使用可能" : "召喚可能";
             return (
               <div
                 key={`empty-${index}`}
                 className={`${styles.field_slot} ${isHighlight ? styles.field_slot_highlight : ''}`}
               >
-                {isHighlight ? '召喚可能' : ''}
+                {isHighlight ? hintText : ""}
               </div>
             );
           }

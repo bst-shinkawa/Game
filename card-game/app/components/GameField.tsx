@@ -599,13 +599,13 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
             {/* ラウンド表示 */}
             <div style={{
               background: "rgba(0,0,0,0.7)", color: "#eee",
-              padding: "4px 16px", borderRadius: 20, fontSize: 13, fontWeight: "bold",
+              padding: "4px 16px", borderRadius: 20, fontSize: 18, fontWeight: "bold",
               border: "1px solid rgba(255,255,255,0.2)",
               display: "flex", alignItems: "center", gap: 10,
             }}>
               <span>ラウンド {currentRound} / 10</span>
               {isKing && (
-                <span style={{ color: "#a0c8ff", fontSize: 11 }}>
+                <span style={{ color: "#a0c8ff", fontSize: 14 }}>
                   残り {Math.max(0, 11 - currentRound)} R
                 </span>
               )}
@@ -617,7 +617,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
               {fieldBonusActive && (
                 <div style={{
                   background: "rgba(30,90,180,0.85)", color: "#fff",
-                  padding: "2px 12px", borderRadius: 12, fontSize: 12, fontWeight: "bold",
+                  padding: "2px 12px", borderRadius: 12, fontSize: 14, fontWeight: "bold",
                   border: "1px solid #60a8ff",
                 }}>
                   ⚔ 陣形ボーナス
@@ -627,7 +627,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
               {isUsurper && daggerCount > 0 && (
                 <div style={{
                   background: "rgba(60,20,90,0.88)", color: "#e0b0ff",
-                  padding: "2px 12px", borderRadius: 12, fontSize: 12, fontWeight: "bold",
+                  padding: "2px 12px", borderRadius: 12, fontSize: 14, fontWeight: "bold",
                   border: "1px solid #c060ff",
                 }}>
                   🗡 暗器 ×{daggerCount}

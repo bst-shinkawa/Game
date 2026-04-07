@@ -1,5 +1,5 @@
 // ゲーム定数
-export const MAX_HAND = 10;
+export const MAX_HAND = 7;
 export const MAX_MANA = 10;
 export const MAX_HERO_HP = 20;
 export const MAX_FIELD_SIZE = 5;
