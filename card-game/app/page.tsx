@@ -78,6 +78,7 @@ const GamePage: React.FC = () => {
         uiState.setMulliganTimer(15);
         setMode("game");
       }}
+      goToMenu={() => setMode("menu")}
       handAreaRef={uiState.handAreaRef}
       collapseHand={uiState.collapseHand}
     />

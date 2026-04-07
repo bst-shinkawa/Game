@@ -82,6 +82,7 @@ interface GameFieldProps {
   attack: (attackerId: string, targetId: string | "hero", isPlayerAttacker?: boolean) => void;
   castSpell: (cardUniqueId: string, targetId: string | "hero", isPlayer?: boolean, setAttackTargets?: (targets: string[]) => void) => void;
   resetGame: (mode: "cpu" | "pvp") => void;
+  goToMenu?: () => void;
   finalizeCoin: (winner: "player" | "enemy") => void;
   doMulligan: (keepIds: string[]) => void;
   startMatch: () => void;
@@ -127,7 +128,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
     enemyAttackAnimation, enemySpellAnimation,
     selectionMode, selectionConfig,
     playCardToField, endTurn, attack, castSpell,
-    resetGame, finalizeCoin, doMulligan, startMatch,
+    resetGame, goToMenu, finalizeCoin, doMulligan, startMatch,
     initializeSelection, applySelection, cancelSelection,
     setDamageFloats, setDraggingCard, setDragPosition,
     setIsHandExpanded, setActiveHandCardId, setShowTurnModal,
@@ -372,7 +373,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
       {/* Menu buttons */}
       <div style={{ position: "fixed", top: 12, right: 12, zIndex: 1200, display: "flex", gap: 8 }}>
         <button onClick={() => resetGame("cpu")}>リスタート</button>
-        <button onClick={() => resetGame("cpu")}>リタイア</button>
+        <button onClick={() => goToMenu?.()}>リタイア</button>
       </div>
 
       {/* AI attack clone portal */}
@@ -479,7 +480,6 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
         playerDeck={deck}
         playerGraveyard={playerGraveyard}
         currentMana={currentMana}
-        playerDaggerCount={playerDaggerCount ?? 0}
         turnSecondsRemaining={turnSecondsRemaining}
         isPlayerTurn={isPlayerTurn}
         draggingCard={draggingCard}
@@ -579,67 +579,36 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
         document.body,
       )}
 
-      {/* ラウンドカウンター・シナジーインジケーター・手札警告 */}
+      {/* ラウンドカウンター & 手札警告 */}
       {!preGame && !gameOver.over && (() => {
         const currentRound = round ?? Math.ceil(turn / 2);
         const computedPlayerRole = playerRole ?? (coinResult === "player" ? "king" : coinResult === "enemy" ? "usurper" : null);
         const isKing = computedPlayerRole === "king";
-        const isUsurper = computedPlayerRole === "usurper";
-        const handLow = playerHandCards.length <= 2;
-        const fieldBonusActive = isKing && playerFieldCards.length >= 3;
-        const daggerCount = playerDaggerCount ?? 0;
+        const handLow = isKing && playerHandCards.length <= 2;
         return (
           <div style={{
             position: "fixed", top: 12, left: "50%", transform: "translateX(-50%)",
             zIndex: 1100, display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
             pointerEvents: "none",
           }}>
-            {/* ラウンド表示 */}
             <div style={{
-              background: "rgba(0,0,0,0.7)", color: "#eee",
+              background: "rgba(0,0,0,0.65)", color: "#eee",
               padding: "4px 16px", borderRadius: 20, fontSize: 13, fontWeight: "bold",
               border: "1px solid rgba(255,255,255,0.2)",
-              display: "flex", alignItems: "center", gap: 10,
             }}>
-              <span>ラウンド {currentRound} / 10</span>
+              ラウンド {currentRound} / 10
               {isKing && (
-                <span style={{ color: "#a0c8ff", fontSize: 11 }}>
-                  残り {Math.max(0, 11 - currentRound)} R
+                <span style={{ color: "#a0c8ff", marginLeft: 8, fontSize: 11 }}>
+                  残り {Math.max(0, 10 - currentRound + 1)} R で耐久勝利
                 </span>
               )}
             </div>
-
-            {/* シナジーインジケーター */}
-            <div style={{ display: "flex", gap: 6 }}>
-              {/* 王：陣形ボーナス発動中 */}
-              {fieldBonusActive && (
-                <div style={{
-                  background: "rgba(30,90,180,0.85)", color: "#fff",
-                  padding: "2px 12px", borderRadius: 12, fontSize: 12, fontWeight: "bold",
-                  border: "1px solid #60a8ff",
-                }}>
-                  ⚔ 陣形ボーナス
-                </div>
-              )}
-              {/* 簒奪者：暗器カウンター */}
-              {isUsurper && daggerCount > 0 && (
-                <div style={{
-                  background: "rgba(60,20,90,0.88)", color: "#e0b0ff",
-                  padding: "2px 12px", borderRadius: 12, fontSize: 12, fontWeight: "bold",
-                  border: "1px solid #c060ff",
-                }}>
-                  🗡 暗器 ×{daggerCount}
-                </div>
-              )}
-            </div>
-
-            {/* 手札警告 */}
             {handLow && (
               <div style={{
                 background: "rgba(180,0,0,0.85)", color: "#fff",
                 padding: "3px 14px", borderRadius: 12, fontSize: 12, fontWeight: "bold",
               }}>
-                ⚠ 手札残り {playerHandCards.length} 枚
+                ⚠ 手札残り {playerHandCards.length} 枚 — 0になると敗北
               </div>
             )}
           </div>
@@ -653,7 +622,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
           playerRole={playerRole ?? (coinResult === "player" ? "king" : coinResult === "enemy" ? "usurper" : null)}
           turn={turn}
           onRestart={() => resetGame("cpu")}
-          onMenu={() => {}}
+          onMenu={() => goToMenu?.()}
         />
       )}
     </div>
