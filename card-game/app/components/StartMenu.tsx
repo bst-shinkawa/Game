@@ -32,7 +32,7 @@ const StartMenu: React.FC<Props> = ({ onSelectMode, onDeck }) => {
           <br />
           <br />
           <span style={{ color: "#f0c040"}}>特殊勝利条件</span><br />
-          <span style={{ color: "#f0c040"}}>王様：</span>10ラウンド耐えきる、もしくは簒奪者の手札を枯らした方が勝利です。<br />
+          <span style={{ color: "#f0c040"}}>王様：</span>10ラウンド耐えきる、もしくは自分の場に3体以上を合計5回達成すると勝利です。<br />
           <span style={{ color: "#f0c040"}}>簒奪者：</span>10ラウンド以内に倒しきる、もしくは王様の手札を枯らした方が勝利です。
         </p>
         <p style={{ paddingTop: 30, color: "#fff"}}>

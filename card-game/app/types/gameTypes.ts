@@ -25,7 +25,7 @@ export interface SelectionConfig {
   onComplete?: (selectedIds: string[]) => void;
 }
 
-export type GameOverReason = "hp" | "hand_empty" | "survival";
+export type GameOverReason = "hp" | "hand_empty" | "survival" | "king_board_control";
 
 export interface GameOverState {
   over: boolean;

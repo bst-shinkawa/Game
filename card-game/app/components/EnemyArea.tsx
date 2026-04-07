@@ -20,6 +20,8 @@ import HeroHpBar from "./HeroHpBar";
 import { TurnTimer } from "@/app/data/turnTimer";
 interface EnemyAreaProps {
   enemyHeroHp: number;
+  enemyMaxHeroHp: number;
+  preGame: boolean;
   enemyHandCards: Card[];
   enemyFieldCards: RuntimeCard[];
   enemyDeck: Card[];
@@ -51,6 +53,8 @@ interface EnemyAreaProps {
 
 export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string | null; id?: string | null }, dropSuccess?: { type: string | null; id?: string | null }, attackTargets?: string[] }> = ({
   enemyHeroHp,
+  enemyMaxHeroHp,
+  preGame,
   enemyHandCards,
   enemyFieldCards,
   enemyDeck,
@@ -106,8 +110,9 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
   }, [playerAttackAnimation, enemyHeroRef, enemyFieldRefs]);
 
   const getHpClass = (hp: number) => {
-    if (hp === 20) return styles.hpWhite;
-    if (hp >= 11) return styles.hpYellow;
+    const ratio = enemyMaxHeroHp > 0 ? hp / enemyMaxHeroHp : 0;
+    if (ratio > 0.55) return styles.hpWhite;
+    if (ratio > 0.25) return styles.hpYellow;
     return styles.hpRed;
   };
 
@@ -144,9 +149,9 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
       >
         <div className={styles.field_enemy_hero_wrap}>
           <div className={styles.field_enemy_hero_hp}>
-            <p className={getHpClass(enemyHeroHp)}>{enemyHeroHp}</p>
+            {!preGame && <p className={getHpClass(enemyHeroHp)}>{enemyHeroHp}</p>}
           </div>
-          <HeroHpBar hp={enemyHeroHp} side="enemy" />
+          {!preGame && <HeroHpBar hp={enemyHeroHp} maxHp={enemyMaxHeroHp} side="enemy" />}
         </div>
       </div>
 

@@ -23,6 +23,7 @@ import type { RuntimeCard, SelectionMode, SelectionConfig } from "@/app/types/ga
 import styles from "@/app/assets/css/Game.Master.module.css";
 import { TimerController } from "./TimerCircle";
 import ViewportContext from "@/app/context/ViewportContext";
+import { KING_SPECIAL_WIN_STREAK_TURNS } from "@/app/constants/gameConstants";
 
 import { useDragHandler } from "@/app/hooks/useDragHandler";
 import { useArrowCanvas } from "@/app/hooks/useArrowCanvas";
@@ -33,9 +34,11 @@ interface GameFieldProps {
   playerHandCards: Card[];
   playerFieldCards: RuntimeCard[];
   playerHeroHp: number;
+  playerMaxHeroHp: number;
   enemyHandCards: Card[];
   enemyFieldCards: RuntimeCard[];
   enemyHeroHp: number;
+  enemyMaxHeroHp: number;
   playerGraveyard: Card[];
   enemyGraveyard: Card[];
   deck: Card[];
@@ -46,6 +49,7 @@ interface GameFieldProps {
   turnSecondsRemaining: number;
   gameOver: { over: boolean; winner: null | "player" | "enemy"; reason?: string };
   playerRole?: "king" | "usurper" | null;
+  kingBoardControlStreak: number;
   round?: number;
   playerDaggerCount?: number;
   enemyDaggerCount?: number;
@@ -114,11 +118,11 @@ interface GameFieldProps {
 
 export const GameField: React.FC<GameFieldProps> = (props) => {
   const {
-    playerHandCards, playerFieldCards, playerHeroHp,
-    enemyHandCards, enemyFieldCards, enemyHeroHp,
+    playerHandCards, playerFieldCards, playerHeroHp, playerMaxHeroHp,
+    enemyHandCards, enemyFieldCards, enemyHeroHp, enemyMaxHeroHp,
     playerGraveyard, enemyGraveyard, deck, enemyDeck,
     currentMana, enemyCurrentMana, turn, turnSecondsRemaining,
-    gameOver, playerRole, round, playerDaggerCount, preGame, coinResult, aiRunning, destroyingCards,
+    gameOver, playerRole, kingBoardControlStreak, round, playerDaggerCount, preGame, coinResult, aiRunning, destroyingCards,
     toasts, actionLogEntries, cardReveal, clearCardReveal,
     damageFloats, draggingCard, dragPosition,
     isHandExpanded, activeHandCardId, showTurnModal,
@@ -238,6 +242,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
   });
 
   useDamageMonitor({
+    preGame,
     playerHeroHp, enemyHeroHp, playerFieldCards, enemyFieldCards,
     damageFloats, setDamageFloats,
     playerHeroRef, enemyHeroRef, playerFieldRefs, enemyFieldRefs,
@@ -423,6 +428,8 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
       {/* Enemy area */}
       <EnemyArea
         enemyHeroHp={enemyHeroHp}
+        enemyMaxHeroHp={enemyMaxHeroHp}
+        preGame={preGame}
         enemyHandCards={preGame ? [] : enemyHandCards}
         enemyFieldCards={enemyFieldCards}
         enemyDeck={enemyDeck}
@@ -475,6 +482,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
       {/* Player area */}
       <PlayerArea
         playerHeroHp={playerHeroHp}
+        playerMaxHeroHp={playerMaxHeroHp}
         playerHandCards={preGame ? [] : playerHandCards}
         playerFieldCards={playerFieldCards}
         playerDeck={deck}
@@ -612,15 +620,34 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
             </div>
 
             {/* シナジーインジケーター */}
-            <div style={{ display: "flex", gap: 6 }}>
+            <div style={{ display: "flex", gap: 6 ,flexDirection: "column", alignItems: "center"}}>
               {/* 王：陣形ボーナス発動中 */}
               {fieldBonusActive && (
                 <div style={{
                   background: "rgba(30,90,180,0.85)", color: "#fff",
                   padding: "2px 12px", borderRadius: 12, fontSize: 14, fontWeight: "bold",
                   border: "1px solid #60a8ff",
+                  width: "fit-content",
                 }}>
                   ⚔ 陣形ボーナス
+                </div>
+              )}
+              {isKing && (
+                <div style={{
+                  background: "rgba(20,70,120,0.88)", color: "#d8ecff",
+                  padding: "2px 12px", borderRadius: 12, fontSize: 14, fontWeight: "bold",
+                  border: "1px solid #7fc4ff",
+                }}>
+                  👑 陣形カウント {kingBoardControlStreak}/{KING_SPECIAL_WIN_STREAK_TURNS}
+                </div>
+              )}
+              {isUsurper && (
+                <div style={{
+                  background: "rgba(120,20,20,0.9)", color: "#ffd6d6",
+                  padding: "2px 12px", borderRadius: 12, fontSize: 14, fontWeight: "bold",
+                  border: "1px solid #ff7a7a",
+                }}>
+                  ⚠ 王の陣形勝利まで残り {Math.max(0, KING_SPECIAL_WIN_STREAK_TURNS - kingBoardControlStreak)} 回
                 </div>
               )}
               {/* 簒奪者：暗器カウンター */}

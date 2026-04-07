@@ -6,6 +6,7 @@ import type { RuntimeCard } from "../types/gameTypes";
 import type { DamageFloat } from "./useGameUI";
 
 interface UseDamageMonitorProps {
+  preGame: boolean;
   playerHeroHp: number;
   enemyHeroHp: number;
   playerFieldCards: RuntimeCard[];
@@ -19,6 +20,7 @@ interface UseDamageMonitorProps {
 }
 
 export function useDamageMonitor({
+  preGame,
   playerHeroHp,
   enemyHeroHp,
   playerFieldCards,
@@ -35,6 +37,13 @@ export function useDamageMonitor({
   const prevFieldHp = useRef<{ [id: string]: number }>({});
 
   useEffect(() => {
+    if (preGame) {
+      // コイントス/初期化によるHP更新ではダメージ表示を出さない
+      prevPlayerHeroHp.current = playerHeroHp;
+      prevEnemyHeroHp.current = enemyHeroHp;
+      return;
+    }
+
     const newFloats: DamageFloat[] = [];
 
     if (playerHeroHp < prevPlayerHeroHp.current && playerHeroRef.current) {
@@ -100,5 +109,5 @@ export function useDamageMonitor({
     if (newFloats.length > 0) {
       setDamageFloats([...damageFloats, ...newFloats]);
     }
-  }, [playerHeroHp, enemyHeroHp, playerFieldCards, enemyFieldCards, setDamageFloats, playerHeroRef, enemyHeroRef, playerFieldRefs, enemyFieldRefs]);
+  }, [preGame, playerHeroHp, enemyHeroHp, playerFieldCards, enemyFieldCards, setDamageFloats, playerHeroRef, enemyHeroRef, playerFieldRefs, enemyFieldRefs]);
 }

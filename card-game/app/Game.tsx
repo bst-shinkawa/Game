@@ -10,7 +10,16 @@ import { createDeck } from "./data/deck";
 import { runEnemyTurn } from "./data/enemyAI";
 import type { AIGameContext } from "./types/gameTypes";
 import { TurnTimer } from "./data/turnTimer";
-import { MAX_HAND, MAX_MANA, MAX_HERO_HP, MAX_FIELD_SIZE, TURN_DURATION_SECONDS } from "./constants/gameConstants";
+import {
+  MAX_HAND,
+  MAX_MANA,
+  MAX_FIELD_SIZE,
+  TURN_DURATION_SECONDS,
+  INITIAL_KING_HERO_HP,
+  INITIAL_USURPER_HERO_HP,
+  KING_SPECIAL_WIN_FIELD_COUNT,
+  KING_SPECIAL_WIN_STREAK_TURNS,
+} from "./constants/gameConstants";
 import { createUniqueCard, createFieldCard, addCardToHand } from "./services/cardService";
 import { processStatusEffects } from "./services/statusEffectService";
 import { getEffectiveCost, getSynergyAttackBonus, checkSynergy } from "./services/synergyUtils";
@@ -29,11 +38,13 @@ export function useGame(): {
   playerFieldCards: RuntimeCard[];
   playerGraveyard: Card[];
   playerHeroHp: number;
+  playerMaxHeroHp: number;
   enemyDeck: Card[];
   enemyHandCards: Card[];
   enemyFieldCards: RuntimeCard[];
   enemyGraveyard: Card[];
   enemyHeroHp: number;
+  enemyMaxHeroHp: number;
   draggingCard: string | null;
   setDraggingCard: (id: string | null) => void;
   dragPosition: { x: number; y: number };
@@ -57,6 +68,7 @@ export function useGame(): {
   enemySpellAnimation: { targetId: string | "hero"; effect: string } | null;
   gameOver: GameOverState;
   playerRole: "king" | "usurper" | null;
+  kingBoardControlStreak: number;
   round: number;
   playerDaggerCount: number;
   enemyDaggerCount: number;
@@ -91,14 +103,16 @@ export function useGame(): {
   const [playerHandCards, setPlayerHandCards] = useState<Card[]>([]);
   const [playerFieldCards, setPlayerFieldCards] = useState<RuntimeCard[]>([]);
   const [playerGraveyard, setPlayerGraveyard] = useState<Card[]>([]);
-  const [playerHeroHp, setPlayerHeroHp] = useState<number>(MAX_HERO_HP);
+  const [playerMaxHeroHp, setPlayerMaxHeroHp] = useState<number>(INITIAL_KING_HERO_HP);
+  const [playerHeroHp, setPlayerHeroHp] = useState<number>(INITIAL_KING_HERO_HP);
 
   // --- 敵状態 ---
   const [enemyDeck, setEnemyDeck] = useState<Card[]>([...initialDeck]);
   const [enemyHandCards, setEnemyHandCards] = useState<Card[]>([]);
   const [enemyFieldCards, setEnemyFieldCards] = useState<RuntimeCard[]>([]);
   const [enemyGraveyard, setEnemyGraveyard] = useState<Card[]>([]);
-  const [enemyHeroHp, setEnemyHeroHp] = useState<number>(MAX_HERO_HP);
+  const [enemyMaxHeroHp, setEnemyMaxHeroHp] = useState<number>(INITIAL_USURPER_HERO_HP);
+  const [enemyHeroHp, setEnemyHeroHp] = useState<number>(INITIAL_USURPER_HERO_HP);
 
   // --- 破壊アニメーション ---
   const [destroyingCards, setDestroyingCards] = useState<Set<string>>(new Set());
@@ -169,15 +183,16 @@ export function useGame(): {
   const playerGraveyardRef = useRef<Card[]>([]);
   const enemyFieldCardsRef = useRef<RuntimeCard[]>([]);
   const enemyCurrentManaRef = useRef<number>(1);
-  const enemyHeroHpRef = useRef<number>(MAX_HERO_HP);
+  const enemyHeroHpRef = useRef<number>(INITIAL_USURPER_HERO_HP);
   const playerFieldCardsRef = useRef<RuntimeCard[]>([]);
-  const playerHeroHpRef = useRef<number>(MAX_HERO_HP);
+  const playerHeroHpRef = useRef<number>(INITIAL_KING_HERO_HP);
 
   // --- 暗器使用カウント（ターン中のみ有効。ターン開始時にリセット） ---
   const [playerDaggerCount, setPlayerDaggerCount] = useState(0);
   const [enemyDaggerCount, setEnemyDaggerCount] = useState(0);
   const playerDaggerCountRef = useRef(0);
   const enemyDaggerCountRef = useRef(0);
+  const kingFieldStreakRef = useRef(0);
 
   // --- マナ・ターン ---
   const [turn, setTurn] = useState(1);
@@ -607,21 +622,23 @@ export function useGame(): {
     console.debug("[Game] gameOver -> cleared timers and cancelled AI");
   }, [gameOver]);
 
-  // 手札0 → 即敗北（プレイヤー）
+  // 手札0 → 即敗北（王側のみ）
   useEffect(() => {
     if (preGame || gameOver.over) return;
-    if (playerHandCards.length === 0) {
+    const playerIsKing = coinResult === "player";
+    if (playerIsKing && playerHandCards.length === 0) {
       setGameOver({ over: true, winner: "enemy", reason: "hand_empty" });
     }
-  }, [playerHandCards.length, preGame, gameOver.over]);
+  }, [playerHandCards.length, preGame, gameOver.over, coinResult]);
 
-  // 手札0 → 即敗北（敵）
+  // 手札0 → 即敗北（王側のみ）
   useEffect(() => {
     if (preGame || gameOver.over) return;
-    if (enemyHandCards.length === 0) {
+    const enemyIsKing = coinResult === "enemy";
+    if (enemyIsKing && enemyHandCards.length === 0) {
       setGameOver({ over: true, winner: "player", reason: "hand_empty" });
     }
-  }, [enemyHandCards.length, preGame, gameOver.over]);
+  }, [enemyHandCards.length, preGame, gameOver.over, coinResult]);
 
   // 10ラウンド耐久 → 王の勝利
   // 先攻開始(turn=1): ラウンド10終了 = turn > 20
@@ -699,6 +716,7 @@ export function useGame(): {
   // --- ターン終了 ---
   const endTurn = () => {
     console.debug(`[Game] endTurn called (current turn=${turn})`);
+    if (preGame || gameOver.over) return;
 
     // end_turn_add_card トリガー: フィールド上の該当カード毎にカードを手札に加える
     const isPlayerTurn = turn % 2 === 1;
@@ -733,6 +751,18 @@ export function useGame(): {
       }
     }
 
+    const kingIsPlayer = coinResult === "player";
+    const endedByKing = (isPlayerTurn && kingIsPlayer) || (!isPlayerTurn && !kingIsPlayer);
+    if (endedByKing) {
+      if (fieldRef.length >= KING_SPECIAL_WIN_FIELD_COUNT) {
+        kingFieldStreakRef.current += 1;
+      }
+      if (kingFieldStreakRef.current >= KING_SPECIAL_WIN_STREAK_TURNS) {
+        setGameOver({ over: true, winner: kingIsPlayer ? "player" : "enemy", reason: "king_board_control" });
+        return;
+      }
+    }
+
     setTurn((t) => t + 1);
   };
 
@@ -755,12 +785,15 @@ export function useGame(): {
     setEnemyFieldCards([]);
     setPlayerGraveyard([]);
     setEnemyGraveyard([]);
-    setPlayerHeroHp(MAX_HERO_HP);
-    setEnemyHeroHp(MAX_HERO_HP);
+    setPlayerMaxHeroHp(INITIAL_KING_HERO_HP);
+    setEnemyMaxHeroHp(INITIAL_USURPER_HERO_HP);
+    setPlayerHeroHp(INITIAL_KING_HERO_HP);
+    setEnemyHeroHp(INITIAL_USURPER_HERO_HP);
     setPlayerDaggerCount(0);
     setEnemyDaggerCount(0);
     playerDaggerCountRef.current = 0;
     enemyDaggerCountRef.current = 0;
+    kingFieldStreakRef.current = 0;
     setTurn(1);
     setMaxMana(1);
     setCurrentMana(1);
@@ -787,8 +820,16 @@ export function useGame(): {
   // コイントスの結果確定（'player' が先攻、'enemy' が後攻）
   const finalizeCoin = (winner: "player" | "enemy") => {
     setCoinResult(winner);
+    kingFieldStreakRef.current = 0;
     const playerRole = winner === "player" ? "king" : "usurper";
     const enemyRole = playerRole === "king" ? "usurper" : "king";
+    const playerInitialHp = playerRole === "king" ? INITIAL_KING_HERO_HP : INITIAL_USURPER_HERO_HP;
+    const enemyInitialHp = enemyRole === "king" ? INITIAL_KING_HERO_HP : INITIAL_USURPER_HERO_HP;
+
+    setPlayerMaxHeroHp(playerInitialHp);
+    setEnemyMaxHeroHp(enemyInitialHp);
+    setPlayerHeroHp(playerInitialHp);
+    setEnemyHeroHp(enemyInitialHp);
 
     const playerFullDeck = createDeck(playerRole);
     const enemyFullDeck = createDeck(enemyRole);
@@ -963,8 +1004,8 @@ export function useGame(): {
   // --- HP回復 ---
   const heal = (targetId: string | "hero", amount: number, isPlayer: boolean = true) => {
     if (targetId === "hero") {
-      if (isPlayer) setPlayerHeroHp((hp) => Math.min(hp + amount, MAX_HERO_HP));
-      else setEnemyHeroHp((hp) => Math.min(hp + amount, MAX_HERO_HP));
+      if (isPlayer) setPlayerHeroHp((hp) => Math.min(hp + amount, playerMaxHeroHp));
+      else setEnemyHeroHp((hp) => Math.min(hp + amount, enemyMaxHeroHp));
     } else {
       const list = isPlayer ? playerFieldCards : enemyFieldCards;
       const setter = isPlayer ? setPlayerFieldCards : setEnemyFieldCards;
@@ -1096,11 +1137,13 @@ export function useGame(): {
     playerFieldCards: getPlayerFieldCards(),
     playerGraveyard,
     playerHeroHp,
+    playerMaxHeroHp,
     enemyDeck,
     enemyHandCards,
     enemyFieldCards: getEnemyFieldCards(),
     enemyGraveyard,
     enemyHeroHp,
+    enemyMaxHeroHp,
     draggingCard,
     setDraggingCard,
     dragPosition,
@@ -1124,6 +1167,7 @@ export function useGame(): {
     enemySpellAnimation,
     gameOver,
     playerRole: coinResult === "player" ? "king" as const : coinResult === "enemy" ? "usurper" as const : null,
+    kingBoardControlStreak: kingFieldStreakRef.current,
     round: coinResult === "enemy" ? Math.ceil((turn - 1) / 2) : Math.ceil(turn / 2),
     playerDaggerCount,
     enemyDaggerCount,

@@ -35,6 +35,14 @@ function getResultText(
     }
   }
 
+  if (reason === "king_board_control") {
+    if (isWin) {
+      return { title: "YOU WIN", subtitle: "王の軍勢が盤面を維持した" };
+    } else {
+      return { title: "YOU LOSE", subtitle: "王の軍勢維持を止められなかった" };
+    }
+  }
+
   // reason === "hp" or undefined
   if (isWin) {
     return { title: "YOU WIN", subtitle: "相手のHPを0にした" };

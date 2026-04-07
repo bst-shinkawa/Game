@@ -19,6 +19,7 @@ import ViewportContext from "@/app/context/ViewportContext";
 
 interface PlayerAreaProps {
   playerHeroHp: number;
+  playerMaxHeroHp: number;
   playerHandCards: Card[];
   playerFieldCards: RuntimeCard[];
   playerDeck: Card[];
@@ -76,6 +77,7 @@ interface PlayerAreaProps {
 export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: string | null; id?: string | null }, dropSuccess?: { type: string | null; id?: string | null } }> = ({
   playerTurnTimer,
   playerHeroHp,
+  playerMaxHeroHp,
   playerHandCards = [],
   playerFieldCards = [],
   playerDeck = [],
@@ -164,8 +166,9 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
   };
 
   const getHpClass = (hp: number) => {
-    if (hp === 20) return styles.hpWhite;
-    if (hp >= 11) return styles.hpYellow;
+    const ratio = playerMaxHeroHp > 0 ? hp / playerMaxHeroHp : 0;
+    if (ratio > 0.55) return styles.hpWhite;
+    if (ratio > 0.25) return styles.hpYellow;
     return styles.hpRed;
   };
 
@@ -281,11 +284,11 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
                   if (isOwnHeroSel) applySelection(["hero"]);
                 }}
               >
-                <p className={getHpClass(playerHeroHp)}>{playerHeroHp}</p>
+                {!preGame && <p className={getHpClass(playerHeroHp)}>{playerHeroHp}</p>}
               </div>
             );
           })()}
-          <HeroHpBar hp={playerHeroHp} side="player" />
+          {!preGame && <HeroHpBar hp={playerHeroHp} maxHp={playerMaxHeroHp} side="player" />}
         </div>
       </div>
 
