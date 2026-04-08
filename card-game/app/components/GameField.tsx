@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useRef, useContext, useMemo, useCallback } from "react";
+import React, { useEffect, useRef, useContext, useMemo, useCallback, useState } from "react";
 import { createPortal } from "react-dom";
 import { TurnTimer } from "@/app/data/turnTimer";
 import { DamageFloater } from "./DamageFloater";
@@ -15,13 +15,13 @@ import EnemyCardReveal from "./EnemyCardReveal";
 import type { ToastItem } from "@/app/hooks/useToast";
 import type { ActionLogEntry } from "@/app/hooks/useActionLog";
 import type { CardRevealState } from "@/app/types/gameTypes";
+import type { EnemySpellHistoryEntry } from "@/app/types/gameTypes";
 import Image from "next/image";
 import { handleSpellUsage } from "@/app/services/spellUsageService";
 import type { Card } from "@/app/data/cards";
 import type { DamageFloat } from "@/app/hooks/useGameUI";
 import type { RuntimeCard, SelectionMode, SelectionConfig } from "@/app/types/gameTypes";
 import styles from "@/app/assets/css/Game.Master.module.css";
-import { TimerController } from "./TimerCircle";
 import ViewportContext from "@/app/context/ViewportContext";
 import { KING_SPECIAL_WIN_STREAK_TURNS } from "@/app/constants/gameConstants";
 
@@ -44,7 +44,9 @@ interface GameFieldProps {
   deck: Card[];
   enemyDeck: Card[];
   currentMana: number;
+  maxMana: number;
   enemyCurrentMana: number;
+  enemyMaxMana: number;
   turn: number;
   turnSecondsRemaining: number;
   gameOver: { over: boolean; winner: null | "player" | "enemy"; reason?: string };
@@ -59,6 +61,7 @@ interface GameFieldProps {
   destroyingCards: Set<string>;
   toasts: ToastItem[];
   actionLogEntries: ActionLogEntry[];
+  enemySpellHistory: EnemySpellHistoryEntry[];
   cardReveal: CardRevealState | null;
   clearCardReveal: () => void;
   damageFloats: DamageFloat[];
@@ -117,13 +120,14 @@ interface GameFieldProps {
 }
 
 export const GameField: React.FC<GameFieldProps> = (props) => {
+  const [isEnemySpellHistoryOpen, setIsEnemySpellHistoryOpen] = useState(false);
   const {
     playerHandCards, playerFieldCards, playerHeroHp, playerMaxHeroHp,
     enemyHandCards, enemyFieldCards, enemyHeroHp, enemyMaxHeroHp,
     playerGraveyard, enemyGraveyard, deck, enemyDeck,
-    currentMana, enemyCurrentMana, turn, turnSecondsRemaining,
+    currentMana, maxMana, enemyCurrentMana, enemyMaxMana, turn, turnSecondsRemaining,
     gameOver, playerRole, kingBoardControlStreak, round, playerDaggerCount, preGame, coinResult, aiRunning, destroyingCards,
-    toasts, actionLogEntries, cardReveal, clearCardReveal,
+    toasts, actionLogEntries, enemySpellHistory, cardReveal, clearCardReveal,
     damageFloats, draggingCard, dragPosition,
     isHandExpanded, activeHandCardId, showTurnModal,
     descCardId, rouletteRunning, rouletteLabel,
@@ -149,13 +153,12 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
   const enemyFieldRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
   const playerHeroRef = useRef<HTMLDivElement | null>(null);
   const playerFieldRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
-  const timerRef = useRef<TimerController | null>(null);
-  const enemyTimerRef = useRef<TimerController | null>(null);
 
   const viewport = useContext(ViewportContext);
   const isPlayerTurn = turn % 2 === 1;
   const isTimeCritical = isPlayerTurn && turnSecondsRemaining <= 20;
-  const isTimerActive = !preGame && !showTurnModal && !showGameStart && !gameOver.over;
+  const timerProgress = Math.max(0, Math.min(1, turnSecondsRemaining / 60));
+  const isTargetSelectionActive = selectionMode === "select_target";
 
   // --- Memoized action objects (stable refs for hooks) ---
   const dragRefs = useMemo(() => ({ enemyHeroRef, playerHeroRef, playerBattleRef }), [playerBattleRef]);
@@ -204,6 +207,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
   // HTML5 drag イベント（PlayerArea の onDrop）用ラッパー。
   // こちらは draggingCard state が確実に存在するタイミングで呼ばれるため state を使用可。
   const onPlayerFieldDropHTMLDrag = useCallback(() => {
+    if (selectionMode === "select_target") return;
     if (!draggingCard) return;
 
     if (preGame && coinResult !== "deciding") {
@@ -214,7 +218,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
 
     onPlayerFieldDropCallback(draggingCard);
     setDraggingCard(null);
-  }, [draggingCard, preGame, coinResult, swapIds, setDraggingCard, setSwapIds, onPlayerFieldDropCallback]);
+  }, [draggingCard, preGame, coinResult, selectionMode, swapIds, setDraggingCard, setSwapIds, onPlayerFieldDropCallback]);
 
   const dragActions = useMemo(() => ({
     attack,
@@ -304,6 +308,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
           currentMana={currentMana}
           mulliganTimer={mulliganTimer}
           swapIds={swapIds}
+          descCardId={descCardId}
           onRouletteAnimEnd={() => {
             setTimeout(() => {
               const winner = Math.random() < 0.5 ? "player" : "enemy";
@@ -336,6 +341,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
             setShowGameStart(true);
             setTimeout(() => setShowGameStart(false), 1400);
           }}
+          onPreGameCardHover={(cardId) => setDescCardId(cardId)}
           setRouletteRunning={setRouletteRunning}
           setSwapIds={setSwapIds}
         />
@@ -374,12 +380,6 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
             document.body
           );
         })()}
-
-      {/* Menu buttons */}
-      <div style={{ position: "fixed", top: 12, right: 12, zIndex: 1200, display: "flex", gap: 8 }}>
-        <button onClick={() => resetGame("cpu")}>リスタート</button>
-        <button onClick={() => goToMenu?.()}>リタイア</button>
-      </div>
 
       {/* AI attack clone portal */}
       {typeof document !== "undefined" &&
@@ -445,6 +445,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
         hoverTarget={hoverTarget}
         dropSuccess={dropSuccess}
         attackTargets={attackTargets}
+        descCardId={descCardId}
         destroyingCards={destroyingCards}
         onDragOver={(e) => {
           const handCard = playerHandCards.find((c) => c.uniqueId === draggingCard);
@@ -471,9 +472,6 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
         onCardClick={(cardId: string) => setDescCardId(descCardId === cardId ? null : cardId)}
         enemyHeroRef={enemyHeroRef}
         enemyFieldRefs={enemyFieldRefs}
-        enemyTimerRef={enemyTimerRef}
-        isTimerActive={isTimerActive}
-        enemyTurnTimer={enemyTurnTimer}
         selectionMode={selectionMode}
         selectionConfig={selectionConfig}
         applySelection={applySelection}
@@ -485,6 +483,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
         playerMaxHeroHp={playerMaxHeroHp}
         playerHandCards={preGame ? [] : playerHandCards}
         playerFieldCards={playerFieldCards}
+        enemyFieldCards={enemyFieldCards}
         playerDeck={deck}
         playerGraveyard={playerGraveyard}
         currentMana={currentMana}
@@ -543,9 +542,6 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
         playerFieldRefs={playerFieldRefs}
         handAreaRef={handAreaRef}
         collapseHand={collapseHand}
-        timerRef={timerRef}
-        isTimerActive={isTimerActive}
-        playerTurnTimer={playerTurnTimer}
         hoverTarget={hoverTarget}
         dropSuccess={dropSuccess}
         selectionMode={selectionMode}
@@ -554,25 +550,104 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
       />
 
       {/* Turn End button */}
-      <div className={styles.field_turn_wrapper}>
+      <div className={styles.field_turn_wrapper} data-keep-hand-open="true">
         <div className={styles.field_turn}>
+          <div className={`${styles.field_turn_mana_badge} ${styles.field_turn_mana_badge_enemy}`}>
+            {enemyCurrentMana}/{enemyMaxMana}
+          </div>
+          <svg className={`${styles.field_turn_outline} ${isTimeCritical ? styles.field_turn_outline_critical : ""}`} viewBox="0 0 200 84" aria-hidden="true">
+            <rect className={styles.field_turn_outline_track} x="4" y="4" width="192" height="76" rx="38" ry="38" />
+            <rect
+              className={styles.field_turn_outline_progress}
+              x="4"
+              y="4"
+              width="192"
+              height="76"
+              rx="38"
+              ry="38"
+              pathLength={100}
+              strokeDasharray={`${timerProgress * 100} 100`}
+            />
+          </svg>
           <button
             onClick={() => endTurn()}
-            disabled={!isPlayerTurn || aiRunning || preGame || showGameStart}
+            disabled={!isPlayerTurn || aiRunning || preGame || showGameStart || gameOver.over || isTargetSelectionActive}
             className={isTimeCritical ? styles.field_turn_end_critical : ""}
             title={
               preGame ? "ゲーム開始前です" :
+              isTargetSelectionActive ? "対象選択を完了またはキャンセルしてください" :
               showTurnModal ? "ターン切替処理中です" :
               !isPlayerTurn ? "相手のターンです" : "ターンを終了します"
             }
           >
             <span className={styles.field_turn_text}>TURN END</span>
           </button>
+          <div className={`${styles.field_turn_mana_badge} ${styles.field_turn_mana_badge_player}`}>
+            {currentMana}/{maxMana}
+          </div>
         </div>
       </div>
 
       <Toast toasts={toasts} />
+      {isTargetSelectionActive && (
+        <div className={styles.selection_lock_notice} data-keep-hand-open="true">
+          <span>対象を選択してください</span>
+          <button type="button" onClick={() => cancelSelection()}>キャンセル</button>
+        </div>
+      )}
       <ActionLog entries={actionLogEntries} />
+      {!preGame && (
+        <>
+          <button
+            type="button"
+            className={`${styles.enemy_spell_history_menu_button} ${isEnemySpellHistoryOpen ? styles.enemy_spell_history_menu_button_open : ""}`}
+            onClick={() => setIsEnemySpellHistoryOpen((v) => !v)}
+            title="敵スペル履歴を開閉"
+            aria-label="敵スペル履歴を開閉"
+            data-keep-hand-open="true"
+          >
+            <span />
+            <span />
+            <span />
+          </button>
+          {isEnemySpellHistoryOpen && (
+            <div className={styles.enemy_spell_history} aria-live="polite" data-keep-hand-open="true">
+              <h4 className={styles.enemy_spell_history_title}>操作</h4>
+              <div className={styles.enemy_spell_history_actions}>
+                <button
+                  type="button"
+                  className={styles.enemy_spell_history_action_button}
+                  onClick={() => resetGame("cpu")}
+                >
+                  リスタート
+                </button>
+                <button
+                  type="button"
+                  className={`${styles.enemy_spell_history_action_button} ${styles.enemy_spell_history_action_button_danger}`}
+                  onClick={() => goToMenu?.()}
+                >
+                  リタイア
+                </button>
+              </div>
+              <h4 className={styles.enemy_spell_history_title}>敵スペル履歴</h4>
+              {enemySpellHistory.length === 0 ? (
+                <div className={styles.enemy_spell_history_item}>
+                  <span className={styles.enemy_spell_history_text}>まだ履歴はありません</span>
+                </div>
+              ) : (
+                enemySpellHistory.map((entry) => (
+                  <div key={entry.id} className={styles.enemy_spell_history_item}>
+                    <span className={styles.enemy_spell_history_turn}>R{entry.round}</span>
+                    <span className={styles.enemy_spell_history_text}>
+                      {entry.spellName} / 対象: {entry.targetLabel} / 結果: {entry.resultText}
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </>
+      )}
 
       {/* 敵カード演出（中央表示→ターゲットへ飛ぶ） */}
       {cardReveal && typeof document !== "undefined" && createPortal(

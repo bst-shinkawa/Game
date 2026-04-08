@@ -2,7 +2,6 @@
 
 import React, { useRef, useEffect, useContext } from "react";
 import CardItem from "./CardItem";
-import ManaBar from "./ManaBar";
 import Image from "next/image";
 import type { Card } from "@/app/data/cards";
 import type { RuntimeCard, SelectionConfig } from "@/app/types/gameTypes";
@@ -12,9 +11,7 @@ import styles from "@/app/assets/css/Game.Master.module.css";
 import handIcon from "@/public/img/field/hand-icon.png";
 import deckIcon from "@/public/img/field/deck-icon.png";
 import deathIcon from "@/public/img/field/void-icon.png";
-import TimerCircle, { TimerController } from "./TimerCircle";
 import HeroHpBar from "./HeroHpBar";
-import { TurnTimer } from "@/app/data/turnTimer";
 import ViewportContext from "@/app/context/ViewportContext";
 
 interface PlayerAreaProps {
@@ -22,6 +19,7 @@ interface PlayerAreaProps {
   playerMaxHeroHp: number;
   playerHandCards: Card[];
   playerFieldCards: RuntimeCard[];
+  enemyFieldCards: RuntimeCard[];
   playerDeck: Card[];
   playerGraveyard: Card[];
   currentMana: number;
@@ -69,17 +67,14 @@ interface PlayerAreaProps {
   playerFieldRefs: React.MutableRefObject<{ [key: string]: HTMLDivElement | null }>;
   handAreaRef: React.MutableRefObject<HTMLDivElement | null>;
   collapseHand: () => void;
-  timerRef: React.MutableRefObject<TimerController | null>;
-  isTimerActive: boolean;
-  playerTurnTimer?: TurnTimer | null;
 }
 
 export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: string | null; id?: string | null }, dropSuccess?: { type: string | null; id?: string | null } }> = ({
-  playerTurnTimer,
   playerHeroHp,
   playerMaxHeroHp,
   playerHandCards = [],
   playerFieldCards = [],
+  enemyFieldCards = [],
   playerDeck = [],
   playerGraveyard = [],
   currentMana,
@@ -121,8 +116,6 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
   playerFieldRefs,
   handAreaRef,
   collapseHand,
-  timerRef,
-  isTimerActive,
   hoverTarget,
   dropSuccess,
   attackTargets = [],
@@ -148,6 +141,7 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
   }, [playerHandCards.length, isHandExpanded, styles.field_player_hand_card]);
 
   const handleCardClick = (cardId: string) => {
+    if (selectionMode === "select_target") return;
     if (!isHandExpanded) {
       setIsHandExpanded(true);
       return;
@@ -309,7 +303,9 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
             const isHovered = hoverTarget?.id === card.uniqueId && hoverTarget?.type === 'playerCard';
             const isDropped = dropSuccess?.id === card.uniqueId && dropSuccess?.type === 'playerCard';
             const isSummoning = (card as { isAnimating?: boolean }).isAnimating;
+            const isDescSelected = descCardId === card.uniqueId;
             const isOwnFieldSel = isOwnFieldCardSelectable(selectionMode, selectionConfig);
+            const isTargetSelectionActive = selectionMode === "select_target";
             return (
               <CardItem
                 key={card.uniqueId}
@@ -319,16 +315,16 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
                 attack={card.attack ?? 0}
                 baseAttack={(card as any).baseAttack}
                 baseHp={(card as any).baseHp}
-                draggable={card.canAttack && !isOwnFieldSel}
+                draggable={card.canAttack && !isOwnFieldSel && !isTargetSelectionActive}
                 onDragStart={(e) => {
-                  if (!isPlayerTurn || isOwnFieldSel) return;
+                  if (!isPlayerTurn || isOwnFieldSel || isTargetSelectionActive) return;
                   onDragStart(card, e);
                 }}
                 onDragEnd={onDragEnd}
                 onDragOver={onDragOver}
                 onDrop={() => onCardClick(card.uniqueId)}
                 isTarget={attackTargets.includes(card.uniqueId)}
-                className={`${isSummoning ? styles.enemy_follower_summon : ""} ${isHovered ? styles.target_highlight : ''} ${isDropped ? styles.drop_success : ''} ${attackTargets.includes(card.uniqueId) ? styles.attack_highlight : ''} ${destroyingCards.has(card.uniqueId) ? styles.card_destroying : ""} ${isOwnFieldSel ? styles.selection_highlight : ""}`}
+                className={`${isSummoning ? styles.enemy_follower_summon : ""} ${isHovered ? styles.target_highlight : ''} ${isDropped ? styles.drop_success : ''} ${attackTargets.includes(card.uniqueId) ? styles.attack_highlight : ''} ${destroyingCards.has(card.uniqueId) ? styles.card_destroying : ""} ${isOwnFieldSel ? styles.selection_highlight : ""} ${isDescSelected ? styles.selection_highlight : ""}`}
                 style={{
                   opacity: isDragging ? 0.15 : 1,
                   transition: 'opacity 0.1s ease',
@@ -339,6 +335,8 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
                 onClick={() => {
                   if (isOwnFieldSel) {
                     applySelection([card.uniqueId]);
+                  } else if (isTargetSelectionActive) {
+                    return;
                   } else {
                     onCardClick(card.uniqueId);
                   }
@@ -386,6 +384,7 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
               className={`${styles.field_player_hand_card} ${isActive ? styles.active : ''} ${isDragging ? styles.dragging : ''} ${isHandCardSelectable ? styles.selection_highlight : ''}`}
               onClick={(e) => {
                 if (isDragging) return;
+                if (selectionMode === "select_target") return;
                 e.stopPropagation();
                 if (isHandCardSelectable) {
                   applySelection([card.uniqueId]);
@@ -403,7 +402,7 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
                   maxHp={card.maxHp ?? 0}
                   attack={card.attack ?? 0}
                   effectiveCost={getEffectiveCost(card, playerFieldCards.length, playerDaggerCount)}
-                  draggable
+                  draggable={selectionMode !== "select_target"}
                   inHand
                   currentMana={currentMana}
                   aria-hidden={true}
@@ -422,11 +421,11 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
                   maxHp={card.maxHp ?? 0}
                   attack={card.attack ?? 0}
                   effectiveCost={getEffectiveCost(card, playerFieldCards.length, playerDaggerCount)}
-                  draggable
+                  draggable={selectionMode !== "select_target"}
                   inHand
                   currentMana={currentMana}
                   onDragStart={(e) => {
-                    if (!isPlayerTurn) return;
+                    if (!isPlayerTurn || selectionMode === "select_target") return;
                     setDescCardId(null);
                     onDragStart(card, e);
                   }}
@@ -445,25 +444,6 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
         })}
       </div>
 
-      {/* マナバー */}
-      <div className={styles.field_player_mana}>
-        <ManaBar maxMana={10} currentMana={currentMana} type="player" /> 
-        {/* ↑ type="player" を追加 */}
-      </div>
-
-      {/* ターンタイマー */}
-      <div className={styles.field_player_timer}>
-        <TimerCircle 
-          ref={timerRef} 
-          duration={60} 
-          isPlayerTurn={isPlayerTurn} 
-          type="player"
-          isTimerActive={isTimerActive}
-          timer={playerTurnTimer}
-        />
-      </div>
-
-
       {/* プレイヤーステータス */}
       <div className={styles.field_player_status}>
         <div className={styles.field_player_status_item}>
@@ -478,13 +458,17 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
       </div>
 
       {/* カード説明パネル */}
-      {descCardId && (() => {
-        const card = playerHandCards.find(c => c.uniqueId === descCardId)
-          || playerFieldCards.find(c => c.uniqueId === descCardId);
+      {(() => {
+        const card = descCardId
+          ? playerHandCards.find(c => c.uniqueId === descCardId)
+            || playerFieldCards.find(c => c.uniqueId === descCardId)
+            || enemyFieldCards.find(c => c.uniqueId === descCardId)
+          : null;
+        if (!card) return null;
         return (
-          <div className={styles.field_card_description} aria-hidden={false}>
-            <h4>{card?.name ?? ""}</h4>
-            <p>{card?.description ?? ""}</p>
+          <div className={styles.field_card_description} aria-hidden={false} data-card-description="true">
+            <h4>{card.name}</h4>
+            <p>{card.description ?? ""}</p>
           </div>
         );
       })()}

@@ -14,11 +14,13 @@ interface PreGameProps {
   currentMana: number;
   mulliganTimer: number;
   swapIds: string[];
+  descCardId: string | null;
   // Handlers
   onRouletteAnimEnd: () => void;
   onSwapToggle: (cardId: string) => void;
   onMulliganSubmit: () => void;
   onMulliganSkip: () => void;
+  onPreGameCardHover: (cardId: string | null) => void;
   setRouletteRunning: (running: boolean) => void;
   setSwapIds: (ids: string[]) => void;
 }
@@ -32,13 +34,46 @@ export const PreGame: React.FC<PreGameProps> = ({
   currentMana,
   mulliganTimer,
   swapIds,
+  descCardId,
   onRouletteAnimEnd,
   onSwapToggle,
   onMulliganSubmit,
   onMulliganSkip,
+  onPreGameCardHover,
   setRouletteRunning,
   setSwapIds,
 }) => {
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressActivatedRef = useRef<string | null>(null);
+
+  const clearLongPressTimer = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  };
+
+  const handleTouchStart = (cardId: string) => {
+    clearLongPressTimer();
+    longPressActivatedRef.current = null;
+    longPressTimerRef.current = setTimeout(() => {
+      longPressActivatedRef.current = cardId;
+      onPreGameCardHover(cardId);
+    }, 350);
+  };
+
+  const handleTouchEnd = () => {
+    clearLongPressTimer();
+  };
+
+  const handleCardTap = (cardId: string) => {
+    if (longPressActivatedRef.current === cardId) {
+      longPressActivatedRef.current = null;
+      return;
+    }
+    onSwapToggle(cardId);
+  };
+
   // ルーレット開始（プリゲーム開始時に初回実行）
   useEffect(() => {
     if (coinResult === "deciding" && !rouletteRunning) {
@@ -79,6 +114,7 @@ export const PreGame: React.FC<PreGameProps> = ({
   }
 
   // coinResult が決定済みかつ coinPopup が非表示：マリガン画面を表示
+  const descCard = descCardId ? playerHandCards.find((c) => c.uniqueId === descCardId) : null;
   return (
     <div className={styles.mulligan}>
       <div className={styles.mulligan_wrap}>
@@ -100,12 +136,25 @@ export const PreGame: React.FC<PreGameProps> = ({
                   currentMana={0}
                   selected={marked}
                   noStatus={true}
-                  onClick={() => onSwapToggle(c.uniqueId)}
+                  onClick={() => handleCardTap(c.uniqueId)}
+                  onMouseEnter={() => onPreGameCardHover(c.uniqueId)}
+                  onMouseLeave={() => onPreGameCardHover(null)}
+                  onTouchStart={() => handleTouchStart(c.uniqueId)}
+                  onTouchEnd={handleTouchEnd}
+                  onTouchCancel={handleTouchEnd}
+                  onTouchMove={handleTouchEnd}
                 />
               </div>
             );
           })}
         </div>
+
+        {descCard && (
+          <div className={styles.field_card_description} aria-hidden={false} data-card-description="true">
+            <h4>{descCard.name}</h4>
+            <p>{descCard.description ?? ""}</p>
+          </div>
+        )}
 
         <div className={styles.mulligan_btn}>
           <button className={styles.mulligan_btn_item} onClick={onMulliganSubmit}>交換する</button>

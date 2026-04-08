@@ -66,6 +66,15 @@ export interface CardRevealState {
   type: "spell" | "follower";
 }
 
+export interface EnemySpellHistoryEntry {
+  id: string;
+  spellName: string;
+  targetLabel: string;
+  resultText: string;
+  round: number;
+  timestamp: number;
+}
+
 // ---------------------------------------------------------------------------
 // enemyAI に渡すコンテキスト（25+個の引数を1つにまとめる）
 // ---------------------------------------------------------------------------
@@ -77,10 +86,13 @@ export interface AIGameContext {
   enemyFieldCards: RuntimeCard[];
   enemyCurrentMana: number;
   enemyHeroHp: number;
+  enemyHeroMaxHp: number;
 
   // プレイヤー側 state (AI が参照する読み取り専用データ)
   playerFieldCards: RuntimeCard[];
+  getPlayerFieldCards?: () => RuntimeCard[];
   playerHeroHp: number;
+  playerHeroMaxHp: number;
   playerHandCards: Card[];
   playerGraveyard: Card[];
 
@@ -102,6 +114,7 @@ export interface AIGameContext {
   // ゲーム制御
   setGameOver: React.Dispatch<React.SetStateAction<GameOverState>>;
   setAiRunning: React.Dispatch<React.SetStateAction<boolean>>;
+  turn: number;
 
   // アニメーション
   setMovingAttack: React.Dispatch<React.SetStateAction<AttackAnimation | null>>;
@@ -121,6 +134,7 @@ export interface AIGameContext {
 
   // AI行動ログ
   addActionLog: (message: string, icon?: string) => void;
+  onEnemySpellCast?: (entry: Omit<EnemySpellHistoryEntry, "id" | "timestamp">) => void;
 
   // カード演出（中央表示→ターゲットへ飛ぶ）
   showCardReveal: (card: Card, targetId: string | "hero" | undefined, type: "spell" | "follower") => void;

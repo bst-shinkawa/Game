@@ -26,7 +26,7 @@ import { getEffectiveCost, getSynergyAttackBonus, checkSynergy } from "./service
 import { executeAttack } from "./services/attackService";
 import { applySpell, executePlayEffects } from "./services/effectService";
 import type { PlayContext } from "./services/effectService";
-import type { RuntimeCard, SelectionMode, SelectionConfig, CardUsageType, CardRevealState, GameOverState } from "./types/gameTypes";
+import type { RuntimeCard, SelectionMode, SelectionConfig, CardUsageType, CardRevealState, GameOverState, EnemySpellHistoryEntry } from "./types/gameTypes";
 import { useToast } from "./hooks/useToast";
 import type { ToastItem } from "./hooks/useToast";
 import { useActionLog } from "./hooks/useActionLog";
@@ -94,6 +94,7 @@ export function useGame(): {
   showToast: (message: string, type?: ToastItem["type"]) => void;
   // AI行動ログ
   actionLogEntries: ActionLogEntry[];
+  enemySpellHistory: EnemySpellHistoryEntry[];
   // カード演出
   cardReveal: CardRevealState | null;
   clearCardReveal: () => void;
@@ -124,6 +125,7 @@ export function useGame(): {
   const { toasts, showToast } = useToast();
   // --- AI行動ログ ---
   const { entries: actionLogEntries, addLog: addActionLog, clearLog: clearActionLog } = useActionLog();
+  const [enemySpellHistory, setEnemySpellHistory] = useState<EnemySpellHistoryEntry[]>([]);
   // --- カード演出 ---
   const [cardReveal, setCardReveal] = useState<CardRevealState | null>(null);
   const showCardReveal = (card: Card, targetId: string | "hero" | undefined, type: "spell" | "follower") => {
@@ -288,7 +290,7 @@ export function useGame(): {
 
   // --- ターン開始 ---（ポップアップ表示中でもマナ・ドローを先に反映するため pauseTimer で止めない）
   useEffect(() => {
-    if (preGame) return;
+    if (preGame || gameOver.over) return;
     const key = `${gameSessionRef.current}-${turn}`;
     if (turnProcessedKeys.current.has(key)) return;
     turnProcessedKeys.current.add(key);
@@ -458,10 +460,12 @@ export function useGame(): {
     };
 
     const playerEnd = () => {
+      if (gameOver.over) return;
       console.debug(`[Timer][player] timeup on turn=${turnRef.current}, calling endTurn()`);
       setTurn((t) => t + 1);
     };
     const enemyEnd = () => {
+      if (gameOver.over) return;
       console.debug(`[Timer][enemy] timeup on turn=${turnRef.current}, calling endTurn()`);
       setTurn((t) => t + 1);
     };
@@ -474,7 +478,7 @@ export function useGame(): {
     // モーダル終了後にタイマーを開始
     const startTimerTimeout = setTimeout(() => {
       // pauseTimerがfalseになったことを確認してからタイマーを開始
-      if (!modalPauseRef.current) {
+      if (!modalPauseRef.current && !gameOver.over) {
         if (turnRef.current % 2 === 1) {
           playerTurnTimerRef.current?.start();
         } else {
@@ -495,11 +499,15 @@ export function useGame(): {
       playerTurnTimerRef.current?.pause();
       enemyTurnTimerRef.current?.pause();
     };
-  }, [turn, preGame]);
+  }, [turn, preGame, gameOver.over]);
 
   // UI の一時停止要求に応じて pause/resume を行う（モーダル表示中など）
   useEffect(() => {
-    if (preGame) return;
+    if (preGame || gameOver.over) {
+      playerTurnTimerRef.current?.pause();
+      enemyTurnTimerRef.current?.pause();
+      return;
+    }
     if (pauseTimer) {
       playerTurnTimerRef.current?.pause();
       enemyTurnTimerRef.current?.pause();
@@ -513,7 +521,7 @@ export function useGame(): {
         if (e && !e.isRunning() && e.getRemaining() > 0) e.start();
       }
     }
-  }, [pauseTimer, turn, preGame]);
+  }, [pauseTimer, turn, preGame, gameOver.over]);
 
   // --- 敵AI: 簡易ターン処理 ---
   useEffect(() => {
@@ -538,8 +546,11 @@ export function useGame(): {
             enemyFieldCards: enemyFieldCardsRef.current,
             enemyCurrentMana: enemyCurrentManaRef.current,
             enemyHeroHp: enemyHeroHpRef.current,
+            enemyHeroMaxHp: enemyMaxHeroHp,
             playerFieldCards: playerFieldCardsRef.current,
+            getPlayerFieldCards: () => playerFieldCardsRef.current,
             playerHeroHp: playerHeroHpRef.current,
+            playerHeroMaxHp: playerMaxHeroHp,
             playerHandCards: playerHandCardsRef.current,
             playerGraveyard: playerGraveyardRef.current,
             setEnemyDeck,
@@ -555,6 +566,7 @@ export function useGame(): {
             setPlayerDeck: setDeck,
             setGameOver,
             setAiRunning,
+            turn,
             setMovingAttack,
             setEnemyAttackAnimation,
             setEnemySpellAnimation,
@@ -568,6 +580,16 @@ export function useGame(): {
             addCardToDestroying,
             cancelRef: aiCancelRef,
             addActionLog,
+            onEnemySpellCast: (entry) => {
+              const currentRound = coinResult === "enemy" ? Math.ceil((turn - 1) / 2) : Math.ceil(turn / 2);
+              const nextEntry: EnemySpellHistoryEntry = {
+                id: `enemy-spell-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                timestamp: Date.now(),
+                ...entry,
+                round: currentRound,
+              };
+              setEnemySpellHistory((prev) => [nextEntry, ...prev].slice(0, 8));
+            },
             showCardReveal,
             clearCardReveal,
           };
@@ -720,6 +742,8 @@ export function useGame(): {
 
     // end_turn_add_card トリガー: フィールド上の該当カード毎にカードを手札に加える
     const isPlayerTurn = turn % 2 === 1;
+    // 凍結カウントはターン終了時に減算（ターン中は表示を維持）
+    const setOwnField = isPlayerTurn ? setPlayerFieldCards : setEnemyFieldCards;
     const fieldRef = isPlayerTurn ? playerFieldCardsRef.current : enemyFieldCardsRef.current;
     const setHand = isPlayerTurn ? setPlayerHandCards : setEnemyHandCards;
     const setGrave = isPlayerTurn ? setPlayerGraveyard : setEnemyGraveyard;
@@ -750,6 +774,14 @@ export function useGame(): {
         }
       }
     }
+
+    setOwnField((list) =>
+      list.map((c) =>
+        (c.frozen && c.frozen > 0)
+          ? { ...c, frozen: Math.max(0, c.frozen - 1) }
+          : c
+      )
+    );
 
     const kingIsPlayer = coinResult === "player";
     const endedByKing = (isPlayerTurn && kingIsPlayer) || (!isPlayerTurn && !kingIsPlayer);
@@ -800,6 +832,8 @@ export function useGame(): {
     setEnemyMaxMana(1);
     setEnemyCurrentMana(1);
     setTurnSecondsRemaining(TURN_DURATION_SECONDS);
+    clearActionLog();
+    setEnemySpellHistory([]);
     playerTurnTimerRef.current?.setDuration(TURN_DURATION_SECONDS);
     playerTurnTimerRef.current?.reset();
     enemyTurnTimerRef.current?.setDuration(TURN_DURATION_SECONDS);
@@ -897,6 +931,8 @@ export function useGame(): {
     setEnemyGraveyard,
     setPlayerHeroHp,
     setEnemyHeroHp,
+    playerHeroMaxHp: playerMaxHeroHp,
+    enemyHeroMaxHp: enemyMaxHeroHp,
     setGameOver,
     stopTimer: () => {
       try { playerTurnTimerRef.current?.stop(); enemyTurnTimerRef.current?.stop(); } catch (_) {}
@@ -934,7 +970,7 @@ export function useGame(): {
     }
     setCurrentMana((m) => m - effectiveCost);
 
-    const canAttack = !!(card.rush || card.superHaste);
+    const canAttack = !!(card.rush || card.charge);
     const fieldCard = createFieldCard(card, canAttack);
     // attack_bonus シナジー：召喚時に場のフォロワー数を参照して攻撃力を上げる
     const attackBonus = getSynergyAttackBonus(card, currentFieldSize, playerDaggerCountRef.current);
@@ -1045,6 +1081,17 @@ export function useGame(): {
       },
       setAiRunning,
       isPlayerAttacker,
+      onAttackBlocked: isPlayerAttacker
+        ? (reason) => {
+            if (reason === "guard_only_blocked") {
+              showToast("守護持ちがいるため、そのフォロワーは攻撃できません", "info");
+            } else if (reason === "guard_hero_blocked") {
+              showToast("守護持ちがいるため、ヒーローは攻撃できません", "info");
+            } else if (reason === "rush_hero_blocked") {
+              showToast("突撃は召喚ターンにヒーローを攻撃できません", "info");
+            }
+          }
+        : undefined,
     }, addCardToDestroying);
   };
 
@@ -1078,6 +1125,8 @@ export function useGame(): {
       setEnemyFieldCards,
       setPlayerHeroHp,
       setEnemyHeroHp,
+      playerHeroMaxHp: playerMaxHeroHp,
+      enemyHeroMaxHp: enemyMaxHeroHp,
       setPlayerGraveyard,
       setEnemyGraveyard,
       setGameOver,
@@ -1102,6 +1151,8 @@ export function useGame(): {
       drawEnemyCard,
       drawPlayerCards,
       drawEnemyCards,
+      daggerCount: isPlayer ? playerDaggerCountRef.current : enemyDaggerCountRef.current,
+      fieldSize: isPlayer ? playerFieldCardsRef.current.length : enemyFieldCardsRef.current.length,
     });
 
     // 暗器（id:15）使用時にカウントアップ
@@ -1194,6 +1245,7 @@ export function useGame(): {
     showToast,
     // AI行動ログ
     actionLogEntries,
+    enemySpellHistory,
     // カード演出
     cardReveal,
     clearCardReveal,

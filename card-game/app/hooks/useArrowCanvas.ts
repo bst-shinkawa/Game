@@ -84,7 +84,9 @@ export function useArrowCanvas({
         const rect = enemyHeroRef.current.getBoundingClientRect();
         targets.push({ x: rect.left + rect.width / 2, y: rect.top + rect.height, kind: "damage", id: "hero" });
       }
-      for (const c of enemyFieldCards) {
+      const guardTargets = enemyFieldCards.filter((c) => (c as { wallGuard?: boolean }).wallGuard);
+      const fieldTargets = hasWallGuardOnEnemy ? guardTargets : enemyFieldCards;
+      for (const c of fieldTargets) {
         if ((c as { stealth?: boolean }).stealth) continue;
         const ref = enemyFieldRefs.current[c.uniqueId];
         if (ref) {

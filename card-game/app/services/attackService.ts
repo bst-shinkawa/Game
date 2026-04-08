@@ -18,9 +18,27 @@ interface AttackContext {
   stopTimer: () => void;
   setAiRunning: React.Dispatch<React.SetStateAction<boolean>>;
   isPlayerAttacker: boolean;
+  onAttackBlocked?: (reason: "rush_hero_blocked" | "guard_hero_blocked" | "guard_only_blocked") => void;
 }
 
 export type AddCardToDestroying = (cardIds: string[], onAfterAnimation?: (ids: string[]) => void) => void;
+
+function normalizeReturnedCard(deadCard: RuntimeCard): Card {
+  const restoredHp = deadCard.maxHp ?? deadCard.hp ?? 1;
+  const returned: any = {
+    ...deadCard,
+    uniqueId: crypto.randomUUID(),
+    hp: Math.max(1, restoredHp),
+  };
+  delete returned.deathTrigger;
+  delete returned.canAttack;
+  delete returned.rushInitialTurn;
+  delete returned.isAnimating;
+  delete returned.frozen;
+  delete returned.poison;
+  delete returned.poisonDamage;
+  return returned as Card;
+}
 
 /**
  * 攻撃処理のメインロジック
@@ -45,6 +63,7 @@ export function executeAttack(
     stopTimer,
     setAiRunning,
     isPlayerAttacker,
+    onAttackBlocked,
   } = context;
 
   const attacker = attackerList.find((c) => c.uniqueId === attackerId);
@@ -56,6 +75,7 @@ export function executeAttack(
   // rush チェック
   if (attacker.rushInitialTurn && targetId === "hero") {
     console.log("突撃はこのターン、相手フォロワーのみ攻撃可能です");
+    onAttackBlocked?.("rush_hero_blocked");
     return;
   }
 
@@ -63,7 +83,16 @@ export function executeAttack(
   const hasWallGuard = targetList.some((c) => (c as { wallGuard?: boolean }).wallGuard);
   if (hasWallGuard && targetId === "hero") {
     console.log("相手は鉄壁を持っているため、ヒーローは攻撃できません");
+    onAttackBlocked?.("guard_hero_blocked");
     return;
+  }
+  if (hasWallGuard && targetId !== "hero") {
+    const target = targetList.find((c) => c.uniqueId === targetId);
+    if (target && !(target as { wallGuard?: boolean }).wallGuard) {
+      console.log("相手は鉄壁を持っているため、鉄壁持ちフォロワー以外は攻撃できません");
+      onAttackBlocked?.("guard_only_blocked");
+      return;
+    }
   }
 
   if (targetId === "hero") {
@@ -208,9 +237,8 @@ function attackFollower(
             setTargetHandCards((h) => (h.length < MAX_HAND ? [...h, newCard] : h));
           }
         } else if (trigger.type === "return_to_hand_once") {
-          // カードをdeathTrigger削除して持ち主（ターゲット側）の手札に戻す
-          const returned = { ...deadCard } as any;
-          delete returned.deathTrigger;
+          // 死亡時のHPやIDは引き継がず、手札カードとして正規化して戻す
+          const returned = normalizeReturnedCard(deadCard as RuntimeCard);
           setTargetHandCards((h) => (h.length < MAX_HAND ? [...h, returned] : h));
         }
       });
@@ -232,8 +260,7 @@ function attackFollower(
       if (!deadCard.deathTrigger) return;
       const trigger = deadCard.deathTrigger;
       if (trigger.type === "return_to_hand_once") {
-        const returned = { ...deadCard } as any;
-        delete returned.deathTrigger;
+        const returned = normalizeReturnedCard(deadCard as RuntimeCard);
         setAttackerHandCards((h) => (h.length < MAX_HAND ? [...h, returned] : h));
       } else if (trigger.type === "add_card_hand" && trigger.cardId) {
         const addCard = cards.find((c) => c.id === trigger.cardId);

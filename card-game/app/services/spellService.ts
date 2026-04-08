@@ -2,7 +2,7 @@
 import { v4 as uuidv4 } from "uuid";
 import type { Card } from "../data/cards";
 import type { RuntimeCard, GameOverState } from "../types/gameTypes";
-import { MAX_HERO_HP, MAX_HAND } from "../constants/gameConstants";
+import { MAX_HAND } from "../constants/gameConstants";
 import { getSynergyDamageBonus } from "./synergyUtils";
 
 export interface SpellContext {
@@ -12,14 +12,35 @@ export interface SpellContext {
   setEnemyFieldCards: React.Dispatch<React.SetStateAction<RuntimeCard[]>>;
   setPlayerHeroHp: React.Dispatch<React.SetStateAction<number>>;
   setEnemyHeroHp: React.Dispatch<React.SetStateAction<number>>;
+  playerHeroMaxHp: number;
+  enemyHeroMaxHp: number;
   setPlayerGraveyard: React.Dispatch<React.SetStateAction<Card[]>>;
   setEnemyGraveyard: React.Dispatch<React.SetStateAction<Card[]>>;
+  setPlayerHandCards?: React.Dispatch<React.SetStateAction<Card[]>>;
+  setEnemyHandCards?: React.Dispatch<React.SetStateAction<Card[]>>;
   setGameOver: React.Dispatch<React.SetStateAction<GameOverState>>;
   stopTimer: () => void;
   setAiRunning: React.Dispatch<React.SetStateAction<boolean>>;
   addCardToDestroying: (cardIds: string[], onAfterAnimation?: (ids: string[]) => void) => void;
   daggerCount?: number;
   fieldSize?: number;
+}
+
+function normalizeReturnedCard(deadCard: RuntimeCard): Card {
+  const restoredHp = deadCard.maxHp ?? deadCard.hp ?? 1;
+  const returned: any = {
+    ...deadCard,
+    uniqueId: crypto.randomUUID(),
+    hp: Math.max(1, restoredHp),
+  };
+  delete returned.deathTrigger;
+  delete returned.canAttack;
+  delete returned.rushInitialTurn;
+  delete returned.isAnimating;
+  delete returned.frozen;
+  delete returned.poison;
+  delete returned.poisonDamage;
+  return returned as Card;
 }
 
 /**
@@ -55,15 +76,18 @@ export function castSpell(
   const setOwnFieldCards = isPlayer ? setPlayerFieldCards : setEnemyFieldCards;
   const setOppFieldCards = isPlayer ? setEnemyFieldCards : setPlayerFieldCards;
   const setOwnHeroHp = isPlayer ? setPlayerHeroHp : setEnemyHeroHp;
+  const ownHeroMaxHp = isPlayer ? context.playerHeroMaxHp : context.enemyHeroMaxHp;
   const setOppHeroHp = isPlayer ? setEnemyHeroHp : setPlayerHeroHp;
   const setOwnGraveyard = isPlayer ? setPlayerGraveyard : setEnemyGraveyard;
   const setOppGraveyard = isPlayer ? setEnemyGraveyard : setPlayerGraveyard;
+  const setOwnHandCards = isPlayer ? context.setPlayerHandCards : context.setEnemyHandCards;
+  const setOppHandCards = isPlayer ? context.setEnemyHandCards : context.setPlayerHandCards;
 
   const effect = card.effect || "";
 
   switch (effect) {
     case "heal_single":
-      handleHealSpell(card, targetId, isPlayer, setOwnFieldCards, setOwnHeroHp);
+      handleHealSpell(card, targetId, isPlayer, setOwnFieldCards, setOwnHeroHp, ownHeroMaxHp);
       break;
     case "damage_all":
       handleDamageAllSpell(
@@ -73,6 +97,7 @@ export function castSpell(
         setOppFieldCards,
         setOppHeroHp,
         setOppGraveyard,
+        setOppHandCards,
         setGameOver,
         stopTimer,
         setAiRunning,
@@ -90,6 +115,7 @@ export function castSpell(
         setOppFieldCards,
         setOppHeroHp,
         setOppGraveyard,
+        setOppHandCards,
         setGameOver,
         stopTimer,
         setAiRunning,
@@ -134,11 +160,12 @@ function handleHealSpell(
   targetId: string | "hero",
   isPlayer: boolean,
   setField: React.Dispatch<React.SetStateAction<RuntimeCard[]>>,
-  setHeroHp: React.Dispatch<React.SetStateAction<number>>
+  setHeroHp: React.Dispatch<React.SetStateAction<number>>,
+  maxHeroHp: number
 ): void {
   const healAmount = card.effectValue ?? 2;
   if (targetId === "hero") {
-    setHeroHp((hp) => Math.min(hp + healAmount, MAX_HERO_HP));
+    setHeroHp((hp) => Math.min(hp + healAmount, maxHeroHp));
   } else {
     setField((list) =>
       list.map((c) =>
@@ -157,6 +184,7 @@ function handleDamageAllSpell(
   setTargetFieldCards: React.Dispatch<React.SetStateAction<RuntimeCard[]>>,
   setTargetHeroHp: React.Dispatch<React.SetStateAction<number>>,
   setTargetGraveyard: React.Dispatch<React.SetStateAction<Card[]>>,
+  setTargetHandCards: React.Dispatch<React.SetStateAction<Card[]>> | undefined,
   setGameOver: React.Dispatch<React.SetStateAction<GameOverState>>,
   stopTimer: () => void,
   setAiRunning: React.Dispatch<React.SetStateAction<boolean>>,
@@ -172,7 +200,15 @@ function handleDamageAllSpell(
   const dead = targetFieldCards.filter((c) => (c.hp ?? 0) - dmg <= 0);
   if (dead.length) {
     const deadIds = dead.map((d) => d.uniqueId);
-    setTargetGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
+    setTargetGraveyard((g) => [...g, ...dead.filter((d) => {
+      if (d.deathTrigger?.type === "return_to_hand_once") return false;
+      return !g.some((x) => x.uniqueId === d.uniqueId);
+    })]);
+    dead.forEach((d) => {
+      if (d.deathTrigger?.type === "return_to_hand_once" && setTargetHandCards) {
+        setTargetHandCards((h) => (h.length < MAX_HAND ? [...h, normalizeReturnedCard(d)] : h));
+      }
+    });
     addCardToDestroying(deadIds, (ids) => {
       setTargetFieldCards((l) => l.filter((c) => !ids.includes(c.uniqueId)));
     });
@@ -202,6 +238,7 @@ function handleDamageSingleSpell(
   setTargetFieldCards: React.Dispatch<React.SetStateAction<RuntimeCard[]>>,
   setTargetHeroHp: React.Dispatch<React.SetStateAction<number>>,
   setTargetGraveyard: React.Dispatch<React.SetStateAction<Card[]>>,
+  setTargetHandCards: React.Dispatch<React.SetStateAction<Card[]>> | undefined,
   setGameOver: React.Dispatch<React.SetStateAction<GameOverState>>,
   stopTimer: () => void,
   setAiRunning: React.Dispatch<React.SetStateAction<boolean>>,
@@ -209,7 +246,9 @@ function handleDamageSingleSpell(
   fieldSize: number = 0,
   daggerCount: number = 0
 ): void {
-  const dmg = (card.effectValue ?? 1) + getSynergyDamageBonus(card, fieldSize, daggerCount);
+  const baseDmg = (card.effectValue ?? 1) + getSynergyDamageBonus(card, fieldSize, daggerCount);
+  // 暗器(id:15)はフォロワー2/ヒーロー1ダメージ
+  const dmg = card.id === 15 ? (targetId === "hero" ? 1 : 2) : baseDmg;
   if (targetId === "hero") {
     setTargetHeroHp((h) => {
       const next = Math.max(h - dmg, 0);
@@ -226,7 +265,13 @@ function handleDamageSingleSpell(
 
     const target = targetFieldCards.find((c) => c.uniqueId === targetId);
     if (target && (target.hp ?? 0) - dmg <= 0) {
-      setTargetGraveyard((g) => [...g, ...(g.some((x) => x.uniqueId === target.uniqueId) ? [] : [target])]);
+      if (target.deathTrigger?.type === "return_to_hand_once") {
+        if (setTargetHandCards) {
+          setTargetHandCards((h) => (h.length < MAX_HAND ? [...h, normalizeReturnedCard(target)] : h));
+        }
+      } else {
+        setTargetGraveyard((g) => [...g, ...(g.some((x) => x.uniqueId === target.uniqueId) ? [] : [target])]);
+      }
       addCardToDestroying([target.uniqueId], (ids) => {
         setTargetFieldCards((l) => l.filter((c) => !ids.includes(c.uniqueId)));
       });
@@ -290,11 +335,11 @@ function handleHasteSpell(
     const setTargetList = isPlayer ? setOwnFieldCards : setOppFieldCards;
     const target = targetList.find((c) => c.uniqueId === targetId);
 
-    if (target && target.canAttack && !(target as { rush?: boolean }).rush) {
+    if (target && target.canAttack && !(target as { rush?: boolean; charge?: boolean }).rush && !(target as { rush?: boolean; charge?: boolean }).charge) {
       setTargetList((list) =>
         list.map((c) =>
           c.uniqueId === targetId
-            ? { ...c, canAttack: true, rush: true, haste: true }
+            ? { ...c, canAttack: true, charge: true, haste: true }
             : c
         )
       );

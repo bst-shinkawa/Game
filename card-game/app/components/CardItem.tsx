@@ -21,7 +21,8 @@ type Props = {
   frozen?: number;
   haste?: boolean;
   rush?: boolean;
-  superHaste?: boolean;
+  charge?: boolean;
+  wallGuard?: boolean;
   stealth?: boolean;
   canAttack?: boolean;
   rushInitialTurn?: boolean;
@@ -33,6 +34,10 @@ type Props = {
   onDrop?: (e: React.DragEvent<HTMLDivElement>) => void;
   onMouseEnter?: (e: React.MouseEvent<HTMLDivElement>) => void;
   onMouseLeave?: (e: React.MouseEvent<HTMLDivElement>) => void;
+  onTouchStart?: (e: React.TouchEvent<HTMLDivElement>) => void;
+  onTouchEnd?: (e: React.TouchEvent<HTMLDivElement>) => void;
+  onTouchCancel?: (e: React.TouchEvent<HTMLDivElement>) => void;
+  onTouchMove?: (e: React.TouchEvent<HTMLDivElement>) => void;
   isTarget?: boolean;
   inHand?: boolean;
   currentMana?: number;
@@ -75,7 +80,8 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
   frozen,
   haste,
   rush,
-  superHaste,
+  charge,
+  wallGuard,
   stealth,
   canAttack,
   rushInitialTurn,
@@ -94,6 +100,10 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
   noStatus,
   onMouseEnter,
   onMouseLeave,
+  onTouchStart,
+  onTouchEnd,
+  onTouchCancel,
+  onTouchMove,
 }, ref) => {
   let borderColor = "gray";
   let borderWidth = 2;
@@ -108,8 +118,8 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
     if (inHand && currentMana !== undefined && cost !== undefined) {
       borderColor = currentMana >= cost ? "gold" : "gray";
     } else if (canAttack !== undefined) {
-      // superHaste は常に緑枠（出したターンから攻撃可能）
-      if (superHaste && canAttack) {
+      // 疾走（charge）は常に緑枠（出したターンからヒーロー含め攻撃可能）
+      if (charge && canAttack) {
         borderColor = "green";
       }
       // 突進（rush）で出したばかり（rushInitialTurn = true）なら黄色枠
@@ -143,6 +153,10 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
       onDrop={onDrop}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+      onTouchCancel={onTouchCancel}
+      onTouchMove={onTouchMove}
       style={{
         touchAction: (draggable || inHand) ? 'none' : undefined,
         ...style,
@@ -181,6 +195,11 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
           {stealth && (
             <div title={`隠密`} aria-label={`隠密`} className={styles["follower__status--stealth"]}>
               隠
+            </div>
+          )}
+          {wallGuard && (
+            <div title={`守護`} aria-label={`守護`} className={styles["follower__status--wallGuard"]}>
+              守
             </div>
           )}
         </div>

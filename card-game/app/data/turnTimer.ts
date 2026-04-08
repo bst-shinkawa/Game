@@ -31,6 +31,13 @@ export class TurnTimer {
     return this.remaining;
   }
 
+  getRemainingMs() {
+    if (this.running && this.endAt != null) {
+      return Math.max(0, this.endAt - Date.now());
+    }
+    return this.remaining * 1000;
+  }
+
   isRunning() {
     return this.running;
   }

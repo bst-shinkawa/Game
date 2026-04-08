@@ -76,12 +76,16 @@ export function useGameUI() {
   // 手札縮小
   const collapseHand = useCallback(() => {
     setIsHandExpanded(false);
-    setActiveHandCardId(null);
   }, []);
 
   // 手札エリア外クリック処理
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('[data-keep-hand-open="true"]')) return;
+      if (descCardId && !target?.closest('[data-uniqueid]') && !target?.closest('[data-card-description="true"]')) {
+        setDescCardId(null);
+      }
       if (isHandExpanded && handAreaRef.current && !handAreaRef.current.contains(event.target as Node)) {
         collapseHand();
       }
@@ -89,7 +93,7 @@ export function useGameUI() {
 
     document.addEventListener('click', handleOutsideClick);
     return () => document.removeEventListener('click', handleOutsideClick);
-  }, [isHandExpanded, collapseHand]);
+  }, [isHandExpanded, collapseHand, descCardId]);
 
   // ダメージフロート自動消去
   useEffect(() => {

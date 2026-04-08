@@ -67,6 +67,37 @@ export function startEnemyTurn(ctx: AIGameContext) {
 
 const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
+const getSpellResultText = (spell: Card, targetId: string | "hero"): string => {
+  const value = spell.effectValue ?? 1;
+  switch (spell.effect) {
+    case "damage_single":
+      if (spell.id === 15) return targetId === "hero" ? "ヒーローに1ダメージ" : "フォロワーに2ダメージ";
+      return `${value}ダメージ`;
+    case "damage_all":
+      return `全体に${value}ダメージ`;
+    case "heal_single":
+      return `${value}回復`;
+    case "draw_cards":
+      return `${value}枚ドロー`;
+    case "freeze_single":
+      return `${value}ターン凍結`;
+    case "poison":
+      return `${value}ターン毒付与`;
+    case "haste":
+      return "疾走付与";
+    case "reduce_cost":
+      return `手札コスト-${value}`;
+    case "return_to_deck":
+      return "山札に戻す";
+    case "steal_follower":
+      return "フォロワー奪取";
+    case "summon_token":
+      return `${value}体召喚`;
+    default:
+      return "効果発動";
+  }
+};
+
 function buildPlayContextFromAI(ctx: AIGameContext, localDaggerCount: number = 0, fieldSize: number = 0): PlayContext {
   return {
     playerFieldCards: ctx.playerFieldCards as RuntimeCard[],
@@ -83,6 +114,8 @@ function buildPlayContextFromAI(ctx: AIGameContext, localDaggerCount: number = 0
     setEnemyGraveyard: ctx.setEnemyGraveyard,
     setPlayerHeroHp: ctx.setPlayerHeroHp,
     setEnemyHeroHp: ctx.setEnemyHeroHp,
+    playerHeroMaxHp: ctx.playerHeroMaxHp,
+    enemyHeroMaxHp: ctx.enemyHeroMaxHp,
     setGameOver: ctx.setGameOver,
     stopTimer: ctx.stopTimer,
     setAiRunning: ctx.setAiRunning,
@@ -110,8 +143,10 @@ export async function runEnemyTurn(ctx: AIGameContext) {
     enemyFieldCards,
     enemyCurrentMana,
     enemyHeroHp,
+    enemyHeroMaxHp,
     playerFieldCards,
     playerHeroHp,
+    playerHeroMaxHp,
     playerHandCards,
     playerGraveyard,
     setEnemyDeck,
@@ -149,6 +184,9 @@ export async function runEnemyTurn(ctx: AIGameContext) {
   let localEnemyDeck = [...enemyDeck];
   // このターン中に使用した暗器の枚数（シナジー判定用）
   let localDaggerCount = 0;
+  const syncEnemyMana = (mana: number) => setEnemyCurrentMana(Math.max(0, mana));
+  const getCurrentPlayerFieldCards = () =>
+    (ctx.getPlayerFieldCards ? ctx.getPlayerFieldCards() : playerFieldCards).filter((c) => (c.hp ?? 0) > 0);
 
   try {
     await sleep(800);
@@ -172,7 +210,15 @@ export async function runEnemyTurn(ctx: AIGameContext) {
         setEnemyHandCards((h) => h.filter((c) => c.uniqueId !== spellId));
         setEnemyGraveyard((g) => [...g, { ...lethalSpell!, uniqueId: uuidv4() }]);
         remainingMana -= lethalSpell.cost;
-        addActionLog(`${lethalSpell.name} を発動`, "✨");
+        syncEnemyMana(remainingMana);
+        const lethalResultText = getSpellResultText(lethalSpell, "hero");
+        addActionLog(`${lethalSpell.name} を発動（対象: ヒーロー / 結果: ${lethalResultText}）`, "✨");
+        ctx.onEnemySpellCast?.({
+          spellName: lethalSpell.name,
+          targetLabel: "ヒーロー",
+          resultText: lethalResultText,
+          round: 0,
+        });
 
         showCardReveal(lethalSpell, "hero", "spell");
         await sleep(1350);
@@ -269,9 +315,10 @@ export async function runEnemyTurn(ctx: AIGameContext) {
 
       const card = entry.card;
       remainingMana -= entry.effectiveCost;
+      syncEnemyMana(remainingMana);
       fieldCount += 1;
       const animId = uuidv4();
-      const canAttackInitial = !!(card.rush || card.superHaste);
+      const canAttackInitial = !!(card.rush || card.charge);
       const rushInitialTurn = card.rush ? true : undefined;
       const created = {
         ...card,
@@ -390,6 +437,7 @@ export async function runEnemyTurn(ctx: AIGameContext) {
       setEnemyHandCards((h) => h.filter((c) => c.uniqueId !== spellId));
       setEnemyGraveyard((g) => [...g, { ...spell!, uniqueId: uuidv4() }]);
       remainingMana -= spell.cost;
+      syncEnemyMana(remainingMana);
 
       let targetId: string | "hero" = "hero";
       switch (spell.effect) {
@@ -402,14 +450,29 @@ export async function runEnemyTurn(ctx: AIGameContext) {
         case "poison":
         case "freeze_single":
         case "haste": {
-          if (playerFieldCards.length > 0) {
+          const currentPlayerFieldCards = getCurrentPlayerFieldCards();
+          if (currentPlayerFieldCards.length > 0) {
             if (spell.effect === "poison" && Math.random() < 0.7) {
-              targetId = playerFieldCards.reduce((best, c) => ((c.hp ?? 0) > (best.hp ?? 0) ? c : best)).uniqueId;
+              targetId = currentPlayerFieldCards.reduce((best, c) => ((c.hp ?? 0) > (best.hp ?? 0) ? c : best)).uniqueId;
             } else if (spell.effect === "freeze_single" && Math.random() < 0.7) {
-              targetId = playerFieldCards.reduce((best, c) => ((c.attack ?? 0) > (best.attack ?? 0) ? c : best)).uniqueId;
+              targetId = currentPlayerFieldCards.reduce((best, c) => ((c.attack ?? 0) > (best.attack ?? 0) ? c : best)).uniqueId;
             } else {
-              targetId = playerFieldCards[Math.floor(Math.random() * playerFieldCards.length)].uniqueId;
+              targetId = currentPlayerFieldCards[Math.floor(Math.random() * currentPlayerFieldCards.length)].uniqueId;
             }
+          }
+          break;
+        }
+        case "steal_follower": {
+          const currentPlayerFieldCards = getCurrentPlayerFieldCards();
+          if (currentPlayerFieldCards.length > 0) {
+            // 価値の高いフォロワーを優先（攻撃力+HPが高い順）
+            const best = [...currentPlayerFieldCards].sort(
+              (a, b) => ((b.attack ?? 0) + (b.hp ?? 0)) - ((a.attack ?? 0) + (a.hp ?? 0))
+            )[0];
+            targetId = best?.uniqueId ?? currentPlayerFieldCards[0].uniqueId;
+          } else {
+            // 対象不在時は不発なので使用対象から外すため break 後に skip 判定で弾く
+            targetId = "hero";
           }
           break;
         }
@@ -417,7 +480,23 @@ export async function runEnemyTurn(ctx: AIGameContext) {
           targetId = "hero";
       }
 
-      addActionLog(`${spell.name} を発動`, "✨");
+      if (spell.effect === "steal_follower" && targetId === "hero") {
+        // 対象がいないのでこのスペルはスキップ
+        spellCandidates = spellCandidates.filter((c) => c.uniqueId !== spellId);
+        continue;
+      }
+
+      const targetLabel = targetId === "hero"
+        ? "ヒーロー"
+        : (getCurrentPlayerFieldCards().find((c) => c.uniqueId === targetId)?.name ?? "フォロワー");
+      const resultText = getSpellResultText(spell, targetId);
+      addActionLog(`${spell.name} を発動（対象: ${targetLabel} / 結果: ${resultText}）`, "✨");
+      ctx.onEnemySpellCast?.({
+        spellName: spell.name,
+        targetLabel,
+        resultText,
+        round: 0,
+      });
 
       showCardReveal(spell, targetId, "spell");
       await sleep(1350);
@@ -428,13 +507,16 @@ export async function runEnemyTurn(ctx: AIGameContext) {
       if (spell.id === 15) localDaggerCount += 1;
 
       setEnemySpellAnimation({ targetId, effect: spell.effect! });
+      const currentPlayerFieldCards = getCurrentPlayerFieldCards();
       applySpell(spell, targetId, false, {
-        playerFieldCards,
+        playerFieldCards: currentPlayerFieldCards,
         enemyFieldCards,
         setPlayerFieldCards,
         setEnemyFieldCards,
         setPlayerHeroHp,
         setEnemyHeroHp,
+        playerHeroMaxHp,
+        enemyHeroMaxHp,
         setPlayerGraveyard,
         setEnemyGraveyard,
         setGameOver,
@@ -472,7 +554,8 @@ export async function runEnemyTurn(ctx: AIGameContext) {
       setEnemyFieldCards((prev) => {
         latestField = prev.map((c) => {
           const wasOnFieldAtStart = fieldAtTurnStartIds.includes(c.uniqueId);
-          const allowAttack = wasOnFieldAtStart || !!c.rushInitialTurn || !!c.superHaste || !!c.rush;
+          const isFrozen = !!(c.frozen && c.frozen > 0);
+          const allowAttack = !isFrozen && (wasOnFieldAtStart || !!c.rushInitialTurn || !!c.charge || !!c.rush);
           return { ...c, canAttack: allowAttack };
         });
         return latestField;
@@ -486,23 +569,24 @@ export async function runEnemyTurn(ctx: AIGameContext) {
         if (cancelRef.current) return;
         if (!enemyCard.canAttack) continue;
 
-        const hasWallGuardOnPlayer = playerFieldCards.some((c) => (c as { wallGuard?: boolean }).wallGuard);
+        let target: string | "hero" | null = null;
+        const validTargets = getCurrentPlayerFieldCards();
+        const guardTargets = validTargets.filter((c) => (c as { wallGuard?: boolean }).wallGuard);
+        const hasWallGuardOnPlayer = guardTargets.length > 0;
         const attackerCannotHitHeroDueToRush = !!enemyCard.rushInitialTurn;
         const allowHeroTarget = !attackerCannotHitHeroDueToRush && !hasWallGuardOnPlayer;
+        const selectableFollowerTargets = hasWallGuardOnPlayer ? guardTargets : validTargets;
 
-        let target: string | "hero" | null = null;
-        const validTargets = playerFieldCards.filter((c) => (c.hp ?? 0) > 0);
-
-        if (validTargets.length > 0) {
+        if (selectableFollowerTargets.length > 0) {
           if (Math.random() < 0.6) {
-            const mostThreatened = validTargets.reduce((best, c) => {
+            const mostThreatened = selectableFollowerTargets.reduce((best, c) => {
               const bestScore = (best.attack ?? 0) * 2 + (best.hp ?? 0) + (best.effect ? 1.5 : 0);
               const cScore = (c.attack ?? 0) * 2 + (c.hp ?? 0) + (c.effect ? 1.5 : 0);
               return cScore > bestScore ? c : best;
             });
             target = mostThreatened.uniqueId;
           } else {
-            target = validTargets[Math.floor(Math.random() * validTargets.length)].uniqueId;
+            target = selectableFollowerTargets[Math.floor(Math.random() * selectableFollowerTargets.length)].uniqueId;
           }
         }
 
@@ -510,14 +594,20 @@ export async function runEnemyTurn(ctx: AIGameContext) {
           if (allowHeroTarget) target = "hero";
           else continue;
         } else if (target === "hero" && !allowHeroTarget) {
-          if (validTargets.length > 0) {
-            target = validTargets[Math.floor(Math.random() * validTargets.length)].uniqueId;
+          if (selectableFollowerTargets.length > 0) {
+            target = selectableFollowerTargets[Math.floor(Math.random() * selectableFollowerTargets.length)].uniqueId;
           } else {
             continue;
           }
         }
 
-        setEnemyFieldCards((prev) => prev.map((c) => (c.uniqueId === enemyCard.uniqueId ? { ...c, canAttack: true } : c)));
+        setEnemyFieldCards((prev) =>
+          prev.map((c) => {
+            if (c.uniqueId !== enemyCard.uniqueId) return c;
+            const isFrozen = !!(c.frozen && c.frozen > 0);
+            return { ...c, canAttack: !isFrozen };
+          })
+        );
         await sleep(40);
 
         setMovingAttack({ attackerId: enemyCard.uniqueId, targetId: target as string | "hero" });
@@ -528,7 +618,7 @@ export async function runEnemyTurn(ctx: AIGameContext) {
           const targetLabel =
             target === "hero"
               ? "ヒーロー"
-              : playerFieldCards.find((c) => c.uniqueId === target)?.name ?? "フォロワー";
+              : getCurrentPlayerFieldCards().find((c) => c.uniqueId === target)?.name ?? "フォロワー";
           addActionLog(`${enemyCard.name} → ${targetLabel} に攻撃`, "💥");
         }
         attack(enemyCard.uniqueId, target as string | "hero", false);

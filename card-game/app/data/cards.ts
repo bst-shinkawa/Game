@@ -94,7 +94,7 @@ export interface Card {
   onAttackEffect?: OnAttackEffectType;
   stealth?: boolean;
   rush?: boolean;
-  superHaste?: boolean;
+  charge?: boolean;
   wallGuard?: boolean;
   summonTrigger?: { type: TriggerType; cardId?: number; cardIds?: number[] };
   deathTrigger?: { type: TriggerType; cardId?: number };
@@ -133,10 +133,10 @@ export const cards: Card[] = [
   { id: 12, name: "策士", type: "follower", description: "召喚時手札からカード1枚ドロー", attack: 2, hp: 2, maxHp: 2, image: `${basePath}/img/cards/supply_trooper.webp`, uniqueId: "", cost: 3, owner: "king", usageType: "play_follower", onPlayEffects: [{ type: "draw", count: 1 }] },
   { id: 13, name: "補給兵", type: "follower", description: "場に味方が3体以上ならターン終了時に金の盃を手札に加える", attack: 2, hp: 3, maxHp: 3, image: `${basePath}/img/cards/one_man_army.webp`, uniqueId: "", cost: 4, owner: "king", usageType: "play_follower", synergy: { condition: { type: "field_size_gte", threshold: 3 }, effect: { type: "end_turn_add_card", cardId: 5 } } },
   // token for One‑Armed King
-  { id: 26, name: "王の右腕", type: "follower", description: "疾走", attack: 5, hp: 1, maxHp: 1, image: `${basePath}/img/cards/arm.png`, uniqueId: "", cost: 0, rush: true, token: true, owner: "king", usageType: "play_follower" },
+  { id: 26, name: "王の右腕", type: "follower", description: "疾走", attack: 5, hp: 1, maxHp: 1, image: `${basePath}/img/cards/arm.png`, uniqueId: "", cost: 0, charge: true, token: true, owner: "king", usageType: "play_follower" },
   // --- 簒奪者サイドカード ---
   { id: 14, name: "暗躍", type: "spell", description: "自分の手札のカードを一枚のコストを1下げる。手札に暗器を2枚加える", effect: "reduce_cost", effectValue: 1, image: `${basePath}/img/cards/clandestine_operation.webp`, uniqueId: "", cost: 1, owner: "usurper", usageType: "cast_spell_select_hand", selectableTargets: ["hand_card"], onPlayEffects: [{ type: "add_card", cardId: 15, count: 2 }] },
-  { id: 15, name: "暗器", type: "spell", description: "相手のフォロワーかヒーローに1ダメージ", effect: "damage_single", effectValue: 1, image: `${basePath}/img/cards/hidden_dagger.webp`, uniqueId: "", cost: 1, owner: "usurper", usageType: "cast_spell_select_target", selectableTargets: ["hero", "field_card"] },
+  { id: 15, name: "暗器", type: "spell", description: "相手がフォロワーなら2ダメージ、ヒーローなら1ダメージ", effect: "damage_single", effectValue: 1, image: `${basePath}/img/cards/hidden_dagger.webp`, uniqueId: "", cost: 1, owner: "usurper", usageType: "cast_spell_select_target", selectableTargets: ["hero", "field_card"] },
   { id: 16, name: "影を縫う者", type: "follower", description: "召喚時手札に暗器を1枚加える。このターン暗器を使用済みなら攻撃力+1", attack: 2, hp: 2, maxHp: 2, image: `${basePath}/img/cards/shadow_stitcher.webp`, uniqueId: "", cost: 2, summonTrigger: { type: "add_card_hand", cardId: 15 }, owner: "usurper", usageType: "play_follower", synergy: { condition: { type: "dagger_used_gte", threshold: 1 }, effect: { type: "attack_bonus", value: 1 } } },
   { id: 17, name: "携帯補給", type: "spell", description: "自分のヒーローのHPを1回復。暗器を一枚手札に加える", effect: "heal_single", effectValue: 1, image: `${basePath}/img/cards/portable_supply.webp`, uniqueId: "", cost: 2, owner: "usurper", usageType: "cast_spell_auto", onPlayEffects: [{ type: "add_card", cardId: 15, count: 1 }] },
   { id: 18, name: "簒奪者", type: "follower", description: "相手のカードを一枚ランダムに墓地から手札に加える。（加えるカードは2コスト以下のみ）暗器を一枚手札に加える", attack: 2, hp: 3, maxHp: 3, image: `${basePath}/img/cards/usurper.png`, uniqueId: "", cost: 3, owner: "usurper", usageType: "play_follower", onPlayEffects: [{ type: "steal_graveyard", maxCost: 2, count: 1 }, { type: "add_card", cardId: 15, count: 1 }] },
@@ -150,5 +150,5 @@ export const cards: Card[] = [
   // --- 王側新規カード ---
   { id: 27, name: "城壁兵", type: "follower", description: "守護。場に味方が2体以上いればコスト-2", attack: 2, hp: 5, maxHp: 5, image: `${basePath}/img/cards/royal_guard.webp`, uniqueId: "", cost: 5, wallGuard: true, owner: "king", usageType: "play_follower", synergy: { condition: { type: "field_size_gte", threshold: 2 }, effect: { type: "cost_reduce", value: 2 } } },
   // --- 簒奪者側新規カード ---
-  { id: 28, name: "夜襲者", type: "follower", description: "疾走。このターン使用した暗器1枚につきコスト-1", attack: 3, hp: 2, maxHp: 2, image: `${basePath}/img/cards/shadow_stitcher.webp`, uniqueId: "", cost: 4, rush: true, owner: "usurper", usageType: "play_follower", synergy: { condition: { type: "dagger_used_gte", threshold: 1 }, effect: { type: "cost_by_dagger" } } }
+  { id: 28, name: "夜襲者", type: "follower", description: "疾走。このターン使用した暗器1枚につきコスト-1", attack: 3, hp: 2, maxHp: 2, image: `${basePath}/img/cards/shadow_stitcher.webp`, uniqueId: "", cost: 4, charge: true, owner: "usurper", usageType: "play_follower", synergy: { condition: { type: "dagger_used_gte", threshold: 1 }, effect: { type: "cost_by_dagger" } } }
 ];

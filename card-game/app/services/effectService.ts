@@ -27,6 +27,8 @@ export interface PlayContext {
   setEnemyGraveyard: React.Dispatch<React.SetStateAction<Card[]>>;
   setPlayerHeroHp: React.Dispatch<React.SetStateAction<number>>;
   setEnemyHeroHp: React.Dispatch<React.SetStateAction<number>>;
+  playerHeroMaxHp: number;
+  enemyHeroMaxHp: number;
   setGameOver: React.Dispatch<React.SetStateAction<GameOverState>>;
   stopTimer: () => void;
   setAiRunning: React.Dispatch<React.SetStateAction<boolean>>;
@@ -90,24 +92,28 @@ export function executePlayEffects(
           checkSynergy(card, ctx.fieldSize ?? 0, ctx.daggerCount ?? 0))
           ? { attack: card.synergy.effect.attack ?? 0, hp: card.synergy.effect.hp ?? 0 }
           : null;
-        for (let i = 0; i < count; i++) {
-          const ownLen = (isPlayer ? ctx.playerFieldCards : ctx.enemyFieldCards).length;
-          if (ownLen + i >= MAX_FIELD_SIZE) break;
-          const token = createFieldCard(tokenBase, eff.canAttack ?? false);
-          if (eff.noTrigger) delete (token as any).summonTrigger;
-          if (tokenBuff) {
-            token.baseAttack = token.attack ?? 0;
-            token.baseHp = token.hp ?? 0;
-            token.attack = (token.attack ?? 0) + tokenBuff.attack;
-            token.hp = (token.hp ?? 0) + tokenBuff.hp;
-            token.maxHp = (token.maxHp ?? 0) + tokenBuff.hp;
+        setOwnField((f) => {
+          const availableSlots = Math.max(0, MAX_FIELD_SIZE - f.length);
+          const addCount = Math.min(count, availableSlots);
+          if (addCount <= 0) return f;
+          const tokensToAdd: RuntimeCard[] = [];
+          for (let i = 0; i < addCount; i++) {
+            const token = createFieldCard(tokenBase, eff.canAttack ?? false);
+            if (eff.noTrigger) delete (token as any).summonTrigger;
+            if (tokenBuff) {
+              token.baseAttack = token.attack ?? 0;
+              token.baseHp = token.hp ?? 0;
+              token.attack = (token.attack ?? 0) + tokenBuff.attack;
+              token.hp = (token.hp ?? 0) + tokenBuff.hp;
+              token.maxHp = (token.maxHp ?? 0) + tokenBuff.hp;
+            }
+            tokensToAdd.push(token);
           }
-          setOwnField((f) => [...f, token]);
-          const tokenId = token.uniqueId;
-          setTimeout(() => {
-            setOwnField((f) => f.map((c) => c.uniqueId === tokenId ? { ...c, isAnimating: false } : c));
-          }, 600);
-        }
+          return [...f, ...tokensToAdd];
+        });
+        setTimeout(() => {
+          setOwnField((f) => f.map((c) => ((c as any).isAnimating ? { ...c, isAnimating: false } : c)));
+        }, 600);
         break;
       }
       case "summon_buffed": {
@@ -115,25 +121,28 @@ export function executePlayEffects(
         if (!baseCard) break;
         const count = eff.count ?? 1;
         const setOwnField = isPlayer ? ctx.setPlayerFieldCards : ctx.setEnemyFieldCards;
-        for (let i = 0; i < count; i++) {
-          const ownLen = (isPlayer ? ctx.playerFieldCards : ctx.enemyFieldCards).length;
-          if (ownLen + i >= MAX_FIELD_SIZE) break;
-          const token = createFieldCard(baseCard, eff.canAttack ?? false);
-          if (eff.buff) {
-            // バフ前の基礎スタッツを保存（CardItemで緑色表示に使用）
-            (token as any).baseAttack = baseCard.attack ?? 0;
-            (token as any).baseHp = baseCard.hp ?? 0;
-            token.attack = (token.attack ?? 0) + (eff.buff.attack ?? 0);
-            token.hp = (token.hp ?? 0) + (eff.buff.hp ?? 0);
-            token.maxHp = (token.maxHp ?? 0) + (eff.buff.hp ?? 0);
+        setOwnField((f) => {
+          const availableSlots = Math.max(0, MAX_FIELD_SIZE - f.length);
+          const addCount = Math.min(count, availableSlots);
+          if (addCount <= 0) return f;
+          const tokensToAdd: RuntimeCard[] = [];
+          for (let i = 0; i < addCount; i++) {
+            const token = createFieldCard(baseCard, eff.canAttack ?? false);
+            if (eff.buff) {
+              // バフ前の基礎スタッツを保存（CardItemで緑色表示に使用）
+              (token as any).baseAttack = baseCard.attack ?? 0;
+              (token as any).baseHp = baseCard.hp ?? 0;
+              token.attack = (token.attack ?? 0) + (eff.buff.attack ?? 0);
+              token.hp = (token.hp ?? 0) + (eff.buff.hp ?? 0);
+              token.maxHp = (token.maxHp ?? 0) + (eff.buff.hp ?? 0);
+            }
+            tokensToAdd.push(token);
           }
-          setOwnField((f) => [...f, token]);
-          // 召喚アニメーション後に isAnimating をクリアする
-          const tokenId = token.uniqueId;
-          setTimeout(() => {
-            setOwnField((f) => f.map((c) => c.uniqueId === tokenId ? { ...c, isAnimating: false } : c));
-          }, 600);
-        }
+          return [...f, ...tokensToAdd];
+        });
+        setTimeout(() => {
+          setOwnField((f) => f.map((c) => ((c as any).isAnimating ? { ...c, isAnimating: false } : c)));
+        }, 600);
         break;
       }
       case "steal_graveyard": {
@@ -355,7 +364,7 @@ export function playCardToField(card: Card, isPlayer: boolean, context: PlayCont
   if (card.cost > mana) return;
   setMana((m) => m - card.cost);
 
-  const canAttack = !!(card.rush || card.superHaste);
+  const canAttack = !!(card.rush || card.charge);
   const fieldCard = createFieldCard(card, canAttack);
   const setOwnField = isPlayer ? setPlayerFieldCards : setEnemyFieldCards;
   setOwnField((f: RuntimeCard[]) => [...f, fieldCard]);
