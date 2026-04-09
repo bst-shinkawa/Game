@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import CardItem from "./CardItem";
 import Image from "next/image";
 import {
@@ -77,6 +78,21 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
   selectionConfig,
   applySelection,
 }) => {
+  const enemyHandAreaRef = useRef<HTMLDivElement | null>(null);
+  const enemyDeckPileRef = useRef<HTMLDivElement | null>(null);
+  const prevEnemyHandIdsRef = useRef<string[]>([]);
+  const prevEnemyDeckCountRef = useRef<number>(enemyDeck.length);
+  const enemyAnimationTimeoutsRef = useRef<number[]>([]);
+  const [animatingEnemyHandIds, setAnimatingEnemyHandIds] = useState<Set<string>>(new Set());
+  const [enemyDrawFlights, setEnemyDrawFlights] = useState<Array<{
+    id: string;
+    fromX: number;
+    fromY: number;
+    toX: number;
+    toY: number;
+    delay: number;
+  }>>([]);
+
   // プレイヤー→敵への攻撃アニメーション（プレイヤーフィールドから敵ヒーロー/敵フォロワーへ）
   useEffect(() => {
     if (!playerAttackAnimation) return;
@@ -111,6 +127,75 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
   const enemyHandCount = enemyHandCards.length;
   const enemyMaxAngle = -20;
   const enemyAngleStep = (enemyHandCount > 1) ? (enemyMaxAngle * 2) / (enemyHandCount - 1) : 0;
+
+  useEffect(() => {
+    return () => {
+      enemyAnimationTimeoutsRef.current.forEach((t) => window.clearTimeout(t));
+      enemyAnimationTimeoutsRef.current = [];
+    };
+  }, []);
+
+  useEffect(() => {
+    const currentIds = enemyHandCards.map((c) => c.uniqueId);
+    const first = prevEnemyHandIdsRef.current.length === 0;
+    if (first) {
+      prevEnemyHandIdsRef.current = currentIds;
+      prevEnemyDeckCountRef.current = enemyDeck.length;
+      return;
+    }
+    if (preGame) {
+      prevEnemyHandIdsRef.current = currentIds;
+      prevEnemyDeckCountRef.current = enemyDeck.length;
+      return;
+    }
+
+    const deckDropped = enemyDeck.length < prevEnemyDeckCountRef.current;
+    const added = enemyHandCards.filter((c) => !prevEnemyHandIdsRef.current.includes(c.uniqueId));
+    prevEnemyHandIdsRef.current = currentIds;
+    prevEnemyDeckCountRef.current = enemyDeck.length;
+    if (!deckDropped || added.length === 0) return;
+
+    const pileRect = enemyDeckPileRef.current?.getBoundingClientRect();
+    if (!pileRect) return;
+
+    const flights = added
+      .map((card, index) => {
+        const target = enemyHandAreaRef.current?.querySelector(`[data-enemy-hand-id="${card.uniqueId}"]`) as HTMLElement | null;
+        if (!target) return null;
+        const targetRect = target.getBoundingClientRect();
+        return {
+          id: card.uniqueId,
+          fromX: pileRect.left + pileRect.width / 2 - 35,
+          fromY: pileRect.top + pileRect.height / 2 - 50,
+          toX: targetRect.left,
+          toY: targetRect.top,
+          delay: index * 0.07,
+        };
+      })
+      .filter((v): v is NonNullable<typeof v> => v !== null);
+
+    if (flights.length === 0) return;
+
+    const ids = flights.map((f) => f.id);
+    setAnimatingEnemyHandIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.add(id));
+      return next;
+    });
+    setEnemyDrawFlights((prev) => [...prev, ...flights]);
+
+    flights.forEach((flight, i) => {
+      const timerId = window.setTimeout(() => {
+        setEnemyDrawFlights((prev) => prev.filter((f) => f.id !== flight.id));
+        setAnimatingEnemyHandIds((prev) => {
+          const next = new Set(prev);
+          next.delete(flight.id);
+          return next;
+        });
+      }, 500 + i * 70);
+      enemyAnimationTimeoutsRef.current.push(timerId);
+    });
+  }, [enemyHandCards, enemyDeck.length, preGame]);
 
   // 選択モード中のハイライト判定（selectionService を使用）
   const isHeroSelectable = isEnemyHeroSelectable(selectionMode, selectionConfig);
@@ -191,7 +276,7 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
       </div>
 
       {/* 敵手札（裏向き） */}
-      <div className={styles.field_enemy_hand_area}>
+      <div className={styles.field_enemy_hand_area} ref={enemyHandAreaRef}>
         {enemyHandCards.reduce((acc, card) => {
           // 同じ uniqueId が既に追加されていないかチェック（重複排除）
           if (acc.some((c) => c.uniqueId === card.uniqueId)) {
@@ -213,16 +298,39 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
           return (
             <div
               key={card.uniqueId}
+              data-enemy-hand-id={card.uniqueId}
               className={styles.card_back}
               aria-hidden={true}
               style={{
                 ...style,
-                backgroundImage: `url(${cardBack.src})`
+                backgroundImage: `url(${cardBack.src})`,
+                visibility: animatingEnemyHandIds.has(card.uniqueId) ? "hidden" : "visible",
               }}
             />
           );
         })}
       </div>
+
+      <div className={styles.field_enemy_deck_pile} ref={enemyDeckPileRef} aria-hidden={true}>
+        <div className={styles.field_enemy_deck_pile_layer_1} style={{ backgroundImage: `url(${cardBack.src})` }} />
+        <div className={styles.field_enemy_deck_pile_layer_2} style={{ backgroundImage: `url(${cardBack.src})` }} />
+        <div className={styles.field_enemy_deck_pile_layer_3} style={{ backgroundImage: `url(${cardBack.src})` }} />
+      </div>
+
+      <AnimatePresence>
+        {enemyDrawFlights.map((flight) => (
+          <motion.div
+            key={`enemy-draw-flight-${flight.id}`}
+            className={styles.draw_flight}
+            initial={{ x: flight.fromX, y: flight.fromY, scale: 0.78, rotate: 12, opacity: 0.98 }}
+            animate={{ x: flight.toX, y: flight.toY, scale: 1, rotate: 0, opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.46, delay: flight.delay, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <div className={styles.card_back} style={{ backgroundImage: `url(${cardBack.src})`, marginLeft: 0, transform: "none" }} />
+          </motion.div>
+        ))}
+      </AnimatePresence>
 
       {/* 敵ステータス */}
       <div className={styles.field_enemy_status}>

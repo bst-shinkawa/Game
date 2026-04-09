@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useRef, useEffect, useContext } from "react";
+import React, { useRef, useEffect, useContext, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import CardItem from "./CardItem";
 import Image from "next/image";
 import type { Card } from "@/app/data/cards";
@@ -12,6 +13,7 @@ import styles from "@/app/assets/css/Game.Master.module.css";
 import handIcon from "@/public/img/field/hand-icon.png";
 import deckIcon from "@/public/img/field/deck-icon.png";
 import deathIcon from "@/public/img/field/void-icon.png";
+import cardBack from "@/public/img/field/card_back.png";
 import HeroHpBar from "./HeroHpBar";
 import ViewportContext from "@/app/context/ViewportContext";
 
@@ -172,6 +174,159 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
 
   // ViewportContext を使用
   const viewport = useContext(ViewportContext);
+  const deckPileRef = useRef<HTMLDivElement | null>(null);
+  const prevHandIdsRef = useRef<string[]>([]);
+  const prevDeckCountRef = useRef<number>(playerDeck.length);
+  const prevFieldCardsRef = useRef<RuntimeCard[]>(playerFieldCards);
+  const prevFieldCardRectsRef = useRef<Record<string, { x: number; y: number }>>({});
+  const animationTimeoutsRef = useRef<number[]>([]);
+  const [animatingHandIds, setAnimatingHandIds] = useState<Set<string>>(new Set());
+  const [slideInHandIds, setSlideInHandIds] = useState<Set<string>>(new Set());
+  const [drawFlights, setDrawFlights] = useState<Array<{
+    id: string;
+    card: Card;
+    fromX: number;
+    fromY: number;
+    toX: number;
+    toY: number;
+    delay: number;
+    reason: "draw" | "generate" | "return";
+  }>>([]);
+
+  useEffect(() => {
+    const nextRects: Record<string, { x: number; y: number }> = {};
+    const nodes = playerBattleRef.current?.querySelectorAll("[data-uniqueid]") ?? [];
+    nodes.forEach((node) => {
+      const el = node as HTMLElement;
+      const id = el.dataset.uniqueid;
+      if (!id) return;
+      const rect = el.getBoundingClientRect();
+      nextRects[id] = { x: rect.left, y: rect.top };
+    });
+    prevFieldCardRectsRef.current = nextRects;
+  }, [playerFieldCards, playerBattleRef]);
+
+  useEffect(() => {
+    return () => {
+      animationTimeoutsRef.current.forEach((t) => window.clearTimeout(t));
+      animationTimeoutsRef.current = [];
+    };
+  }, []);
+
+  useEffect(() => {
+    const currentIds = playerHandCards.map((c) => c.uniqueId);
+    const first = prevHandIdsRef.current.length === 0;
+    if (first) {
+      prevHandIdsRef.current = currentIds;
+      prevDeckCountRef.current = playerDeck.length;
+      prevFieldCardsRef.current = playerFieldCards;
+      return;
+    }
+    if (preGame) {
+      prevHandIdsRef.current = currentIds;
+      prevDeckCountRef.current = playerDeck.length;
+      prevFieldCardsRef.current = playerFieldCards;
+      return;
+    }
+
+    const added = playerHandCards.filter((c) => !prevHandIdsRef.current.includes(c.uniqueId));
+    const prevDeckCount = prevDeckCountRef.current;
+    const deckDropped = playerDeck.length < prevDeckCount;
+    const removedField = prevFieldCardsRef.current.filter((c) => !playerFieldCards.some((n) => n.uniqueId === c.uniqueId));
+    prevHandIdsRef.current = currentIds;
+    prevDeckCountRef.current = playerDeck.length;
+    prevFieldCardsRef.current = playerFieldCards;
+    if (added.length === 0) return;
+
+    const pileRect = deckPileRef.current?.getBoundingClientRect();
+    const battleRect = playerBattleRef.current?.getBoundingClientRect();
+    if (!pileRect && !battleRect) return;
+
+    const flights = added
+      .map((card, index) => {
+        const target = handAreaRef.current?.querySelector(`[data-hand-card-id="${card.uniqueId}"]`) as HTMLElement | null;
+        if (!target) return null;
+        const targetRect = target.getBoundingClientRect();
+        const returnedFromField = removedField.find(
+          (f) => (f as { deathTrigger?: { type?: string } }).deathTrigger?.type === "return_to_hand_once" && f.id === card.id,
+        );
+        const isReturn = !deckDropped && !!returnedFromField;
+        const reason: "draw" | "generate" | "return" = deckDropped ? "draw" : isReturn ? "return" : "generate";
+
+        const returnRect = returnedFromField ? prevFieldCardRectsRef.current[returnedFromField.uniqueId] : null;
+        const fromX =
+          reason === "draw"
+            ? (pileRect ? pileRect.left + pileRect.width / 2 - 35 : targetRect.left)
+            : reason === "return" && returnRect
+            ? returnRect.x
+            : battleRect
+            ? battleRect.left + battleRect.width / 2 - 35
+            : targetRect.left;
+        const fromY =
+          reason === "draw"
+            ? (pileRect ? pileRect.top + pileRect.height / 2 - 50 : targetRect.top)
+            : reason === "return" && returnRect
+            ? returnRect.y
+            : battleRect
+            ? battleRect.top + 20
+            : targetRect.top;
+        return {
+          id: card.uniqueId,
+          card,
+          fromX,
+          fromY,
+          toX: targetRect.left,
+          toY: targetRect.top,
+          delay: index * 0.07,
+          reason,
+        };
+      })
+      .filter((v): v is NonNullable<typeof v> => v !== null);
+
+    if (flights.length === 0) return;
+
+    const ids = flights.map((f) => f.id);
+    setAnimatingHandIds((prev) => {
+      const next = new Set(prev);
+      ids.forEach((id) => next.add(id));
+      return next;
+    });
+    setDrawFlights((prev) => [...prev, ...flights]);
+
+    flights.forEach((flight, i) => {
+      const finishFlightTimer = window.setTimeout(() => {
+        setDrawFlights((prev) => prev.filter((f) => f.id !== flight.id));
+        if (flight.reason === "draw") {
+          // 飛行完了時点で実カードを表示し、手札側の短い入場アニメを再生する
+          setAnimatingHandIds((prev) => {
+            const next = new Set(prev);
+            next.delete(flight.id);
+            return next;
+          });
+          setSlideInHandIds((prev) => {
+            const next = new Set(prev);
+            next.add(flight.id);
+            return next;
+          });
+          const removeSlideTimer = window.setTimeout(() => {
+            setSlideInHandIds((prev) => {
+              const next = new Set(prev);
+              next.delete(flight.id);
+              return next;
+            });
+          }, 260);
+          animationTimeoutsRef.current.push(removeSlideTimer);
+        } else {
+          setAnimatingHandIds((prev) => {
+            const next = new Set(prev);
+            next.delete(flight.id);
+            return next;
+          });
+        }
+      }, 490 + i * 70);
+      animationTimeoutsRef.current.push(finishFlightTimer);
+    });
+  }, [playerHandCards, preGame, handAreaRef, playerDeck.length, playerFieldCards, playerBattleRef]);
 
   // 敵の攻撃アニメーション
   useEffect(() => {
@@ -386,10 +541,14 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
             selectionMode === "select_hand_card" &&
             selectionConfig?.selectableTargets.includes("hand_card") &&
             card.uniqueId !== sourceId;
+          const isSourceLocked = selectionMode === "select_hand_card" && card.uniqueId === sourceId;
+          const isAnimatingIncoming = animatingHandIds.has(card.uniqueId);
+          const cardOpacity = isAnimatingIncoming ? undefined : isSourceLocked ? 0.55 : undefined;
           return (
             <div
               key={card.uniqueId}
-              className={`${styles.field_player_hand_card} ${isActive ? styles.active : ''} ${isDragging ? styles.dragging : ''} ${isHandCardSelectable ? styles.selection_highlight : ''}`}
+              data-hand-card-id={card.uniqueId}
+              className={`${styles.field_player_hand_card} ${isActive ? styles.active : ''} ${isDragging ? styles.dragging : ''} ${isHandCardSelectable ? styles.selection_highlight : ''} ${slideInHandIds.has(card.uniqueId) ? styles.field_player_hand_card_draw_slide_in : ""}`}
               onClick={(e) => {
                 if (isDragging) return;
                 if (selectionMode === "select_target") return;
@@ -406,9 +565,11 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
               style={{
                 zIndex: isActive ? 4000 : (isDragging ? 950 : 10),
                 transition: "all 0.25s ease",
+                opacity: cardOpacity,
+                visibility: isAnimatingIncoming ? "hidden" : "visible",
                 ...(isHandCardSelectable ? { cursor: "pointer" } : {}),
-                ...(selectionMode === "select_hand_card" && card.uniqueId === sourceId
-                  ? { opacity: 0.55, cursor: "default" }
+                ...(isSourceLocked
+                  ? { cursor: "default" }
                   : {}),
               }}
             >
@@ -471,6 +632,36 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
           );
         })}
       </div>
+
+      <div className={styles.field_player_deck_pile} ref={deckPileRef} aria-hidden={true}>
+        <div className={styles.field_player_deck_pile_layer_1} style={{ backgroundImage: `url(${cardBack.src})` }} />
+        <div className={styles.field_player_deck_pile_layer_2} style={{ backgroundImage: `url(${cardBack.src})` }} />
+        <div className={styles.field_player_deck_pile_layer_3} style={{ backgroundImage: `url(${cardBack.src})` }} />
+      </div>
+
+      <AnimatePresence>
+        {drawFlights.map((flight) => (
+          <motion.div
+            key={`draw-flight-${flight.id}`}
+            className={`${styles.draw_flight} ${flight.reason === "generate" ? styles.draw_flight_generate : ""} ${flight.reason === "return" ? styles.draw_flight_return : ""}`}
+            initial={{ x: flight.fromX, y: flight.fromY, scale: 0.76, rotate: -13, opacity: 0.98 }}
+            animate={{ x: flight.toX, y: flight.toY, scale: 1, rotate: 0, opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.48, delay: flight.delay, ease: [0.22, 1, 0.36, 1] }}
+          >
+            {flight.reason !== "draw" ? (
+              <span className={styles.draw_flight_badge}>{flight.reason === "generate" ? "生成" : "回収"}</span>
+            ) : null}
+            <div className={styles.card}>
+              {flight.reason === "draw" ? (
+                <img src={cardBack.src} alt="card back" style={{ width: "100%", height: "100%", borderRadius: 10 }} />
+              ) : flight.card.image ? (
+                <img src={flight.card.image} alt={flight.card.name} style={{ width: "100%", height: "100%", borderRadius: 10 }} />
+              ) : null}
+            </div>
+          </motion.div>
+        ))}
+      </AnimatePresence>
 
       {/* プレイヤーステータス */}
       <div className={styles.field_player_status}>

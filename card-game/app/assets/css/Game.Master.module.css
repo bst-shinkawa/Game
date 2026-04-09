@@ -579,6 +579,107 @@
   transform: translateY(-15px) scale(1.05) rotate(var(--rotate));
   z-index: 20;
 }
+.field_player_hand_card_draw_slide_in {
+  overflow: hidden;
+  animation: hand-card-reveal-up 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.field_player_deck_pile {
+  position: fixed;
+  right: 2.8%;
+  bottom: 11%;
+  width: clamp(68px, 6.7vw, 88px);
+  aspect-ratio: 180/250;
+  z-index: 1100;
+  pointer-events: none;
+}
+.field_player_deck_pile_layer_1, .field_player_deck_pile_layer_2, .field_player_deck_pile_layer_3 {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45);
+}
+.field_player_deck_pile_layer_1 {
+  transform: translate(-6px, 4px) rotate(-5deg);
+  opacity: 0.62;
+}
+.field_player_deck_pile_layer_2 {
+  transform: translate(-3px, 2px) rotate(-2deg);
+  opacity: 0.78;
+}
+.field_player_deck_pile_layer_3 {
+  transform: translate(0, 0) rotate(0deg);
+}
+.field_player .field_enemy_deck_pile {
+  position: fixed;
+  left: 2.8%;
+  top: 11%;
+  width: clamp(68px, 6.7vw, 88px);
+  aspect-ratio: 180/250;
+  z-index: 1100;
+  pointer-events: none;
+}
+.field_player .field_enemy_deck_pile_layer_1,
+.field_player .field_enemy_deck_pile_layer_2,
+.field_player .field_enemy_deck_pile_layer_3 {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45);
+}
+.field_player .field_enemy_deck_pile_layer_1 {
+  transform: translate(6px, -4px) rotate(5deg);
+  opacity: 0.62;
+}
+.field_player .field_enemy_deck_pile_layer_2 {
+  transform: translate(3px, -2px) rotate(2deg);
+  opacity: 0.78;
+}
+.field_player .field_enemy_deck_pile_layer_3 {
+  transform: translate(0, 0) rotate(0deg);
+}
+.field .draw_flight {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 70px;
+  height: 100px;
+  z-index: 3200;
+  pointer-events: none;
+}
+.field .draw_flight_generate {
+  filter: drop-shadow(0 0 12px rgba(175, 98, 255, 0.8));
+}
+.field .draw_flight_return {
+  filter: drop-shadow(0 0 12px rgba(92, 224, 191, 0.82));
+}
+.field .draw_flight_badge {
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #f7f7f7;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+@keyframes hand-card-reveal-up {
+  from {
+    clip-path: inset(100% 0 0 0);
+    translate: 0 18px;
+  }
+  to {
+    clip-path: inset(0 0 0 0);
+    translate: 0 0;
+  }
+}
 .field {
   /* ターゲットハイライト */
 }
@@ -957,6 +1058,44 @@
   font-weight: bold;
   color: gold;
 }
+.mulligan_deck_pile {
+  position: absolute;
+  right: 6%;
+  top: 44%;
+  width: clamp(70px, 7vw, 90px);
+  aspect-ratio: 180/250;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.mulligan_deck_pile_layer_1, .mulligan_deck_pile_layer_2, .mulligan_deck_pile_layer_3 {
+  position: absolute;
+  inset: 0;
+  border-radius: 10px;
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45);
+}
+.mulligan_deck_pile_layer_1 {
+  transform: translate(-6px, 4px) rotate(-5deg);
+  opacity: 0.6;
+}
+.mulligan_deck_pile_layer_2 {
+  transform: translate(-3px, 2px) rotate(-2deg);
+  opacity: 0.78;
+}
+.mulligan_deck_pile_layer_3 {
+  transform: translate(0, 0) rotate(0deg);
+}
+
+.preGameFlight {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 70px;
+  height: 100px;
+  z-index: 3200;
+  pointer-events: none;
+}
 
 .card_hp {
   font-weight: bold;
@@ -1049,10 +1188,11 @@
   justify-content: center;
   background: rgba(0, 0, 0, 0.9);
   color: #fff;
-  padding: 18px 28px;
-  border-radius: 8px;
+  padding: 24px 36px;
+  border-radius: 12px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
-  min-width: 320px;
+  min-width: 380px;
+  animation: coinPopupPop 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .coinPopupTitle {
@@ -1061,9 +1201,48 @@
 }
 
 .coinPopupWinner {
-  font-size: 1.6rem;
+  font-size: 2rem;
   font-weight: 800;
   color: #ffd700;
+  letter-spacing: 0.03em;
+}
+
+.overlayModal {
+  position: fixed;
+  left: 0;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.overlayModalInner {
+  background: rgba(0, 0, 0, 0.85);
+  color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.7);
+  animation: coinPopupPop 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.overlayModalInnerTurn {
+  padding: 20px 32px;
+}
+
+.overlayModalInnerGameStart {
+  padding: 40px 52px;
+}
+
+.overlayModalTitleTurn {
+  font-size: 45px;
+  margin: 0;
+}
+
+.overlayModalTitleGameStart {
+  font-size: 72px;
+  margin: 0;
 }
 
 /* 簡易フェードクラス */
@@ -1079,6 +1258,20 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+@keyframes coinPopupPop {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.9);
+  }
+  60% {
+    opacity: 1;
+    transform: translateY(-4px) scale(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }
 /* 敵の攻撃アニメーション */

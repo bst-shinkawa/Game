@@ -308,6 +308,14 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
     return () => clearTimeout(timer);
   }, [preGame, coinResult, showCoinPopup, mulliganTimer, setMulliganTimer, startMatch, setShowGameStart]);
 
+  // コイントス演出開始前に結果を先に確定し、表示と最終結果を一致させる
+  useEffect(() => {
+    if (!preGame || coinResult !== "deciding") return;
+    if (rouletteLabel === "player" || rouletteLabel === "enemy") return;
+    const winner = Math.random() < 0.5 ? "player" : "enemy";
+    setRouletteLabel(winner);
+  }, [preGame, coinResult, rouletteLabel, setRouletteLabel]);
+
   // --- Video playback rate ---
   const videoRef = useRef<HTMLVideoElement | null>(null);
   useEffect(() => {
@@ -339,7 +347,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
           descCardId={descCardId}
           onRouletteAnimEnd={() => {
             setTimeout(() => {
-              const winner = Math.random() < 0.5 ? "player" : "enemy";
+              const winner = rouletteLabel === "enemy" ? "enemy" : "player";
               finalizeCoin(winner);
               setRouletteRunning(false);
               setShowCoinPopup(true);
@@ -437,18 +445,18 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
 
       {/* Turn modal */}
       {showTurnModal && (
-        <div style={{ position: "fixed", left: 0, top: 0, right: 0, bottom: 0, zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ background: "rgba(0,0,0,0.85)", color: "#fff", padding: 20, borderRadius: 12 }}>
-            <h1 style={{ fontSize: 45, margin: 0 }}>{isPlayerTurn ? "Your Turn" : "Enemy Turn"}</h1>
+        <div className={styles.overlayModal}>
+          <div className={`${styles.overlayModalInner} ${styles.overlayModalInnerTurn}`}>
+            <h1 className={styles.overlayModalTitleTurn}>{isPlayerTurn ? "Your Turn" : "Enemy Turn"}</h1>
           </div>
         </div>
       )}
 
       {/* GameStart overlay */}
       {showGameStart && (
-        <div style={{ position: "fixed", left: 0, top: 0, right: 0, bottom: 0, zIndex: 2000, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ background: "rgba(0,0,0,0.85)", color: "#fff", padding: 40, borderRadius: 12 }}>
-            <h1 style={{ fontSize: 72, margin: 0 }}>GameStart</h1>
+        <div className={styles.overlayModal}>
+          <div className={`${styles.overlayModalInner} ${styles.overlayModalInnerGameStart}`}>
+            <h1 className={styles.overlayModalTitleGameStart}>GameStart</h1>
           </div>
         </div>
       )}
