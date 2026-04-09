@@ -116,7 +116,8 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
     borderColor = "gray";
   } else {
     if (inHand && currentMana !== undefined && cost !== undefined) {
-      borderColor = currentMana >= cost ? "gold" : "gray";
+      const playableCost = effectiveCost !== undefined ? effectiveCost : cost;
+      borderColor = currentMana >= playableCost ? "gold" : "gray";
     } else if (canAttack !== undefined) {
       // 疾走（charge）は常に緑枠（出したターンからヒーロー含め攻撃可能）
       if (charge && canAttack) {

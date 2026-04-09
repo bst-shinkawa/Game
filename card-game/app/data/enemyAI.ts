@@ -5,7 +5,7 @@ import type { AIGameContext, RuntimeCard } from "../types/gameTypes";
 import { applySpell, executePlayEffects } from "../services/effectService";
 import type { PlayContext } from "../services/effectService";
 import { MAX_MANA, MAX_HAND } from "../constants/gameConstants";
-import { getEffectiveCost } from "../services/synergyUtils";
+import { getEffectiveCost, checkSynergy, getSynergyAttackBonus } from "../services/synergyUtils";
 
 export function evaluateBoardState({
   enemyFieldCards,
@@ -206,6 +206,8 @@ export async function runEnemyTurn(ctx: AIGameContext) {
       );
       while (lethalSpell && remainingMana >= lethalSpell.cost) {
         const spellId = lethalSpell.uniqueId;
+        const had23LethalDagger = lethalSpell.id === 15 && localHand.some((c) => c.id === 23);
+        const had28LethalDagger = lethalSpell.id === 15 && localHand.some((c) => c.id === 28);
         localHand = localHand.filter((c) => c.uniqueId !== spellId);
         setEnemyHandCards((h) => h.filter((c) => c.uniqueId !== spellId));
         setEnemyGraveyard((g) => [...g, { ...lethalSpell!, uniqueId: uuidv4() }]);
@@ -237,6 +239,9 @@ export async function runEnemyTurn(ctx: AIGameContext) {
         });
         await sleep(600);
         if (cancelRef.current) return;
+        if (lethalSpell.id === 15) {
+          ctx.onEnemyPlayedDagger?.({ had23: had23LethalDagger, had28: had28LethalDagger });
+        }
         lethalSpell = localHand.find(
           (c) =>
             c.type === "spell" &&
@@ -266,10 +271,12 @@ export async function runEnemyTurn(ctx: AIGameContext) {
     });
     if (boardScore < BOARD_DISADVANTAGE_THRESHOLD) isDefensiveTurn = true;
 
+    const enemyDaggerStacks = ctx.enemyCostByDaggerStacksRef.current;
+
     let followerCandidates = localHand
       .filter((c) => c.type === "follower")
       .map((c) => {
-        const effCost = getEffectiveCost(c, fieldCount, localDaggerCount);
+        const effCost = getEffectiveCost(c, fieldCount, localDaggerCount, enemyDaggerStacks);
         return {
           card: c,
           effectiveCost: effCost,
@@ -292,7 +299,12 @@ export async function runEnemyTurn(ctx: AIGameContext) {
       // 有効コストを再計算（暗器使用後にコストが変わる場合に対応）
       followerCandidates = followerCandidates.map((e) => ({
         ...e,
-        effectiveCost: getEffectiveCost(e.card, fieldCount, localDaggerCount),
+        effectiveCost: getEffectiveCost(
+          e.card,
+          fieldCount,
+          localDaggerCount,
+          ctx.enemyCostByDaggerStacksRef.current
+        ),
       }));
 
       let entry;
@@ -316,6 +328,7 @@ export async function runEnemyTurn(ctx: AIGameContext) {
       const card = entry.card;
       remainingMana -= entry.effectiveCost;
       syncEnemyMana(remainingMana);
+      const preFieldForSynergy = fieldCount;
       fieldCount += 1;
       const animId = uuidv4();
       const canAttackInitial = !!(card.rush || card.charge);
@@ -328,6 +341,11 @@ export async function runEnemyTurn(ctx: AIGameContext) {
         isAnimating: true,
         rushInitialTurn,
       } as RuntimeCard;
+      const atkBonusSummon = getSynergyAttackBonus(card, preFieldForSynergy, localDaggerCount);
+      if (atkBonusSummon > 0) {
+        (created as RuntimeCard).baseAttack = created.attack ?? 0;
+        created.attack = (created.attack ?? 0) + atkBonusSummon;
+      }
 
       addActionLog(`${card.name} を召喚`, "⚔️");
       showCardReveal(card, undefined, "follower");
@@ -343,7 +361,13 @@ export async function runEnemyTurn(ctx: AIGameContext) {
 
       // 召喚効果
       if (card.summonEffect?.type === "damage_all") {
-        const dmg = card.summonEffect.value ?? 1;
+        const base = card.summonEffect.value ?? 1;
+        const bonusDmg =
+          card.synergy?.effect.type === "summon_damage_bonus" &&
+          checkSynergy(card, preFieldForSynergy, localDaggerCount)
+            ? card.synergy.effect.value ?? 0
+            : 0;
+        const dmg = base + bonusDmg;
         setPlayerFieldCards((list) => {
           const updated = list.map((c) => ({ ...c, hp: (c.hp ?? 0) - dmg }));
           const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
@@ -351,6 +375,19 @@ export async function runEnemyTurn(ctx: AIGameContext) {
             setPlayerGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
           return updated.filter((c) => (c.hp ?? 0) > 0);
         });
+        if (bonusDmg > 0) {
+          setPlayerHeroHp((hp) => {
+            const next = Math.max(hp - dmg, 0);
+            if (next <= 0) {
+              setGameOver({ over: true, winner: "enemy" });
+              try {
+                stopTimer();
+              } catch (_) {}
+              return 0;
+            }
+            return next;
+          });
+        }
       } else if (card.summonEffect?.type === "damage_single") {
         const dmg = card.summonEffect.value ?? 1;
         setPlayerFieldCards((list) => {
@@ -379,8 +416,23 @@ export async function runEnemyTurn(ctx: AIGameContext) {
         }
       }
 
-      // データ駆動のプレイ時効果を実行（旧 card.id ハードコードを置換）
-      executePlayEffects(card, false, buildPlayContextFromAI(ctx, localDaggerCount, fieldCount));
+      // データ駆動のプレイ時効果を実行（影の罠師：凍結先をランダム指定）
+      let playEffectExtraIds: string[] | undefined;
+      if (
+        card.onPlayEffects?.some((e) => e.type === "freeze_random_enemy") &&
+        card.summonSelectableTargets?.includes("field_card")
+      ) {
+        const freezePick = getCurrentPlayerFieldCards();
+        if (freezePick.length > 0) {
+          playEffectExtraIds = [freezePick[Math.floor(Math.random() * freezePick.length)].uniqueId];
+        }
+      }
+      executePlayEffects(
+        card,
+        false,
+        buildPlayContextFromAI(ctx, localDaggerCount, fieldCount),
+        playEffectExtraIds
+      );
 
       (async () => {
         await sleep(600);
@@ -394,11 +446,15 @@ export async function runEnemyTurn(ctx: AIGameContext) {
     // --- スペルフェイズ ---
     // 相手手札が少ない場合は手札攻撃スペルを優先する（手札0勝利を狙う）
     const playerHandIsLow = playerHandCards.length <= 4;
-    let spellCandidates = localHand.filter((c) => c.type === "spell" && c.cost <= remainingMana);
+    let spellCandidates = localHand.filter(
+      (c) =>
+        c.type === "spell" &&
+        getEffectiveCost(c, fieldCount, localDaggerCount, ctx.enemyCostByDaggerStacksRef.current) <= remainingMana
+    );
     const spellPriority = [
       "poison", "freeze_single", "damage_single", "damage_all",
       "heal_single", "haste", "draw_cards", "reduce_cost",
-      "return_to_deck", "steal_follower", "summon_token",
+      "return_to_deck", "steal_follower", "summon_token", "discard_hand",
     ] as const;
 
     // 暗器（id:15）は他のシナジースペルの前に必ず先に使う
@@ -421,44 +477,74 @@ export async function runEnemyTurn(ctx: AIGameContext) {
       // 暗器優先 + 手札攻撃優先でソート
       const sortedCandidates = sortSpellsForPlay(spellCandidates);
       // まず暗器または手札攻撃スペルを先にチェックし、なければ通常優先度
-      let spell: Card | undefined = sortedCandidates.find((c) => c.cost <= remainingMana);
+      let spell: Card | undefined = sortedCandidates.find(
+        (c) =>
+          getEffectiveCost(c, fieldCount, localDaggerCount, ctx.enemyCostByDaggerStacksRef.current) <= remainingMana
+      );
       if (!spell) {
         const priorityOrder = Math.random() < 0.5;
         const order = priorityOrder ? [...spellPriority] : [...spellPriority].sort(() => Math.random() - 0.5);
         for (const type of order) {
-          spell = spellCandidates.find((c) => c.effect === type && c.cost <= remainingMana);
+          spell = spellCandidates.find(
+            (c) =>
+              c.effect === type &&
+              getEffectiveCost(c, fieldCount, localDaggerCount, ctx.enemyCostByDaggerStacksRef.current) <= remainingMana
+          );
           if (spell) break;
         }
       }
       if (!spell) break;
 
       const spellId = spell.uniqueId;
+      const had23BeforeDagger = spell.id === 15 && localHand.some((c) => c.id === 23);
+      const had28BeforeDagger = spell.id === 15 && localHand.some((c) => c.id === 28);
+      const spellEffCost = getEffectiveCost(
+        spell,
+        fieldCount,
+        localDaggerCount,
+        ctx.enemyCostByDaggerStacksRef.current
+      );
       localHand = localHand.filter((c) => c.uniqueId !== spellId);
       setEnemyHandCards((h) => h.filter((c) => c.uniqueId !== spellId));
       setEnemyGraveyard((g) => [...g, { ...spell!, uniqueId: uuidv4() }]);
-      remainingMana -= spell.cost;
+      remainingMana -= spellEffCost;
       syncEnemyMana(remainingMana);
 
       let targetId: string | "hero" = "hero";
       switch (spell.effect) {
+        case "reduce_cost": {
+          const others = localHand.filter((c) => c.cost > 0 && c.uniqueId !== spellId);
+          if (others.length > 0) {
+            targetId = [...others].sort((a, b) => b.cost - a.cost)[0].uniqueId;
+          }
+          break;
+        }
         case "heal_single": {
           const damaged = enemyFieldCards.find((c) => (c.hp ?? 0) < (c.maxHp ?? 0));
           if (damaged) targetId = damaged.uniqueId;
           break;
         }
         case "damage_single":
-        case "poison":
         case "freeze_single":
         case "haste": {
           const currentPlayerFieldCards = getCurrentPlayerFieldCards();
           if (currentPlayerFieldCards.length > 0) {
-            if (spell.effect === "poison" && Math.random() < 0.7) {
-              targetId = currentPlayerFieldCards.reduce((best, c) => ((c.hp ?? 0) > (best.hp ?? 0) ? c : best)).uniqueId;
-            } else if (spell.effect === "freeze_single" && Math.random() < 0.7) {
+            if (spell.effect === "freeze_single" && Math.random() < 0.7) {
               targetId = currentPlayerFieldCards.reduce((best, c) => ((c.attack ?? 0) > (best.attack ?? 0) ? c : best)).uniqueId;
             } else {
               targetId = currentPlayerFieldCards[Math.floor(Math.random() * currentPlayerFieldCards.length)].uniqueId;
             }
+          }
+          break;
+        }
+        case "poison": {
+          const currentPlayerFieldCards = getCurrentPlayerFieldCards();
+          if (currentPlayerFieldCards.length > 0) {
+            targetId = Math.random() < 0.7
+              ? currentPlayerFieldCards.reduce((best, c) => ((c.hp ?? 0) > (best.hp ?? 0) ? c : best)).uniqueId
+              : currentPlayerFieldCards[Math.floor(Math.random() * currentPlayerFieldCards.length)].uniqueId;
+          } else {
+            targetId = "hero";
           }
           break;
         }
@@ -480,7 +566,10 @@ export async function runEnemyTurn(ctx: AIGameContext) {
           targetId = "hero";
       }
 
-      if (spell.effect === "steal_follower" && targetId === "hero") {
+      if (
+        (spell.effect === "steal_follower" && targetId === "hero") ||
+        (spell.effect === "poison" && targetId === "hero")
+      ) {
         // 対象がいないのでこのスペルはスキップ
         spellCandidates = spellCandidates.filter((c) => c.uniqueId !== spellId);
         continue;
@@ -503,8 +592,11 @@ export async function runEnemyTurn(ctx: AIGameContext) {
       clearCardReveal();
       if (cancelRef.current) return;
 
-      // 暗器（id:15）使用時にカウントアップ
-      if (spell.id === 15) localDaggerCount += 1;
+      // 暗器（id:15）使用時にカウントアップ（ターン用＋打出し直前手札にいた 23/28 に応じてスタック）
+      if (spell.id === 15) {
+        localDaggerCount += 1;
+        ctx.onEnemyPlayedDagger?.({ had23: had23BeforeDagger, had28: had28BeforeDagger });
+      }
 
       setEnemySpellAnimation({ targetId, effect: spell.effect! });
       const currentPlayerFieldCards = getCurrentPlayerFieldCards();
@@ -545,7 +637,11 @@ export async function runEnemyTurn(ctx: AIGameContext) {
 
       await sleep(600);
       if (cancelRef.current) return;
-      spellCandidates = localHand.filter((c) => c.type === "spell" && c.cost <= remainingMana);
+      spellCandidates = localHand.filter(
+        (c) =>
+          c.type === "spell" &&
+          getEffectiveCost(c, fieldCount, localDaggerCount, ctx.enemyCostByDaggerStacksRef.current) <= remainingMana
+      );
     }
 
     // --- 2) 攻撃フェイズ ---
@@ -563,7 +659,8 @@ export async function runEnemyTurn(ctx: AIGameContext) {
 
       await sleep(60);
 
-      const attackList = [...latestField, ...localSummoned].filter(Boolean);
+      // latestField には召喚済みフォロワーも含まれるため、重複連結しない
+      const attackList = latestField.filter(Boolean);
 
       for (const enemyCard of attackList) {
         if (cancelRef.current) return;

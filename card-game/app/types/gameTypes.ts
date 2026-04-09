@@ -1,5 +1,6 @@
 // ゲーム関連の型定義
 import type { Card } from "../data/cards";
+import type { CostByDaggerPlayStacks } from "../services/synergyUtils";
 
 export type GameMode = "cpu" | "pvp";
 export type CoinResult = "deciding" | "player" | "enemy";
@@ -139,4 +140,13 @@ export interface AIGameContext {
   // カード演出（中央表示→ターゲットへ飛ぶ）
   showCardReveal: (card: Card, targetId: string | "hero" | undefined, type: "spell" | "follower") => void;
   clearCardReveal: () => void;
+
+  /** 敵側：手札に闇夜/夜襲者がいる状態で打出した暗器の蓄積（cost_by_dagger 用・AI が読む） */
+  enemyCostByDaggerStacksRef: React.MutableRefObject<CostByDaggerPlayStacks>;
+
+  /**
+   * 敵AIが暗器（id:15）を打出したとき：ターン用カウント＋ cost_by_dagger 用スタック。
+   * 打出し直前の手札に id23 / id28 があったかどうか（暗器自身は id15）
+   */
+  onEnemyPlayedDagger?: (opts: { had23: boolean; had28: boolean }) => void;
 }

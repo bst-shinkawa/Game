@@ -28,6 +28,8 @@ interface UseDragHandlerProps {
   preGame: boolean;
   coinResult: string;
   swapIds: string[];
+  /** 手札クリックで対象選択中はドラッグ検出に乗せない（クリックが効かなくなるのを防ぐ） */
+  selectionMode?: "none" | "select_target" | "select_hand_card";
   draggingCard: string | null;
   setDraggingCard: (id: string | null) => void;
   setDragPosition: (pos: { x: number; y: number }) => void;
@@ -43,6 +45,7 @@ export function useDragHandler({
   preGame,
   coinResult,
   swapIds,
+  selectionMode = "none",
   draggingCard,
   setDraggingCard,
   setDragPosition,
@@ -277,6 +280,12 @@ export function useDragHandler({
       const fieldCard = playerFieldCards.find((c) => c.uniqueId === id && c.canAttack);
       if (!handCard && !fieldCard) return;
       if (!isPlayerTurn) return;
+      if (
+        handCard &&
+        (selectionMode === "select_hand_card" || selectionMode === "select_target")
+      ) {
+        return;
+      }
 
       const startX = e.clientX;
       const startY = e.clientY;
@@ -346,6 +355,12 @@ export function useDragHandler({
       const fieldCard = playerFieldCards.find((c) => c.uniqueId === id && c.canAttack);
       if (!handCard && !fieldCard) return;
       if (!isPlayerTurn) return;
+      if (
+        handCard &&
+        (selectionMode === "select_hand_card" || selectionMode === "select_target")
+      ) {
+        return;
+      }
 
       const startX = t.clientX;
       const startY = t.clientY;
@@ -401,7 +416,7 @@ export function useDragHandler({
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("touchstart", onTouchStart as any);
     };
-  }, [playerHandCards, playerFieldCards, enemyFieldCards, isPlayerTurn, preGame, coinResult, swapIds, refs, actions, setDraggingCard, setDragPosition, stopMonitor]);
+  }, [playerHandCards, playerFieldCards, enemyFieldCards, isPlayerTurn, preGame, coinResult, swapIds, selectionMode, refs, actions, setDraggingCard, setDragPosition, stopMonitor]);
 
   // Cleanup on drag end
   useEffect(() => {

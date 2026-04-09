@@ -1,7 +1,7 @@
 import { v4 as uuidv4 } from "uuid";
 import type { Card, EffectType, TriggerType, CardPlayEffect } from "../data/cards";
 import type { RuntimeCard, GameOverState } from "../types/gameTypes";
-import { checkSynergy } from "./synergyUtils";
+import { checkSynergy, getSynergyAttackBonus } from "./synergyUtils";
 import { cards } from "../data/cards";
 import { addCardToHand, createFieldCard } from "./cardService";
 import { MAX_FIELD_SIZE, MAX_HAND } from "../constants/gameConstants";
@@ -53,15 +53,58 @@ export interface PlayContext {
 // カードの onPlayEffects 配列を読み取り、ジェネリックに効果を適用する
 // ---------------------------------------------------------------------------
 
+/** 相手手札をランダムに n 枚まで山札へ（同一更新内で複数枚処理し、クロージャの古い手札参照を避ける） */
+function moveRandomOpponentHandToDeck(
+  isPlayer: boolean,
+  ctx: PlayContext,
+  count: number
+): void {
+  if (count <= 0) return;
+  if (isPlayer) {
+    const toDeck: Card[] = [];
+    ctx.setEnemyHandCards((h) => {
+      let next = [...h];
+      for (let i = 0; i < count && next.length > 0; i++) {
+        const ix = Math.floor(Math.random() * next.length);
+        toDeck.push(next[ix]);
+        next.splice(ix, 1);
+      }
+      return next;
+    });
+    if (toDeck.length > 0) {
+      ctx.setEnemyDeck((d) => [...d, ...toDeck]);
+    }
+  } else {
+    const toDeck: Card[] = [];
+    ctx.setPlayerHandCards((h) => {
+      let next = [...h];
+      for (let i = 0; i < count && next.length > 0; i++) {
+        const ix = Math.floor(Math.random() * next.length);
+        toDeck.push(next[ix]);
+        next.splice(ix, 1);
+      }
+      return next;
+    });
+    if (toDeck.length > 0) {
+      ctx.setDeck((d) => [...d, ...toDeck]);
+    }
+  }
+}
+
+function applyPlaySynergyFollowup(card: Card, isPlayer: boolean, ctx: PlayContext): void {
+  if (card.synergy?.effect.type === "return_opponent_hand" && checkSynergy(card, ctx.fieldSize ?? 0, ctx.daggerCount ?? 0)) {
+    const n = card.synergy.effect.value ?? 1;
+    moveRandomOpponentHandToDeck(isPlayer, ctx, n);
+  }
+}
+
 export function executePlayEffects(
   card: Card,
   isPlayer: boolean,
   ctx: PlayContext,
   selectedTargetIds?: string[]
 ): void {
-  const effects = card.onPlayEffects;
-  if (!effects || effects.length === 0) return;
-
+  const effects = card.onPlayEffects ?? [];
   for (const eff of effects) {
     switch (eff.type) {
       case "draw": {
@@ -92,6 +135,8 @@ export function executePlayEffects(
           checkSynergy(card, ctx.fieldSize ?? 0, ctx.daggerCount ?? 0))
           ? { attack: card.synergy.effect.attack ?? 0, hp: card.synergy.effect.hp ?? 0 }
           : null;
+        const fieldSize = ctx.fieldSize ?? 0;
+        const daggerCt = ctx.daggerCount ?? 0;
         setOwnField((f) => {
           const availableSlots = Math.max(0, MAX_FIELD_SIZE - f.length);
           const addCount = Math.min(count, availableSlots);
@@ -106,6 +151,14 @@ export function executePlayEffects(
               token.attack = (token.attack ?? 0) + tokenBuff.attack;
               token.hp = (token.hp ?? 0) + tokenBuff.hp;
               token.maxHp = (token.maxHp ?? 0) + tokenBuff.hp;
+            }
+            const atkBonus = getSynergyAttackBonus(tokenBase, fieldSize, daggerCt);
+            if (atkBonus > 0) {
+              (token as RuntimeCard).baseAttack = token.attack ?? 0;
+              token.attack = (token.attack ?? 0) + atkBonus;
+            }
+            if (!eff.noTrigger) {
+              handleSummonTrigger(token, isPlayer, ctx);
             }
             tokensToAdd.push(token);
           }
@@ -183,21 +236,43 @@ export function executePlayEffects(
       case "freeze_random_enemy": {
         const setOppField = isPlayer ? ctx.setEnemyFieldCards : ctx.setPlayerFieldCards;
         const oppField = isPlayer ? ctx.enemyFieldCards : ctx.playerFieldCards;
-        // extra_freeze シナジー：暗器2回以上使用時にもう1体凍結
-        const freezeCount = (eff.count ?? 1) +
-          (card.synergy?.effect.type === "extra_freeze" && checkSynergy(card, ctx.fieldSize ?? 0, ctx.daggerCount ?? 0) ? 1 : 0);
-        if (oppField.length > 0) {
-          setOppField((list) => {
-            if (list.length === 0) return list;
-            const notFrozen = list.map((_, i) => i).filter((i) => !(list[i] as any).frozen);
-            const toFreeze = [...notFrozen].sort(() => Math.random() - 0.5).slice(0, freezeCount);
-            return list.map((c, i) => (toFreeze.includes(i) ? { ...c, frozen: 1, canAttack: false } : c));
-          });
-        }
+        const baseCount = eff.count ?? 1;
+        const extraFreeze =
+          card.synergy?.effect.type === "extra_freeze" &&
+          checkSynergy(card, ctx.fieldSize ?? 0, ctx.daggerCount ?? 0)
+            ? 1
+            : 0;
+        const totalFreeze = baseCount + extraFreeze;
+        if (oppField.length === 0) break;
+
+        const explicitIds = (selectedTargetIds ?? [])
+          .filter((id) => id && id !== "hero")
+          .slice(0, baseCount);
+
+        setOppField((list) => {
+          if (list.length === 0) return list;
+          const toFreezeIdx = new Set<number>();
+          for (const id of explicitIds) {
+            const i = list.findIndex((c) => c.uniqueId === id);
+            if (i !== -1 && !(list[i] as { frozen?: number }).frozen) toFreezeIdx.add(i);
+          }
+          const notFrozen = list
+            .map((_, i) => i)
+            .filter((i) => !(list[i] as { frozen?: number }).frozen && !toFreezeIdx.has(i));
+          const needRandom = Math.max(0, totalFreeze - toFreezeIdx.size);
+          const shuffled = [...notFrozen].sort(() => Math.random() - 0.5);
+          for (let k = 0; k < needRandom && k < shuffled.length; k++) {
+            toFreezeIdx.add(shuffled[k]);
+          }
+          return list.map((c, i) =>
+            toFreezeIdx.has(i) ? { ...c, frozen: 1, canAttack: false } : c
+          );
+        });
         break;
       }
     }
   }
+  applyPlaySynergyFollowup(card, isPlayer, ctx);
 }
 
 // ---------------------------------------------------------------------------
@@ -267,23 +342,7 @@ export function applySpell(
       const extraReturn = (card.synergy?.effect.type === "extra_hand_return" &&
         checkSynergy(card, context.fieldSize ?? 0, context.daggerCount ?? 0)) ? 1 : 0;
       const count = (card.effectValue ?? 1) + extraReturn;
-      for (let i = 0; i < count; i++) {
-        if (isPlayer) {
-          if (enemyHandCards.length > 0) {
-            const idx = Math.floor(Math.random() * enemyHandCards.length);
-            const c = enemyHandCards[idx];
-            setEnemyHandCards((h: Card[]) => h.filter((_, j: number) => j !== idx));
-            setEnemyDeck((d: Card[]) => [...d, c]);
-          }
-        } else {
-          if (playerHandCards.length > 0) {
-            const idx = Math.floor(Math.random() * playerHandCards.length);
-            const c = playerHandCards[idx];
-            setPlayerHandCards((h: Card[]) => h.filter((_, j: number) => j !== idx));
-            setDeck((d: Card[]) => [...d, c]);
-          }
-        }
-      }
+      moveRandomOpponentHandToDeck(isPlayer, context, count);
       break;
     }
     case "discard_hand": {

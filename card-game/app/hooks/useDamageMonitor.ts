@@ -107,7 +107,14 @@ export function useDamageMonitor({
     });
 
     if (newFloats.length > 0) {
-      setDamageFloats([...damageFloats, ...newFloats]);
+      const now = Date.now();
+      const deduped = newFloats.filter((nf) =>
+        !damageFloats.some((pf) => pf.target === nf.target && pf.amount === nf.amount && now - Number((pf.id.split("-").pop() ?? 0)) < 220)
+      );
+      if (deduped.length === 0) return;
+      setDamageFloats(
+        [...damageFloats, ...deduped].slice(-8)
+      );
     }
-  }, [preGame, playerHeroHp, enemyHeroHp, playerFieldCards, enemyFieldCards, setDamageFloats, playerHeroRef, enemyHeroRef, playerFieldRefs, enemyFieldRefs]);
+  }, [preGame, playerHeroHp, enemyHeroHp, playerFieldCards, enemyFieldCards, damageFloats, setDamageFloats, playerHeroRef, enemyHeroRef, playerFieldRefs, enemyFieldRefs]);
 }

@@ -4,6 +4,7 @@ import type { Card } from "../data/cards";
 import type { RuntimeCard, GameOverState } from "../types/gameTypes";
 import { MAX_HAND } from "../constants/gameConstants";
 import { getSynergyDamageBonus } from "./synergyUtils";
+import { normalizeReturnedHandCardFromRuntime } from "./cardService";
 
 export interface SpellContext {
   playerFieldCards: RuntimeCard[];
@@ -24,23 +25,6 @@ export interface SpellContext {
   addCardToDestroying: (cardIds: string[], onAfterAnimation?: (ids: string[]) => void) => void;
   daggerCount?: number;
   fieldSize?: number;
-}
-
-function normalizeReturnedCard(deadCard: RuntimeCard): Card {
-  const restoredHp = deadCard.maxHp ?? deadCard.hp ?? 1;
-  const returned: any = {
-    ...deadCard,
-    uniqueId: crypto.randomUUID(),
-    hp: Math.max(1, restoredHp),
-  };
-  delete returned.deathTrigger;
-  delete returned.canAttack;
-  delete returned.rushInitialTurn;
-  delete returned.isAnimating;
-  delete returned.frozen;
-  delete returned.poison;
-  delete returned.poisonDamage;
-  return returned as Card;
 }
 
 /**
@@ -206,7 +190,7 @@ function handleDamageAllSpell(
     })]);
     dead.forEach((d) => {
       if (d.deathTrigger?.type === "return_to_hand_once" && setTargetHandCards) {
-        setTargetHandCards((h) => (h.length < MAX_HAND ? [...h, normalizeReturnedCard(d)] : h));
+        setTargetHandCards((h) => (h.length < MAX_HAND ? [...h, normalizeReturnedHandCardFromRuntime(d)] : h));
       }
     });
     addCardToDestroying(deadIds, (ids) => {
@@ -267,7 +251,7 @@ function handleDamageSingleSpell(
     if (target && (target.hp ?? 0) - dmg <= 0) {
       if (target.deathTrigger?.type === "return_to_hand_once") {
         if (setTargetHandCards) {
-          setTargetHandCards((h) => (h.length < MAX_HAND ? [...h, normalizeReturnedCard(target)] : h));
+          setTargetHandCards((h) => (h.length < MAX_HAND ? [...h, normalizeReturnedHandCardFromRuntime(target)] : h));
         }
       } else {
         setTargetGraveyard((g) => [...g, ...(g.some((x) => x.uniqueId === target.uniqueId) ? [] : [target])]);

@@ -20,6 +20,7 @@ import Image from "next/image";
 import { handleSpellUsage } from "@/app/services/spellUsageService";
 import type { Card } from "@/app/data/cards";
 import type { DamageFloat } from "@/app/hooks/useGameUI";
+import type { CostByDaggerPlayStacks } from "@/app/services/synergyUtils";
 import type { RuntimeCard, SelectionMode, SelectionConfig } from "@/app/types/gameTypes";
 import styles from "@/app/assets/css/Game.Master.module.css";
 import ViewportContext from "@/app/context/ViewportContext";
@@ -54,6 +55,7 @@ interface GameFieldProps {
   kingBoardControlStreak: number;
   round?: number;
   playerDaggerCount?: number;
+  playerCostByDaggerStacks?: CostByDaggerPlayStacks;
   enemyDaggerCount?: number;
   preGame: boolean;
   coinResult: "deciding" | "player" | "enemy";
@@ -126,7 +128,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
     enemyHandCards, enemyFieldCards, enemyHeroHp, enemyMaxHeroHp,
     playerGraveyard, enemyGraveyard, deck, enemyDeck,
     currentMana, maxMana, enemyCurrentMana, enemyMaxMana, turn, turnSecondsRemaining,
-    gameOver, playerRole, kingBoardControlStreak, round, playerDaggerCount, preGame, coinResult, aiRunning, destroyingCards,
+    gameOver, playerRole, kingBoardControlStreak, round, playerDaggerCount, playerCostByDaggerStacks, preGame, coinResult, aiRunning, destroyingCards,
     toasts, actionLogEntries, enemySpellHistory, cardReveal, clearCardReveal,
     damageFloats, draggingCard, dragPosition,
     isHandExpanded, activeHandCardId, showTurnModal,
@@ -159,6 +161,18 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
   const isTimeCritical = isPlayerTurn && turnSecondsRemaining <= 20;
   const timerProgress = Math.max(0, Math.min(1, turnSecondsRemaining / 60));
   const isTargetSelectionActive = selectionMode === "select_target";
+  // 表示上のマナ上限は「YOUR TURN / ENEMY TURN モーダル表示開始時」に更新する
+  const [displayPlayerMaxMana, setDisplayPlayerMaxMana] = useState(maxMana);
+  const [displayEnemyMaxMana, setDisplayEnemyMaxMana] = useState(enemyMaxMana);
+  useEffect(() => {
+    if (preGame) {
+      // プリゲーム遷移時の表示リセット
+      setDisplayPlayerMaxMana(maxMana);
+      setDisplayEnemyMaxMana(enemyMaxMana);
+    }
+  }, [preGame, maxMana, enemyMaxMana]);
+  const displayPlayerCurrentMana = Math.min(currentMana, displayPlayerMaxMana);
+  const displayEnemyCurrentMana = Math.min(enemyCurrentMana, displayEnemyMaxMana);
 
   // --- Memoized action objects (stable refs for hooks) ---
   const dragRefs = useMemo(() => ({ enemyHeroRef, playerHeroRef, playerBattleRef }), [playerBattleRef]);
@@ -187,6 +201,16 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
           onComplete: (selectedIds: string[]) => { if (selectedIds.length > 0) castSpell(cardId, selectedIds[0], true); },
           onCancel: () => {},
         });
+      } else if (usageType === "cast_spell_select_hand") {
+        const selectableTargets = (card as any).selectableTargets || ["hand_card"];
+        const selectCount = (card as any).selectCount || 1;
+        initializeSelection({
+          sourceCardId: cardId, selectableTargets, selectCount,
+          onComplete: (selectedIds: string[]) => {
+            if (selectedIds.length > 0) castSpell(cardId, selectedIds[0], true);
+          },
+          onCancel: () => {},
+        });
       } else {
         castSpell(cardId, "hero", true);
       }
@@ -207,7 +231,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
   // HTML5 drag イベント（PlayerArea の onDrop）用ラッパー。
   // こちらは draggingCard state が確実に存在するタイミングで呼ばれるため state を使用可。
   const onPlayerFieldDropHTMLDrag = useCallback(() => {
-    if (selectionMode === "select_target") return;
+    if (selectionMode === "select_target" || selectionMode === "select_hand_card") return;
     if (!draggingCard) return;
 
     if (preGame && coinResult !== "deciding") {
@@ -234,6 +258,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
   } = useDragHandler({
     playerHandCards, playerFieldCards, enemyFieldCards,
     isPlayerTurn, preGame, coinResult, swapIds,
+    selectionMode,
     draggingCard, setDraggingCard, setDragPosition,
     refs: dragRefs, actions: dragActions,
   });
@@ -255,17 +280,20 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
   useAttackClone({
     movingAttack, enemyFieldCards,
     enemyFieldRefs, playerFieldRefs, playerHeroRef,
-    attackClone, setAttackClone, damageFloats, setDamageFloats,
+    attackClone, setAttackClone,
   });
 
   // --- Turn modal ---
   useEffect(() => {
     if (preGame || showGameStart) { setShowTurnModal(false); return; }
+    // モーダル表示と同時に、そのターンの表示マナ上限を確定させる
+    setDisplayPlayerMaxMana(maxMana);
+    setDisplayEnemyMaxMana(enemyMaxMana);
     setShowTurnModal(true);
     const duration = isPlayerTurn ? 2000 : 1200;
     const t = setTimeout(() => setShowTurnModal(false), duration);
     return () => { clearTimeout(t); setShowTurnModal(false); };
-  }, [isPlayerTurn, turn, preGame, showGameStart, setShowTurnModal]);
+  }, [isPlayerTurn, turn, preGame, showGameStart, maxMana, enemyMaxMana, setShowTurnModal]);
 
   // --- Mulligan timer ---
   useEffect(() => {
@@ -455,7 +483,18 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
         onDrop={(targetId) => {
           if (!draggingCard) return;
           const handCard = playerHandCards.find((c) => c.uniqueId === draggingCard);
+          const keepExpandedForDagger = !!(handCard && handCard.type === "spell" && handCard.id === 15);
           if (handCard && handCard.type === "spell") {
+            const selectableTargets = (handCard as any).selectableTargets as ("hero" | "field_card")[] | undefined;
+            const canTargetHero = !selectableTargets || selectableTargets.includes("hero");
+            const canTargetField = !selectableTargets || selectableTargets.includes("field_card");
+            if ((targetId === "hero" && !canTargetHero) || (targetId !== "hero" && !canTargetField)) {
+              setDraggingCard(null);
+              arrowStartPos.current = null;
+              dragOffsetRef.current = { x: 0, y: 0 };
+              setAttackTargets([]);
+              return;
+            }
             setAttackTargets([]);
             castSpell(draggingCard, targetId, true, setAttackTargets);
           } else {
@@ -468,6 +507,11 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
           else setDropSuccess({ type: "enemyCard", id: targetId });
           setAttackTargets([]);
           setTimeout(() => setDropSuccess({ type: null }), 500);
+          if (keepExpandedForDagger) {
+            // pointerup 後に発火する click の「外側クリックで閉じる」より後で再展開する
+            // （0ms だと競合して閉じるケースがあるため少し遅らせる）
+            setTimeout(() => setIsHandExpanded(true), 120);
+          }
         }}
         onCardClick={(cardId: string) => setDescCardId(descCardId === cardId ? null : cardId)}
         enemyHeroRef={enemyHeroRef}
@@ -487,6 +531,8 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
         playerDeck={deck}
         playerGraveyard={playerGraveyard}
         currentMana={currentMana}
+        playerDaggerCount={playerDaggerCount}
+        playerCostByDaggerStacks={playerCostByDaggerStacks}
         turnSecondsRemaining={turnSecondsRemaining}
         isPlayerTurn={isPlayerTurn}
         draggingCard={draggingCard}
@@ -553,7 +599,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
       <div className={styles.field_turn_wrapper} data-keep-hand-open="true">
         <div className={styles.field_turn}>
           <div className={`${styles.field_turn_mana_badge} ${styles.field_turn_mana_badge_enemy}`}>
-            {enemyCurrentMana}/{enemyMaxMana}
+            {displayEnemyCurrentMana}/{displayEnemyMaxMana}
           </div>
           <svg className={`${styles.field_turn_outline} ${isTimeCritical ? styles.field_turn_outline_critical : ""}`} viewBox="0 0 200 84" aria-hidden="true">
             <rect className={styles.field_turn_outline_track} x="4" y="4" width="192" height="76" rx="38" ry="38" />
@@ -583,7 +629,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
             <span className={styles.field_turn_text}>TURN END</span>
           </button>
           <div className={`${styles.field_turn_mana_badge} ${styles.field_turn_mana_badge_player}`}>
-            {currentMana}/{maxMana}
+            {displayPlayerCurrentMana}/{displayPlayerMaxMana}
           </div>
         </div>
       </div>
@@ -725,14 +771,14 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
                   ⚠ 王の陣形勝利まで残り {Math.max(0, KING_SPECIAL_WIN_STREAK_TURNS - kingBoardControlStreak)} 回
                 </div>
               )}
-              {/* 簒奪者：暗器カウンター */}
+              {/* 簒奪者：このターンの暗器使用回数 */}
               {isUsurper && daggerCount > 0 && (
                 <div style={{
                   background: "rgba(60,20,90,0.88)", color: "#e0b0ff",
                   padding: "2px 12px", borderRadius: 12, fontSize: 14, fontWeight: "bold",
                   border: "1px solid #c060ff",
                 }}>
-                  🗡 暗器 ×{daggerCount}
+                  🗡 このターン ×{daggerCount}
                 </div>
               )}
             </div>

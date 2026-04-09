@@ -153,6 +153,20 @@ export const PreGame: React.FC<PreGameProps> = ({
           <div className={styles.field_card_description} aria-hidden={false} data-card-description="true">
             <h4>{descCard.name}</h4>
             <p>{descCard.description ?? ""}</p>
+            {descCard.descriptionFormationBonus ? (
+              <p className={styles.field_card_description_synergy}>
+                <span className={styles.field_card_description_synergy_label_formation}>陣形</span>
+                <br />
+                {descCard.descriptionFormationBonus}
+              </p>
+            ) : null}
+            {descCard.descriptionDaggerSynergy ? (
+              <p className={styles.field_card_description_synergy}>
+                <span className={styles.field_card_description_synergy_label_dagger}>暗器</span>
+                <br />
+                {descCard.descriptionDaggerSynergy}
+              </p>
+            ) : null}
           </div>
         )}
 

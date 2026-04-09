@@ -1,6 +1,7 @@
 // カード操作に関するサービス
 import { v4 as uuidv4 } from "uuid";
 import type { Card } from "../data/cards";
+import { cards } from "../data/cards";
 import type { RuntimeCard } from "../types/gameTypes";
 import { MAX_HAND } from "../constants/gameConstants";
 
@@ -47,4 +48,32 @@ export function createFieldCard(
     rushInitialTurn: card.rush ? true : undefined,
     isAnimating: true,
   };
+}
+
+/**
+ * 破壊時に手札へ戻すカード用。場でのバフ・ダメージを捨て、cards データの元スタッツに戻す。
+ * return_to_hand_once は一度きりのため deathTrigger を付けない。
+ */
+export function normalizeReturnedHandCardFromRuntime(deadCard: RuntimeCard): Card {
+  const base = deadCard.id != null ? cards.find((c) => c.id === deadCard.id) : undefined;
+  if (base) {
+    const returned = { ...base, uniqueId: uuidv4() } as Card;
+    delete (returned as { deathTrigger?: unknown }).deathTrigger;
+    return returned;
+  }
+  const returned: Record<string, unknown> = {
+    ...deadCard,
+    uniqueId: uuidv4(),
+    hp: deadCard.maxHp ?? deadCard.hp ?? 1,
+  };
+  delete returned.deathTrigger;
+  delete returned.canAttack;
+  delete returned.rushInitialTurn;
+  delete returned.isAnimating;
+  delete returned.frozen;
+  delete returned.poison;
+  delete returned.poisonDamage;
+  delete returned.baseAttack;
+  delete returned.baseHp;
+  return returned as unknown as Card;
 }

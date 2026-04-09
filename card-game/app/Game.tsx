@@ -22,7 +22,13 @@ import {
 } from "./constants/gameConstants";
 import { createUniqueCard, createFieldCard, addCardToHand } from "./services/cardService";
 import { processStatusEffects } from "./services/statusEffectService";
-import { getEffectiveCost, getSynergyAttackBonus, checkSynergy } from "./services/synergyUtils";
+import {
+  getEffectiveCost,
+  getSynergyAttackBonus,
+  checkSynergy,
+  type CostByDaggerPlayStacks,
+  EMPTY_COST_BY_DAGGER_STACKS,
+} from "./services/synergyUtils";
 import { executeAttack } from "./services/attackService";
 import { applySpell, executePlayEffects } from "./services/effectService";
 import type { PlayContext } from "./services/effectService";
@@ -72,6 +78,8 @@ export function useGame(): {
   round: number;
   playerDaggerCount: number;
   enemyDaggerCount: number;
+  /** 手札に闇夜(23)/夜襲者(28)がいる状態で打出した暗器の蓄積（各カードのコスト軽減用） */
+  playerCostByDaggerStacks: CostByDaggerPlayStacks;
   resetGame: (mode: "cpu" | "pvp") => void;
   preGame: boolean;
   coinResult: "deciding" | "player" | "enemy";
@@ -194,6 +202,14 @@ export function useGame(): {
   const [enemyDaggerCount, setEnemyDaggerCount] = useState(0);
   const playerDaggerCountRef = useRef(0);
   const enemyDaggerCountRef = useRef(0);
+  const [playerCostByDaggerStacks, setPlayerCostByDaggerStacks] = useState<CostByDaggerPlayStacks>({
+    ...EMPTY_COST_BY_DAGGER_STACKS,
+  });
+  const [enemyCostByDaggerStacks, setEnemyCostByDaggerStacks] = useState<CostByDaggerPlayStacks>({
+    ...EMPTY_COST_BY_DAGGER_STACKS,
+  });
+  const playerCostByDaggerStacksRef = useRef<CostByDaggerPlayStacks>({ ...EMPTY_COST_BY_DAGGER_STACKS });
+  const enemyCostByDaggerStacksRef = useRef<CostByDaggerPlayStacks>({ ...EMPTY_COST_BY_DAGGER_STACKS });
   const kingFieldStreakRef = useRef(0);
 
   // --- マナ・ターン ---
@@ -592,6 +608,16 @@ export function useGame(): {
             },
             showCardReveal,
             clearCardReveal,
+            enemyCostByDaggerStacksRef,
+            onEnemyPlayedDagger: (opts) => {
+              setEnemyDaggerCount((c) => c + 1);
+              enemyDaggerCountRef.current += 1;
+              if (opts.had23) enemyCostByDaggerStacksRef.current[23] += 1;
+              if (opts.had28) enemyCostByDaggerStacksRef.current[28] += 1;
+              if (opts.had23 || opts.had28) {
+                setEnemyCostByDaggerStacks({ ...enemyCostByDaggerStacksRef.current });
+              }
+            },
           };
           runEnemyTurn(aiCtx);
         }
@@ -825,6 +851,10 @@ export function useGame(): {
     setEnemyDaggerCount(0);
     playerDaggerCountRef.current = 0;
     enemyDaggerCountRef.current = 0;
+    setPlayerCostByDaggerStacks({ ...EMPTY_COST_BY_DAGGER_STACKS });
+    setEnemyCostByDaggerStacks({ ...EMPTY_COST_BY_DAGGER_STACKS });
+    playerCostByDaggerStacksRef.current = { ...EMPTY_COST_BY_DAGGER_STACKS };
+    enemyCostByDaggerStacksRef.current = { ...EMPTY_COST_BY_DAGGER_STACKS };
     kingFieldStreakRef.current = 0;
     setTurn(1);
     setMaxMana(1);
@@ -855,6 +885,14 @@ export function useGame(): {
   const finalizeCoin = (winner: "player" | "enemy") => {
     setCoinResult(winner);
     kingFieldStreakRef.current = 0;
+    setPlayerDaggerCount(0);
+    setEnemyDaggerCount(0);
+    playerDaggerCountRef.current = 0;
+    enemyDaggerCountRef.current = 0;
+    setPlayerCostByDaggerStacks({ ...EMPTY_COST_BY_DAGGER_STACKS });
+    setEnemyCostByDaggerStacks({ ...EMPTY_COST_BY_DAGGER_STACKS });
+    playerCostByDaggerStacksRef.current = { ...EMPTY_COST_BY_DAGGER_STACKS };
+    enemyCostByDaggerStacksRef.current = { ...EMPTY_COST_BY_DAGGER_STACKS };
     const playerRole = winner === "player" ? "king" : "usurper";
     const enemyRole = playerRole === "king" ? "usurper" : "king";
     const playerInitialHp = playerRole === "king" ? INITIAL_KING_HERO_HP : INITIAL_USURPER_HERO_HP;
@@ -958,12 +996,19 @@ export function useGame(): {
       showToast("スペルはフィールドに出せません。ターゲットにドロップして使用してください。");
       return;
     }
+    // 二重発火ガード: すでに手札から除去済みのカードは再プレイしない
+    if (!playerHandCardsRef.current.some((c) => c.uniqueId === card.uniqueId)) return;
     if (playerFieldCards.length >= MAX_FIELD_SIZE) {
       showToast("フィールドは最大5体までです。");
       return;
     }
     const currentFieldSize = playerFieldCardsRef.current.length;
-    const effectiveCost = getEffectiveCost(card, currentFieldSize, playerDaggerCountRef.current);
+    const effectiveCost = getEffectiveCost(
+      card,
+      currentFieldSize,
+      playerDaggerCountRef.current,
+      { ...playerCostByDaggerStacksRef.current }
+    );
     if (effectiveCost > currentMana) {
       showToast("マナが足りません！");
       return;
@@ -1001,8 +1046,19 @@ export function useGame(): {
             setEnemyGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
             addCardToDestroying(dead.map((d) => d.uniqueId));
           }
-          return updated;
+          return updated.filter((c) => (c.hp ?? 0) > 0);
         });
+        if (bonusDmg > 0) {
+          setEnemyHeroHp((h) => {
+            const next = Math.max(h - dmg, 0);
+            if (next <= 0) {
+              setGameOver({ over: true, winner: "player" });
+              ctx.stopTimer();
+              setAiRunning(false);
+            }
+            return next;
+          });
+        }
       } else if (se.type === "damage_single" && (se.value ?? 0) > 0) {
         const dmg = se.value ?? 1;
         const target = selectedTargetIds?.[0];
@@ -1103,18 +1159,33 @@ export function useGame(): {
       : enemyHandCards.find((c) => c.uniqueId === cardUniqueId);
     if (!card || card.type !== "spell") return;
 
-    // マナチェック
+    /** applySpell が手札を変える前に取る。暗器打出し時にコスト軽減スタックへ反映する */
+    const daggerTargetsInHandBeforeResolve: { had23: boolean; had28: boolean } | null =
+      card.id === 15
+        ? (() => {
+            const h = isPlayer ? playerHandCardsRef.current : enemyHandCardsRef.current;
+            return { had23: h.some((c) => c.id === 23), had28: h.some((c) => c.id === 28) };
+          })()
+        : null;
+
+    // マナチェック（暗器連動コスト軽減など実効コスト）
     const currentManaToUse = isPlayer ? currentMana : enemyCurrentMana;
-    if (card.cost > currentManaToUse) {
+    const fieldSzSpell = isPlayer ? playerFieldCardsRef.current.length : enemyFieldCardsRef.current.length;
+    const daggerCtSpell = isPlayer ? playerDaggerCountRef.current : enemyDaggerCountRef.current;
+    const stackSpell = isPlayer
+      ? { ...playerCostByDaggerStacksRef.current }
+      : { ...enemyCostByDaggerStacksRef.current };
+    const spellManaCost = getEffectiveCost(card, fieldSzSpell, daggerCtSpell, stackSpell);
+    if (spellManaCost > currentManaToUse) {
       if (isPlayer) showToast("マナが足りません（spell）");
       return;
     }
 
     // マナ消費
     if (isPlayer) {
-      setCurrentMana((m) => m - card.cost);
+      setCurrentMana((m) => m - spellManaCost);
     } else {
-      setEnemyCurrentMana((m) => m - card.cost);
+      setEnemyCurrentMana((m) => m - spellManaCost);
     }
 
     // ref から最新の state を渡して stale closure を回避
@@ -1155,14 +1226,25 @@ export function useGame(): {
       fieldSize: isPlayer ? playerFieldCardsRef.current.length : enemyFieldCardsRef.current.length,
     });
 
-    // 暗器（id:15）使用時にカウントアップ
-    if (card.id === 15) {
+    // 暗器（id:15）使用時：ターン用カウント＋（打出し直前に手札にいた対象カードごとに）コスト軽減スタック
+    if (card.id === 15 && daggerTargetsInHandBeforeResolve) {
+      const { had23, had28 } = daggerTargetsInHandBeforeResolve;
       if (isPlayer) {
         setPlayerDaggerCount((c) => c + 1);
         playerDaggerCountRef.current += 1;
+        if (had23) playerCostByDaggerStacksRef.current[23] += 1;
+        if (had28) playerCostByDaggerStacksRef.current[28] += 1;
+        if (had23 || had28) {
+          setPlayerCostByDaggerStacks({ ...playerCostByDaggerStacksRef.current });
+        }
       } else {
         setEnemyDaggerCount((c) => c + 1);
         enemyDaggerCountRef.current += 1;
+        if (had23) enemyCostByDaggerStacksRef.current[23] += 1;
+        if (had28) enemyCostByDaggerStacksRef.current[28] += 1;
+        if (had23 || had28) {
+          setEnemyCostByDaggerStacks({ ...enemyCostByDaggerStacksRef.current });
+        }
       }
     }
 
@@ -1222,6 +1304,7 @@ export function useGame(): {
     round: coinResult === "enemy" ? Math.ceil((turn - 1) / 2) : Math.ceil(turn / 2),
     playerDaggerCount,
     enemyDaggerCount,
+    playerCostByDaggerStacks,
     resetGame,
     // pre-game (coin/mulligan)
     preGame,

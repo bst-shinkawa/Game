@@ -4,6 +4,7 @@ import React, { useRef, useEffect, useContext } from "react";
 import CardItem from "./CardItem";
 import Image from "next/image";
 import type { Card } from "@/app/data/cards";
+import type { CostByDaggerPlayStacks } from "@/app/services/synergyUtils";
 import type { RuntimeCard, SelectionConfig } from "@/app/types/gameTypes";
 import { getEffectiveCost } from "@/app/services/synergyUtils";
 import { isOwnHeroSelectable, isOwnFieldCardSelectable } from "@/app/services/selectionService";
@@ -24,6 +25,8 @@ interface PlayerAreaProps {
   playerGraveyard: Card[];
   currentMana: number;
   playerDaggerCount?: number;
+  /** 闇夜(23)・夜襲者(28)のコスト軽減スタック（手札にいた状態での暗器打出しの蓄積） */
+  playerCostByDaggerStacks?: CostByDaggerPlayStacks;
   turnSecondsRemaining: number;
   isPlayerTurn: boolean;
   draggingCard: string | null;
@@ -79,6 +82,7 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
   playerGraveyard = [],
   currentMana,
   playerDaggerCount = 0,
+  playerCostByDaggerStacks = { 23: 0, 28: 0 },
   turnSecondsRemaining,
   isPlayerTurn,
   draggingCard,
@@ -377,7 +381,11 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
         }, [] as typeof playerHandCards).map((card) => {
           const isActive = activeHandCardId === card.uniqueId;
           const isDragging = draggingCard === card.uniqueId;
-          const isHandCardSelectable = selectionMode === "select_hand_card" && selectionConfig?.selectableTargets.includes("hand_card");
+          const sourceId = selectionConfig?.sourceCardId;
+          const isHandCardSelectable =
+            selectionMode === "select_hand_card" &&
+            selectionConfig?.selectableTargets.includes("hand_card") &&
+            card.uniqueId !== sourceId;
           return (
             <div
               key={card.uniqueId}
@@ -388,11 +396,21 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
                 e.stopPropagation();
                 if (isHandCardSelectable) {
                   applySelection([card.uniqueId]);
+                } else if (selectionMode === "select_hand_card") {
+                  // 効果元（暗躍・裏取引の商人など）は選択対象外
+                  return;
                 } else {
                   handleCardClick(card.uniqueId);
                 }
               }}
-              style={{ zIndex: isActive ? 4000 : (isDragging ? 950 : 10), transition: 'all 0.25s ease', ...(isHandCardSelectable ? { cursor: "pointer" } : {}) }}
+              style={{
+                zIndex: isActive ? 4000 : (isDragging ? 950 : 10),
+                transition: "all 0.25s ease",
+                ...(isHandCardSelectable ? { cursor: "pointer" } : {}),
+                ...(selectionMode === "select_hand_card" && card.uniqueId === sourceId
+                  ? { opacity: 0.55, cursor: "default" }
+                  : {}),
+              }}
             >
               {isDragging ? (
                 // keep card DOM in place but hide visually to avoid layout shifts that may break touch tracking
@@ -401,8 +419,13 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
                   hp={card.hp ?? 0}
                   maxHp={card.maxHp ?? 0}
                   attack={card.attack ?? 0}
-                  effectiveCost={getEffectiveCost(card, playerFieldCards.length, playerDaggerCount)}
-                  draggable={selectionMode !== "select_target"}
+                  effectiveCost={getEffectiveCost(
+                    card,
+                    playerFieldCards.length,
+                    playerDaggerCount,
+                    playerCostByDaggerStacks
+                  )}
+                  draggable={selectionMode === "none"}
                   inHand
                   currentMana={currentMana}
                   aria-hidden={true}
@@ -420,12 +443,17 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
                   hp={card.hp ?? 0}
                   maxHp={card.maxHp ?? 0}
                   attack={card.attack ?? 0}
-                  effectiveCost={getEffectiveCost(card, playerFieldCards.length, playerDaggerCount)}
-                  draggable={selectionMode !== "select_target"}
+                  effectiveCost={getEffectiveCost(
+                    card,
+                    playerFieldCards.length,
+                    playerDaggerCount,
+                    playerCostByDaggerStacks
+                  )}
+                  draggable={selectionMode === "none"}
                   inHand
                   currentMana={currentMana}
                   onDragStart={(e) => {
-                    if (!isPlayerTurn || selectionMode === "select_target") return;
+                    if (!isPlayerTurn || selectionMode !== "none") return;
                     setDescCardId(null);
                     onDragStart(card, e);
                   }}
@@ -469,6 +497,18 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
           <div className={styles.field_card_description} aria-hidden={false} data-card-description="true">
             <h4>{card.name}</h4>
             <p>{card.description ?? ""}</p>
+            {card.descriptionFormationBonus ? (
+              <p className={styles.field_card_description_synergy}>
+                <span className={styles.field_card_description_synergy_label_formation}>陣形</span><br />
+                {card.descriptionFormationBonus}
+              </p>
+            ) : null}
+            {card.descriptionDaggerSynergy ? (
+              <p className={styles.field_card_description_synergy}>
+                <span className={styles.field_card_description_synergy_label_dagger}>暗器</span><br />
+                {card.descriptionDaggerSynergy}
+              </p>
+            ) : null}
           </div>
         );
       })()}

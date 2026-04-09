@@ -3,6 +3,7 @@ import type { Card } from "../data/cards";
 import type { RuntimeCard, GameOverState } from "../types/gameTypes";
 import { cards } from "../data/cards";
 import { MAX_HAND } from "../constants/gameConstants";
+import { normalizeReturnedHandCardFromRuntime } from "./cardService";
 
 interface AttackContext {
   attackerList: RuntimeCard[];
@@ -22,23 +23,6 @@ interface AttackContext {
 }
 
 export type AddCardToDestroying = (cardIds: string[], onAfterAnimation?: (ids: string[]) => void) => void;
-
-function normalizeReturnedCard(deadCard: RuntimeCard): Card {
-  const restoredHp = deadCard.maxHp ?? deadCard.hp ?? 1;
-  const returned: any = {
-    ...deadCard,
-    uniqueId: crypto.randomUUID(),
-    hp: Math.max(1, restoredHp),
-  };
-  delete returned.deathTrigger;
-  delete returned.canAttack;
-  delete returned.rushInitialTurn;
-  delete returned.isAnimating;
-  delete returned.frozen;
-  delete returned.poison;
-  delete returned.poisonDamage;
-  return returned as Card;
-}
 
 /**
  * 攻撃処理のメインロジック
@@ -238,7 +222,7 @@ function attackFollower(
           }
         } else if (trigger.type === "return_to_hand_once") {
           // 死亡時のHPやIDは引き継がず、手札カードとして正規化して戻す
-          const returned = normalizeReturnedCard(deadCard as RuntimeCard);
+          const returned = normalizeReturnedHandCardFromRuntime(deadCard as RuntimeCard);
           setTargetHandCards((h) => (h.length < MAX_HAND ? [...h, returned] : h));
         }
       });
@@ -260,7 +244,7 @@ function attackFollower(
       if (!deadCard.deathTrigger) return;
       const trigger = deadCard.deathTrigger;
       if (trigger.type === "return_to_hand_once") {
-        const returned = normalizeReturnedCard(deadCard as RuntimeCard);
+        const returned = normalizeReturnedHandCardFromRuntime(deadCard as RuntimeCard);
         setAttackerHandCards((h) => (h.length < MAX_HAND ? [...h, returned] : h));
       } else if (trigger.type === "add_card_hand" && trigger.cardId) {
         const addCard = cards.find((c) => c.id === trigger.cardId);
