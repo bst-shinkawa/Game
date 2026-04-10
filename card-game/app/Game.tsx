@@ -1,7 +1,7 @@
 // Game.tsx
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
 import type { Card } from "./data/cards";
 import { cards } from "./data/cards";
@@ -91,6 +91,7 @@ export function useGame(): {
   enemyTurnTimer: TurnTimer | null;
   setPauseTimer: (pause: boolean) => void;
   destroyingCards: Set<string>;
+  reportDestroyVisualComplete: (uniqueId: string) => void;
   // 選択モード
   selectionMode: SelectionMode;
   selectionConfig: SelectionConfig | null;
@@ -123,8 +124,30 @@ export function useGame(): {
   const [enemyMaxHeroHp, setEnemyMaxHeroHp] = useState<number>(INITIAL_USURPER_HERO_HP);
   const [enemyHeroHp, setEnemyHeroHp] = useState<number>(INITIAL_USURPER_HERO_HP);
 
-  // --- 破壊アニメーション ---
+  // --- 破壊アニメーション（Framer Motion 完了でフィールドから除去。setTimeout は使わない） ---
   const [destroyingCards, setDestroyingCards] = useState<Set<string>>(new Set());
+  type DestroyBatch = { ids: string[]; onAfter?: (ids: string[]) => void; pending: Set<string> };
+  const destroyBatchesRef = useRef<DestroyBatch[]>([]);
+
+  const reportDestroyVisualComplete = useCallback((uniqueId: string) => {
+    setDestroyingCards((prev) => {
+      if (!prev.has(uniqueId)) return prev;
+      const next = new Set(prev);
+      next.delete(uniqueId);
+      return next;
+    });
+    const batches = destroyBatchesRef.current;
+    for (let i = batches.length - 1; i >= 0; i--) {
+      const batch = batches[i];
+      if (!batch.pending.has(uniqueId)) continue;
+      batch.pending.delete(uniqueId);
+      if (batch.pending.size === 0) {
+        batch.onAfter?.(batch.ids);
+        batches.splice(i, 1);
+      }
+      break;
+    }
+  }, []);
 
   // --- ターン開始処理の重複実行を防ぐ（React Strict Mode の二重マウント対策） ---
   const turnProcessedKeys = useRef<Set<string>>(new Set());
@@ -149,16 +172,11 @@ export function useGame(): {
       cardIds.forEach((id) => next.add(id));
       return next;
     });
-
-    const duration = 500;
-    setTimeout(() => {
-      setDestroyingCards(prev => {
-        const next = new Set(prev);
-        cardIds.forEach(id => next.delete(id));
-        return next;
-      });
-      onAfterAnimation?.(cardIds);
-    }, duration);
+    destroyBatchesRef.current.push({
+      ids: [...cardIds],
+      onAfter: onAfterAnimation,
+      pending: new Set(cardIds),
+    });
   };
 
   // --- アニメーション中の状態フィルター （破壊カードはアニメーション中でも残す） ---
@@ -830,6 +848,8 @@ export function useGame(): {
     try { playerTurnTimerRef.current?.stop(); enemyTurnTimerRef.current?.stop(); } catch (e) { /* ignore */ }
     setAiRunning(false);
     setMovingAttack(null);
+    destroyBatchesRef.current = [];
+    setDestroyingCards(new Set());
     // 敵AI 中断フラグを立てる
     aiCancelRef.current = true;
     initializedRef.current = false;
@@ -1317,6 +1337,7 @@ export function useGame(): {
     enemyTurnTimer: enemyTurnTimerRef.current,
     setPauseTimer,
     destroyingCards,
+    reportDestroyVisualComplete,
     // 選択モード
     selectionMode,
     selectionConfig,

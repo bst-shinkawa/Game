@@ -9,6 +9,7 @@ interface CoinToss3DProps {
   width?: number;
   height?: number;
   result?: "player" | "enemy";
+  presentation?: "toss" | "result";
 }
 
 const createCoinFaceTexture = (kind: "king" | "thief") => {
@@ -102,9 +103,17 @@ const createCoinFaceTexture = (kind: "king" | "thief") => {
   return texture;
 };
 
-export const CoinToss3D: React.FC<CoinToss3DProps> = ({ running, onComplete, width = 320, height = 210, result }) => {
+export const CoinToss3D: React.FC<CoinToss3DProps> = ({
+  running,
+  onComplete,
+  width = 320,
+  height = 210,
+  result,
+  presentation = "toss",
+}) => {
   const mountRef = useRef<HTMLDivElement | null>(null);
   const completedRef = useRef(false);
+  const completeTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     const mount = mountRef.current;
@@ -165,9 +174,9 @@ export const CoinToss3D: React.FC<CoinToss3DProps> = ({ running, onComplete, wid
     const durationMs = 1550;
     const resultIsPlayer = result === "player";
     const fullTurnsX = 10;
-    const fullTurnsY = 5;
+    const fullTurnsY = 4 + Math.floor(Math.random() * 5);
     const targetX = fullTurnsX * Math.PI * 2 + (resultIsPlayer ? 0 : Math.PI);
-    const targetY = fullTurnsY * Math.PI * 2 + (Math.random() * 0.35 - 0.17);
+    const targetY = fullTurnsY * Math.PI * 2 + (Math.random() * (Math.PI * 2) - Math.PI);
 
     const easeOutCubic = (t: number) => 1 - (1 - t) ** 3;
 
@@ -188,11 +197,20 @@ export const CoinToss3D: React.FC<CoinToss3DProps> = ({ running, onComplete, wid
         rafId = window.requestAnimationFrame(animate);
       } else if (!completedRef.current) {
         completedRef.current = true;
-        onComplete();
+        completeTimeoutRef.current = window.setTimeout(() => {
+          onComplete();
+        }, 1000);
       }
     };
 
     const idleRender = () => {
+      // Result presentation: lock to the decided face.
+      if (presentation === "result") {
+        coin.rotation.x = (resultIsPlayer ? 0 : Math.PI) + Math.PI / 2;
+        coin.rotation.y = Math.PI * 0.12;
+        coin.position.y = 0;
+        coin.position.x = 0;
+      }
       renderer.render(scene, camera);
     };
 
@@ -205,6 +223,9 @@ export const CoinToss3D: React.FC<CoinToss3DProps> = ({ running, onComplete, wid
 
     return () => {
       if (rafId) window.cancelAnimationFrame(rafId);
+      if (completeTimeoutRef.current) {
+        window.clearTimeout(completeTimeoutRef.current);
+      }
       scene.remove(coin);
       coin.geometry.dispose();
       edgeMaterial.dispose();
@@ -217,7 +238,7 @@ export const CoinToss3D: React.FC<CoinToss3DProps> = ({ running, onComplete, wid
         mount.removeChild(renderer.domElement);
       }
     };
-  }, [running, onComplete, width, height, result]);
+  }, [running, onComplete, width, height, result, presentation]);
 
   return <div ref={mountRef} style={{ width, height, margin: "0 auto" }} aria-label="coin toss 3d" role="img" />;
 };

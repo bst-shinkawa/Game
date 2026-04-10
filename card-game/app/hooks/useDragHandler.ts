@@ -1,5 +1,10 @@
 "use client";
 
+/**
+ * ドラッグ＆矢印プレビュー用の集約フック。
+ * 将来的に Framer Motion の drag / useDragControls で一部を置き換える余地はあるが、
+ * HTML5 DnD・タッチ・手札展開との兼ね合いで大規模リファクタが必要なため現状は維持する。
+ */
 import { useEffect, useRef, useState, useContext, useCallback } from "react";
 import type { Card } from "../data/cards";
 import type { RuntimeCard } from "../types/gameTypes";

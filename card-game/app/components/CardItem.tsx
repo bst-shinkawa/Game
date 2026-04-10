@@ -45,6 +45,11 @@ type Props = {
   className?: string;
   selected?: boolean;
   noStatus?: boolean;
+  /**
+   * 親（例: フィールド用 motion ラッパー）が rotateX / scaleY で卓面の傾きを付けるとき true。
+   * 二重の 3D 変形を避け、影だけ .card_on_field に揃える。
+   */
+  fieldTiltOnParent?: boolean;
 };
 
 // Small helper: pick a CSS class for HP color
@@ -98,6 +103,7 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
   className,
   selected,
   noStatus,
+  fieldTiltOnParent = false,
   onMouseEnter,
   onMouseLeave,
   onTouchStart,
@@ -140,9 +146,12 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
 
   const hpClass = getCardHpClass(hp, maxHp);
 
+  const fieldBoardClass =
+    inHand ? "" : fieldTiltOnParent ? styles.card_field_flat_on_board : styles.card_on_field;
+
   return (
     <div
-      className={`${styles.card} ${!inHand ? styles.card_on_field : ''} ${className || ""}`}
+      className={`${styles.card} ${fieldBoardClass} ${className || ""}`}
       data-uniqueid={uniqueId}
       data-type={type}
       aria-label={name}

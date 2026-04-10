@@ -609,7 +609,7 @@ $design-canvas-w: 1280;
                 bottom: 0;
                 transform-origin: bottom center;
                 cursor: pointer;
-                transition: all 0.25s ease;
+                transition: transform 0.25s ease;
 
                 &:hover {
                     transform: translateY(-15px) scale(1.05) rotate(var(--rotate));
@@ -619,7 +619,7 @@ $design-canvas-w: 1280;
 
             &_card_draw_slide_in{
                 overflow: hidden;
-                animation: hand-card-reveal-up 260ms cubic-bezier(.2,.8,.2,1);
+                animation: hand-card-reveal-up 260ms cubic-bezier(.2,.8,.2,1) both;
             }
 
         }
@@ -731,10 +731,12 @@ $design-canvas-w: 1280;
         from {
             clip-path: inset(100% 0 0 0);
             translate: 0 18px;
+            opacity: 0;
         }
         to {
             clip-path: inset(0 0 0 0);
             translate: 0 0;
+            opacity: 1;
         }
     }
 
@@ -1019,6 +1021,12 @@ $design-canvas-w: 1280;
         box-shadow: 0 10px 30px rgba(0,0,0,0.5);
     }
 
+    // 親 motion が rotateX/scaleY を付けるとき：本体は平面＋同じ影（.card_on_field と二重にしない）
+    &_field_flat_on_board {
+        transform-style: preserve-3d;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    }
+
     &:hover{
         cursor: pointer;
     }
@@ -1083,16 +1091,26 @@ $design-canvas-w: 1280;
         padding: 40px 0;
         border-radius: 10px;
         text-align: center;
-        width: 60%;
+        // 初期手札（7枚＋余白）が1列に収まりやすく、ViewportScaler 内でもレイアウトがぶれにくい
+        width: min(92%, 1040px);
+        max-width: 1040px;
+        margin-left: auto;
+        margin-right: auto;
+        box-sizing: border-box;
     }
 
     &_card{
         display: flex;
-        gap: 12px;
+        gap: 10px;
         margin-top: 15px;
         align-items: center;
         justify-content: center;
-        flex-wrap: wrap;
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        overflow-y: hidden;
+        padding: 4px 8px 10px;
+        scrollbar-width: thin;
+        -webkit-overflow-scrolling: touch;
     }
 
     &_trun{
@@ -1182,10 +1200,13 @@ $design-canvas-w: 1280;
     position: fixed;
     left: 0;
     top: 0;
-    width: 70px;
-    height: 100px;
+    // マリガン手札の .card（design-w-px(100)）と同じ見かけで着地点と一致させる
+    width: design-w-px(100);
+    aspect-ratio: 180 / 250;
+    height: auto;
     z-index: 3200;
     pointer-events: none;
+    transform-origin: top left;
 }
 
 .card_hp {
@@ -1263,6 +1284,7 @@ $design-canvas-w: 1280;
 
 .coinPopupInner {
     display: flex;
+    flex-direction: column;
     align-items: center;
     gap: 12px;
     justify-content: center;

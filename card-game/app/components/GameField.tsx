@@ -17,6 +17,7 @@ import type { ActionLogEntry } from "@/app/hooks/useActionLog";
 import type { CardRevealState } from "@/app/types/gameTypes";
 import type { EnemySpellHistoryEntry } from "@/app/types/gameTypes";
 import Image from "next/image";
+import { motion } from "framer-motion";
 import { handleSpellUsage } from "@/app/services/spellUsageService";
 import type { Card } from "@/app/data/cards";
 import type { DamageFloat } from "@/app/hooks/useGameUI";
@@ -61,6 +62,7 @@ interface GameFieldProps {
   coinResult: "deciding" | "player" | "enemy";
   aiRunning: boolean;
   destroyingCards: Set<string>;
+  reportDestroyVisualComplete: (uniqueId: string) => void;
   toasts: ToastItem[];
   actionLogEntries: ActionLogEntry[];
   enemySpellHistory: EnemySpellHistoryEntry[];
@@ -128,7 +130,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
     enemyHandCards, enemyFieldCards, enemyHeroHp, enemyMaxHeroHp,
     playerGraveyard, enemyGraveyard, deck, enemyDeck,
     currentMana, maxMana, enemyCurrentMana, enemyMaxMana, turn, turnSecondsRemaining,
-    gameOver, playerRole, kingBoardControlStreak, round, playerDaggerCount, playerCostByDaggerStacks, preGame, coinResult, aiRunning, destroyingCards,
+    gameOver, playerRole, kingBoardControlStreak, round, playerDaggerCount, playerCostByDaggerStacks, preGame, coinResult, aiRunning, destroyingCards, reportDestroyVisualComplete,
     toasts, actionLogEntries, enemySpellHistory, cardReveal, clearCardReveal,
     damageFloats, draggingCard, dragPosition,
     isHandExpanded, activeHandCardId, showTurnModal,
@@ -278,9 +280,15 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
   });
 
   useAttackClone({
-    movingAttack, enemyFieldCards,
-    enemyFieldRefs, playerFieldRefs, playerHeroRef,
-    attackClone, setAttackClone,
+    movingAttack,
+    playerAttackAnimation,
+    enemyFieldCards,
+    playerFieldCards,
+    enemyFieldRefs,
+    playerFieldRefs,
+    playerHeroRef,
+    enemyHeroRef,
+    setAttackClone,
   });
 
   // --- Turn modal ---
@@ -417,27 +425,36 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
           );
         })()}
 
-      {/* AI attack clone portal */}
+      {/* 攻撃クローン（敵AI / プレイヤー） */}
       {typeof document !== "undefined" &&
         attackClone &&
         createPortal(
           (() => {
-            const { start, end, card, started, duration } = attackClone;
+            const { start, end, card, duration } = attackClone;
             const deltaX = end.left - start.left;
             const deltaY = end.top - start.top;
-            const baseStyle: React.CSSProperties = {
-              position: "fixed", left: start.left, top: start.top,
-              width: start.width, height: start.height,
-              transform: started ? `translate(${deltaX}px, ${deltaY}px)` : "translate(0px, 0px)",
-              transition: `transform ${duration}ms ease, opacity ${Math.max(200, duration / 3)}ms ease`,
-              zIndex: 980, pointerEvents: "none", opacity: started ? 0.95 : 1,
-            };
             return (
-              <div style={baseStyle} className={styles.card}>
+              <motion.div
+                key={attackClone.key}
+                className={styles.card}
+                style={{
+                  position: "fixed",
+                  left: start.left,
+                  top: start.top,
+                  width: start.width,
+                  height: start.height,
+                  zIndex: 980,
+                  pointerEvents: "none",
+                }}
+                initial={{ x: 0, y: 0, opacity: 1 }}
+                animate={{ x: deltaX, y: deltaY, opacity: 0.95 }}
+                transition={{ duration: duration / 1000, ease: "easeInOut" }}
+                onAnimationComplete={() => setAttackClone(null)}
+              >
                 {card.image && <Image src={card.image} alt={card.name} width={100} height={100} priority unoptimized />}
                 <div className={styles.card_hp}><p>{Math.min(card.hp ?? 0, card.maxHp ?? 0)}</p></div>
                 <div className={styles.card_attack}><p>{card.attack ?? 0}</p></div>
-              </div>
+              </motion.div>
             );
           })(),
           document.body
@@ -475,7 +492,6 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
         isPlayerTurn={isPlayerTurn}
         draggingCard={draggingCard}
         playerHandCards={playerHandCards}
-        playerAttackAnimation={playerAttackAnimation}
         enemyAttackAnimation={enemyAttackAnimation}
         enemySpellAnimation={enemySpellAnimation}
         hoverTarget={hoverTarget}
@@ -483,6 +499,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
         attackTargets={attackTargets}
         descCardId={descCardId}
         destroyingCards={destroyingCards}
+        reportDestroyVisualComplete={reportDestroyVisualComplete}
         onDragOver={(e) => {
           const handCard = playerHandCards.find((c) => c.uniqueId === draggingCard);
           const isHeal = handCard && handCard.effect === "heal_single";
@@ -553,6 +570,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
         enemySpellAnimation={enemySpellAnimation}
         attackTargets={attackTargets}
         destroyingCards={destroyingCards}
+        reportDestroyVisualComplete={reportDestroyVisualComplete}
         setIsHandExpanded={setIsHandExpanded}
         setActiveHandCardId={setActiveHandCardId}
         setDescCardId={setDescCardId}
@@ -706,6 +724,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
       {/* 敵カード演出（中央表示→ターゲットへ飛ぶ） */}
       {cardReveal && typeof document !== "undefined" && createPortal(
         <EnemyCardReveal
+          key={`${cardReveal.card.uniqueId}-${cardReveal.type}-${cardReveal.targetId ?? ""}`}
           reveal={cardReveal}
           onComplete={clearCardReveal}
           playerHeroRef={playerHeroRef}

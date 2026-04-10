@@ -83,14 +83,21 @@ describe("executePlayEffects", () => {
     expect(ctx.setPlayerHandCards).toHaveBeenCalledTimes(2);
   });
 
-  it("summons token to own field with summon_token effect", () => {
-    const card = makeCard({
-      onPlayEffects: [{ type: "summon_token", cardId: 2, count: 2 }],
-    });
-    const ctx = makePlayContext();
-    executePlayEffects(card, true, ctx);
+  it("summons token to own field with summon_token effect", async () => {
+    vi.useFakeTimers();
+    try {
+      const card = makeCard({
+        onPlayEffects: [{ type: "summon_token", cardId: 2, count: 2 }],
+      });
+      const ctx = makePlayContext();
+      executePlayEffects(card, true, ctx);
 
-    expect(ctx.setPlayerFieldCards).toHaveBeenCalledTimes(2);
+      expect(ctx.setPlayerFieldCards).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(600);
+      expect(ctx.setPlayerFieldCards).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("respects MAX_FIELD_SIZE for summon_token", () => {

@@ -16,6 +16,7 @@ import deathIcon from "@/public/img/field/void-icon.png";
 import cardBack from "@/public/img/field/card_back.png";
 import HeroHpBar from "./HeroHpBar";
 import ViewportContext from "@/app/context/ViewportContext";
+import { FIELD_CARD_POSE, FIELD_SUMMON_FROM } from "@/app/constants/fieldBattleCardMotion";
 
 interface PlayerAreaProps {
   playerHeroHp: number;
@@ -41,6 +42,7 @@ interface PlayerAreaProps {
   enemySpellAnimation: { targetId: string | "hero"; effect: string } | null;
   attackTargets: string[];
   destroyingCards: Set<string>;
+  reportDestroyVisualComplete: (uniqueId: string) => void;
   // UI状態
   setIsHandExpanded: (expanded: boolean) => void;
   setActiveHandCardId: (id: string | null) => void;
@@ -96,6 +98,7 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
   enemyAttackAnimation,
   enemySpellAnimation,
   destroyingCards,
+  reportDestroyVisualComplete,
   setIsHandExpanded,
   setActiveHandCardId,
   setDescCardId,
@@ -126,6 +129,9 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
   dropSuccess,
   attackTargets = [],
 }) => {
+  const destroyingRef = useRef(destroyingCards);
+  destroyingRef.current = destroyingCards;
+
   // 手札レイアウト計算
   useEffect(() => {
     if (isHandExpanded || !handAreaRef.current) return;
@@ -180,6 +186,7 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
   const prevFieldCardsRef = useRef<RuntimeCard[]>(playerFieldCards);
   const prevFieldCardRectsRef = useRef<Record<string, { x: number; y: number }>>({});
   const animationTimeoutsRef = useRef<number[]>([]);
+  const drawFlightInboundDoneRef = useRef<Set<string>>(new Set());
   const [animatingHandIds, setAnimatingHandIds] = useState<Set<string>>(new Set());
   const [slideInHandIds, setSlideInHandIds] = useState<Set<string>>(new Set());
   const [drawFlights, setDrawFlights] = useState<Array<{
@@ -292,40 +299,6 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
       return next;
     });
     setDrawFlights((prev) => [...prev, ...flights]);
-
-    flights.forEach((flight, i) => {
-      const finishFlightTimer = window.setTimeout(() => {
-        setDrawFlights((prev) => prev.filter((f) => f.id !== flight.id));
-        if (flight.reason === "draw") {
-          // 飛行完了時点で実カードを表示し、手札側の短い入場アニメを再生する
-          setAnimatingHandIds((prev) => {
-            const next = new Set(prev);
-            next.delete(flight.id);
-            return next;
-          });
-          setSlideInHandIds((prev) => {
-            const next = new Set(prev);
-            next.add(flight.id);
-            return next;
-          });
-          const removeSlideTimer = window.setTimeout(() => {
-            setSlideInHandIds((prev) => {
-              const next = new Set(prev);
-              next.delete(flight.id);
-              return next;
-            });
-          }, 260);
-          animationTimeoutsRef.current.push(removeSlideTimer);
-        } else {
-          setAnimatingHandIds((prev) => {
-            const next = new Set(prev);
-            next.delete(flight.id);
-            return next;
-          });
-        }
-      }, 490 + i * 70);
-      animationTimeoutsRef.current.push(finishFlightTimer);
-    });
   }, [playerHandCards, preGame, handAreaRef, playerDeck.length, playerFieldCards, playerBattleRef]);
 
   // 敵の攻撃アニメーション
@@ -465,42 +438,85 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
             const isDescSelected = descCardId === card.uniqueId;
             const isOwnFieldSel = isOwnFieldCardSelectable(selectionMode, selectionConfig);
             const isTargetSelectionActive = selectionMode === "select_target";
+            const isDestroying = destroyingCards.has(card.uniqueId);
             return (
-              <CardItem
+              <motion.div
                 key={card.uniqueId}
-                {...card}
-                hp={card.hp ?? 0}
-                maxHp={card.maxHp ?? 0}
-                attack={card.attack ?? 0}
-                baseAttack={(card as any).baseAttack}
-                baseHp={(card as any).baseHp}
-                draggable={card.canAttack && !isOwnFieldSel && !isTargetSelectionActive}
-                onDragStart={(e) => {
-                  if (!isPlayerTurn || isOwnFieldSel || isTargetSelectionActive) return;
-                  onDragStart(card, e);
-                }}
-                onDragEnd={onDragEnd}
-                onDragOver={onDragOver}
-                onDrop={() => onCardClick(card.uniqueId)}
-                isTarget={attackTargets.includes(card.uniqueId)}
-                className={`${isSummoning ? styles.enemy_follower_summon : ""} ${isHovered ? styles.target_highlight : ''} ${isDropped ? styles.drop_success : ''} ${attackTargets.includes(card.uniqueId) ? styles.attack_highlight : ''} ${destroyingCards.has(card.uniqueId) ? styles.card_destroying : ""} ${isOwnFieldSel ? styles.selection_highlight : ""} ${isDescSelected ? styles.selection_highlight : ""}`}
-                style={{
-                  opacity: isDragging ? 0.15 : 1,
-                  transition: 'opacity 0.1s ease',
-                  ...((card as { isAnimating?: boolean }).isAnimating ? { transform: "translateY(-40px)", opacity: 0 } : {}),
-                  ...(isOwnFieldSel ? { cursor: "pointer" } : {}),
-                }}
-                ref={(el: HTMLDivElement | null) => { playerFieldRefs.current[card.uniqueId] = el; }}
-                onClick={() => {
-                  if (isOwnFieldSel) {
-                    applySelection([card.uniqueId]);
-                  } else if (isTargetSelectionActive) {
-                    return;
-                  } else {
-                    onCardClick(card.uniqueId);
+                layout={false}
+                initial={
+                  isSummoning
+                    ? { ...FIELD_SUMMON_FROM, filter: "brightness(1)" }
+                    : false
+                }
+                animate={
+                  isDestroying
+                    ? {
+                        ...FIELD_CARD_POSE,
+                        opacity: 0,
+                        scale: 0.2,
+                        filter: "brightness(0.5)",
+                      }
+                    : isSummoning
+                      ? {
+                          ...FIELD_CARD_POSE,
+                          opacity: 1,
+                          filter: "brightness(1)",
+                        }
+                      : {
+                          ...FIELD_CARD_POSE,
+                          opacity: isDragging ? 0.15 : 1,
+                          filter: "brightness(1)",
+                        }
+                }
+                transition={
+                  isDestroying
+                    ? { duration: 0.45, ease: "easeOut" }
+                    : isSummoning
+                      ? { type: "spring", stiffness: 240, damping: 20, mass: 0.88 }
+                      : { duration: 0.12, ease: "easeOut" }
+                }
+                onAnimationComplete={() => {
+                  if (destroyingRef.current.has(card.uniqueId)) {
+                    reportDestroyVisualComplete(card.uniqueId);
                   }
                 }}
-              />
+                style={{ display: "inline-block", transformStyle: "preserve-3d" }}
+              >
+                <CardItem
+                  {...card}
+                  fieldTiltOnParent
+                  hp={card.hp ?? 0}
+                  maxHp={card.maxHp ?? 0}
+                  attack={card.attack ?? 0}
+                  baseAttack={(card as any).baseAttack}
+                  baseHp={(card as any).baseHp}
+                  draggable={card.canAttack && !isOwnFieldSel && !isTargetSelectionActive}
+                  onDragStart={(e) => {
+                    if (!isPlayerTurn || isOwnFieldSel || isTargetSelectionActive) return;
+                    onDragStart(card, e);
+                  }}
+                  onDragEnd={onDragEnd}
+                  onDragOver={onDragOver}
+                  onDrop={() => onCardClick(card.uniqueId)}
+                  isTarget={attackTargets.includes(card.uniqueId)}
+                  className={`${isHovered ? styles.target_highlight : ""} ${isDropped ? styles.drop_success : ""} ${attackTargets.includes(card.uniqueId) ? styles.attack_highlight : ""} ${isOwnFieldSel ? styles.selection_highlight : ""} ${isDescSelected ? styles.selection_highlight : ""}`}
+                  style={{
+                    ...(isOwnFieldSel ? { cursor: "pointer" } : {}),
+                  }}
+                  ref={(el: HTMLDivElement | null) => {
+                    playerFieldRefs.current[card.uniqueId] = el;
+                  }}
+                  onClick={() => {
+                    if (isOwnFieldSel) {
+                      applySelection([card.uniqueId]);
+                    } else if (isTargetSelectionActive) {
+                      return;
+                    } else {
+                      onCardClick(card.uniqueId);
+                    }
+                  }}
+                />
+              </motion.div>
             );
           } else {
             // 空スロット（フォロワー: 召喚可能 / スペル: 使用可能）
@@ -564,7 +580,7 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
               }}
               style={{
                 zIndex: isActive ? 4000 : (isDragging ? 950 : 10),
-                transition: "all 0.25s ease",
+                transition: "transform 0.25s ease",
                 opacity: cardOpacity,
                 visibility: isAnimatingIncoming ? "hidden" : "visible",
                 ...(isHandCardSelectable ? { cursor: "pointer" } : {}),
@@ -646,8 +662,33 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
             className={`${styles.draw_flight} ${flight.reason === "generate" ? styles.draw_flight_generate : ""} ${flight.reason === "return" ? styles.draw_flight_return : ""}`}
             initial={{ x: flight.fromX, y: flight.fromY, scale: 0.76, rotate: -13, opacity: 0.98 }}
             animate={{ x: flight.toX, y: flight.toY, scale: 1, rotate: 0, opacity: 1 }}
-            exit={{ opacity: 0 }}
+            exit={{ opacity: 0, transition: { duration: 0.1, ease: "easeOut" } }}
             transition={{ duration: 0.48, delay: flight.delay, ease: [0.22, 1, 0.36, 1] }}
+            onAnimationComplete={() => {
+              if (drawFlightInboundDoneRef.current.has(flight.id)) return;
+              drawFlightInboundDoneRef.current.add(flight.id);
+              setAnimatingHandIds((prev) => {
+                const next = new Set(prev);
+                next.delete(flight.id);
+                return next;
+              });
+              setSlideInHandIds((prev) => {
+                const next = new Set(prev);
+                next.add(flight.id);
+                return next;
+              });
+              const removeSlideTimer = window.setTimeout(() => {
+                setSlideInHandIds((prev) => {
+                  const next = new Set(prev);
+                  next.delete(flight.id);
+                  return next;
+                });
+              }, 260);
+              animationTimeoutsRef.current.push(removeSlideTimer);
+              requestAnimationFrame(() => {
+                setDrawFlights((prev) => prev.filter((f) => f.id !== flight.id));
+              });
+            }}
           >
             {flight.reason !== "draw" ? (
               <span className={styles.draw_flight_badge}>{flight.reason === "generate" ? "生成" : "回収"}</span>

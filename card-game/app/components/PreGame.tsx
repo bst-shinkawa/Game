@@ -1,12 +1,21 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useContext, useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import CardItem from "./CardItem";
 import { CoinToss3D } from "./CoinToss3D";
 import type { Card } from "@/app/data/cards";
 import styles from "@/app/assets/css/Game.Master.module.css";
 import cardBack from "@/public/img/field/card_back.png";
+import ViewportContext from "@/app/context/ViewportContext";
+
+/** ViewportScaler 内の設計座標系（.card と同じ 100×(250/180) の飛び物サイズ） */
+const MULLIGAN_FLIGHT_W = 100;
+const MULLIGAN_FLIGHT_H = (MULLIGAN_FLIGHT_W * 250) / 180;
+
+/** drawFlights の motion と transition duration/delay を共有（タイムアウトとズラさない） */
+const MULLIGAN_DRAW_DURATION_SEC = 0.5;
+const MULLIGAN_DRAW_STAGGER_SEC = 0.08;
 
 interface PreGameProps {
   coinResult: "deciding" | "player" | "enemy";
@@ -46,6 +55,8 @@ export const PreGame: React.FC<PreGameProps> = ({
   setRouletteRunning,
   setSwapIds,
 }) => {
+  const viewport = useContext(ViewportContext);
+
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressActivatedRef = useRef<string | null>(null);
   const mulliganCardAreaRef = useRef<HTMLDivElement | null>(null);
@@ -110,6 +121,8 @@ export const PreGame: React.FC<PreGameProps> = ({
 
   useEffect(() => {
     if (coinResult === "deciding" || showCoinPopup) return;
+    const s = Math.max(viewport.scale, 0.01);
+    const { containerLeft, containerTop } = viewport;
     const nodes = mulliganCardAreaRef.current?.querySelectorAll("[data-pre-card-id]") ?? [];
     const nextRects: Record<string, { x: number; y: number }> = {};
     nodes.forEach((node) => {
@@ -117,13 +130,23 @@ export const PreGame: React.FC<PreGameProps> = ({
       const id = el.dataset.preCardId;
       if (!id) return;
       const rect = el.getBoundingClientRect();
-      nextRects[id] = { x: rect.left, y: rect.top };
+      nextRects[id] = {
+        x: (rect.left - containerLeft) / s,
+        y: (rect.top - containerTop) / s,
+      };
     });
     prevRectsRef.current = nextRects;
-  }, [playerHandCards, coinResult, showCoinPopup]);
+  }, [playerHandCards, coinResult, showCoinPopup, viewport.scale, viewport.containerLeft, viewport.containerTop]);
 
   useEffect(() => {
     if (coinResult === "deciding" || showCoinPopup) return;
+
+    const s = Math.max(viewport.scale, 0.01);
+    const { containerLeft, containerTop } = viewport;
+    const toDesign = (cx: number, cy: number) => ({
+      x: (cx - containerLeft) / s,
+      y: (cy - containerTop) / s,
+    });
 
     const currentIds = playerHandCards.map((c) => c.uniqueId);
     const prevIds = prevHandIdsRef.current;
@@ -134,6 +157,15 @@ export const PreGame: React.FC<PreGameProps> = ({
       return;
     }
 
+    const deckCenter = toDesign(
+      deckRect.left + deckRect.width / 2,
+      deckRect.top + deckRect.height / 2,
+    );
+    const fromCentered = {
+      x: deckCenter.x - MULLIGAN_FLIGHT_W / 2,
+      y: deckCenter.y - MULLIGAN_FLIGHT_H / 2,
+    };
+
     const added = playerHandCards.filter((c) => !prevIds.includes(c.uniqueId));
     const removedIds = prevIds.filter((id) => !currentIds.includes(id));
 
@@ -142,14 +174,15 @@ export const PreGame: React.FC<PreGameProps> = ({
         const targetEl = mulliganCardAreaRef.current?.querySelector(`[data-pre-card-id="${card.uniqueId}"]`) as HTMLElement | null;
         if (!targetEl) return null;
         const targetRect = targetEl.getBoundingClientRect();
+        const to = toDesign(targetRect.left, targetRect.top);
         return {
           id: card.uniqueId,
           card,
-          fromX: deckRect.left + deckRect.width / 2 - 35,
-          fromY: deckRect.top + deckRect.height / 2 - 50,
-          toX: targetRect.left,
-          toY: targetRect.top,
-          delay: i * 0.08,
+          fromX: fromCentered.x,
+          fromY: fromCentered.y,
+          toX: to.x,
+          toY: to.y,
+          delay: i * MULLIGAN_DRAW_STAGGER_SEC,
         };
       })
       .filter((v): v is NonNullable<typeof v> => v !== null);
@@ -164,8 +197,8 @@ export const PreGame: React.FC<PreGameProps> = ({
           card,
           fromX: pos.x,
           fromY: pos.y,
-          toX: deckRect.left + deckRect.width / 2 - 35,
-          toY: deckRect.top + deckRect.height / 2 - 50,
+          toX: fromCentered.x,
+          toY: fromCentered.y,
           delay: i * 0.06,
         };
       })
@@ -179,17 +212,7 @@ export const PreGame: React.FC<PreGameProps> = ({
         return next;
       });
       setDrawFlights((prev) => [...prev, ...nextDrawFlights]);
-
-      ids.forEach((id, index) => {
-        window.setTimeout(() => {
-          setIncomingIds((prev) => {
-            const next = new Set(prev);
-            next.delete(id);
-            return next;
-          });
-          setDrawFlights((prev) => prev.filter((f) => f.id !== id));
-        }, 620 + index * 80);
-      });
+      // 着弾は各 motion の onAnimationComplete に同期。固定 ms タイムアウトは使わない。
     }
 
     if (nextReturnFlights.length > 0) {
@@ -203,7 +226,7 @@ export const PreGame: React.FC<PreGameProps> = ({
 
     prevHandIdsRef.current = currentIds;
     prevCardsRef.current = Object.fromEntries(playerHandCards.map((c) => [c.uniqueId, c]));
-  }, [playerHandCards, coinResult, showCoinPopup]);
+  }, [playerHandCards, coinResult, showCoinPopup, viewport.scale, viewport.containerLeft, viewport.containerTop]);
 
   // ルーレット演出：coinResult が "deciding" のみ表示
   if (coinResult === "deciding") {
@@ -252,7 +275,15 @@ export const PreGame: React.FC<PreGameProps> = ({
           {playerHandCards.map((c) => {
             const marked = swapIds.includes(c.uniqueId);
             return (
-              <div key={c.uniqueId} data-pre-card-id={c.uniqueId} style={{ padding: 6, opacity: incomingIds.has(c.uniqueId) ? 0 : 1 }}>
+              <div
+                key={c.uniqueId}
+                data-pre-card-id={c.uniqueId}
+                style={{
+                  padding: 6,
+                  opacity: incomingIds.has(c.uniqueId) ? 0 : 1,
+                  transition: "opacity 0.2s ease-out",
+                }}
+              >
                 <CardItem
                   {...c}
                   hp={c.hp ?? 0}
@@ -287,8 +318,17 @@ export const PreGame: React.FC<PreGameProps> = ({
               className={styles.preGameFlight}
               initial={{ x: flight.fromX, y: flight.fromY, scale: 0.76, rotate: -12, opacity: 0.98 }}
               animate={{ x: flight.toX, y: flight.toY, scale: 1, rotate: 0, opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.5, delay: flight.delay, ease: [0.22, 1, 0.36, 1] }}
+              exit={{ opacity: 0, transition: { duration: 0.16, ease: "easeOut" } }}
+              transition={{ duration: MULLIGAN_DRAW_DURATION_SEC, delay: flight.delay, ease: [0.22, 1, 0.36, 1] }}
+              onAnimationComplete={() => {
+                setIncomingIds((prev) => {
+                  if (!prev.has(flight.id)) return prev;
+                  const next = new Set(prev);
+                  next.delete(flight.id);
+                  return next;
+                });
+                setDrawFlights((prev) => prev.filter((f) => f.id !== flight.id));
+              }}
             >
               <div className={styles.card}>
                 {flight.card.image ? <img src={flight.card.image} alt={flight.card.name} style={{ width: "100%", height: "100%", borderRadius: 10 }} /> : null}

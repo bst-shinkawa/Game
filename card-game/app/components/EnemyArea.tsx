@@ -16,6 +16,8 @@ import deckIcon from "@/public/img/field/deck-icon.png";
 import deathIcon from "@/public/img/field/void-icon.png";
 import cardBack from "@/public/img/field/card_back.png";
 import HeroHpBar from "./HeroHpBar";
+import { FIELD_CARD_POSE, FIELD_SUMMON_FROM } from "@/app/constants/fieldBattleCardMotion";
+
 interface EnemyAreaProps {
   enemyHeroHp: number;
   enemyMaxHeroHp: number;
@@ -29,7 +31,6 @@ interface EnemyAreaProps {
   isPlayerTurn: boolean;
   draggingCard: string | null;
   playerHandCards: Card[];
-  playerAttackAnimation: { sourceCardId: string; targetId: string | "hero" } | null;
   enemyAttackAnimation: { sourceCardId: string | null; targetId: string | "hero" } | null;
   enemySpellAnimation: { targetId: string | "hero"; effect: string } | null;
   onDragOver: (e: React.DragEvent<HTMLDivElement>) => void;
@@ -40,6 +41,7 @@ interface EnemyAreaProps {
   enemyHeroRef: React.MutableRefObject<HTMLDivElement | null>;
   enemyFieldRefs: React.MutableRefObject<{ [key: string]: HTMLDivElement | null }>;
   destroyingCards: Set<string>;
+  reportDestroyVisualComplete: (uniqueId: string) => void;
   // 選択モード
   selectionMode: SelectionMode;
   selectionConfig: SelectionConfig | null;
@@ -59,7 +61,6 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
   isPlayerTurn,
   draggingCard,
   playerHandCards,
-  playerAttackAnimation,
   enemyAttackAnimation,
   enemySpellAnimation,
   onDragOver,
@@ -74,10 +75,14 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
   attackTargets = [],
   descCardId,
   destroyingCards,
+  reportDestroyVisualComplete,
   selectionMode,
   selectionConfig,
   applySelection,
 }) => {
+  const destroyingRef = useRef(destroyingCards);
+  destroyingRef.current = destroyingCards;
+
   const enemyHandAreaRef = useRef<HTMLDivElement | null>(null);
   const enemyDeckPileRef = useRef<HTMLDivElement | null>(null);
   const prevEnemyHandIdsRef = useRef<string[]>([]);
@@ -92,30 +97,6 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
     toY: number;
     delay: number;
   }>>([]);
-
-  // プレイヤー→敵への攻撃アニメーション（プレイヤーフィールドから敵ヒーロー/敵フォロワーへ）
-  useEffect(() => {
-    if (!playerAttackAnimation) return;
-    const { sourceCardId, targetId } = playerAttackAnimation;
-    const sourceEl = document.querySelector(`[data-uniqueid="${sourceCardId}"]`) as HTMLElement | null;
-    const targetEl = targetId === "hero" ? enemyHeroRef.current : enemyFieldRefs.current[targetId];
-    if (!sourceEl || !targetEl) return;
-    const start = sourceEl.getBoundingClientRect();
-    const end = targetEl.getBoundingClientRect();
-    const startX = start.left + start.width / 2;
-    const startY = start.top + start.height / 2;
-    const endX = end.left + end.width / 2;
-    const endY = end.top + end.height / 2;
-    const projectile = document.createElement("div");
-    projectile.className = styles.enemy_attack_projectile;
-    projectile.style.setProperty("--end-x", `${endX - startX}px`);
-    projectile.style.setProperty("--end-y", `${endY - startY}px`);
-    projectile.style.left = `${startX}px`;
-    projectile.style.top = `${startY}px`;
-    document.body.appendChild(projectile);
-    const t = setTimeout(() => projectile.remove(), 700);
-    return () => clearTimeout(t);
-  }, [playerAttackAnimation, enemyHeroRef, enemyFieldRefs]);
 
   const getHpClass = (hp: number) => {
     const ratio = enemyMaxHeroHp > 0 ? hp / enemyMaxHeroHp : 0;
@@ -241,36 +222,79 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
           const isHovered = hoverTarget?.id === card.uniqueId && hoverTarget?.type === 'enemyCard';
           const isDropped = dropSuccess?.id === card.uniqueId && dropSuccess?.type === 'enemyCard';
           const isDescSelected = descCardId === card.uniqueId;
+          const isDestroying = destroyingCards.has(card.uniqueId);
           return (
-            <CardItem
+            <motion.div
               key={card.uniqueId}
-              {...card}
-              hp={card.hp ?? 0}
-              maxHp={card.maxHp ?? 0}
-              attack={card.attack ?? 0}
-              className={`${isSummoning ? styles.enemy_follower_summon : ""} ${isHovered ? styles.target_highlight : ''} ${isDropped ? styles.drop_success : ''} ${attackTargets.includes(card.uniqueId) ? styles.attack_highlight : ''} ${destroyingCards.has(card.uniqueId) ? styles.card_destroying : ""} ${isFieldCardSelectable ? styles.selection_highlight : ""} ${isDescSelected ? styles.selection_highlight : ""}`}
-              style={{
-                ...((card as { isAnimating?: boolean }).isAnimating ? { transform: "translateY(-40px)", opacity: 0 } : {}),
-                ...(isAttacking ? { animation: "enemyCardAttack 0.9s ease-in-out forwards" } : {}),
-                ...(isSpellTarget ? { animation: "spellTargetFlash 0.6s ease-out" } : {}),
-                ...(isFieldCardSelectable ? { cursor: "pointer" } : {}),
-              }}
-              onDragOver={onDragOver}
-              onDrop={() => onDrop(card.uniqueId)}
-              isTarget={attackTargets.includes(card.uniqueId)}
-              ref={(el: HTMLDivElement | null) => {
-                enemyFieldRefs.current[card.uniqueId] = el;
-              }}
-              onMouseEnter={() => onCardHoverEnter && onCardHoverEnter(card.uniqueId)}
-              onMouseLeave={() => onCardHoverLeave && onCardHoverLeave()}
-              onClick={() => {
-                if (isFieldCardSelectable) {
-                  applySelection([card.uniqueId]);
-                } else if (onCardClick) {
-                  onCardClick(card.uniqueId);
+              layout={false}
+              initial={
+                isSummoning
+                  ? { ...FIELD_SUMMON_FROM, filter: "brightness(1)" }
+                  : false
+              }
+              animate={
+                isDestroying
+                  ? {
+                      ...FIELD_CARD_POSE,
+                      opacity: 0,
+                      scale: 0.2,
+                      filter: "brightness(0.5)",
+                    }
+                  : isSummoning
+                    ? {
+                        ...FIELD_CARD_POSE,
+                        opacity: 1,
+                        filter: "brightness(1)",
+                      }
+                    : {
+                        ...FIELD_CARD_POSE,
+                        opacity: 1,
+                        filter: "brightness(1)",
+                      }
+              }
+              transition={
+                isDestroying
+                  ? { duration: 0.45, ease: "easeOut" }
+                  : isSummoning
+                    ? { type: "spring", stiffness: 240, damping: 20, mass: 0.88 }
+                    : { duration: 0.2, ease: "easeOut" }
+              }
+              onAnimationComplete={() => {
+                if (destroyingRef.current.has(card.uniqueId)) {
+                  reportDestroyVisualComplete(card.uniqueId);
                 }
               }}
-            />
+              style={{ display: "inline-block", transformStyle: "preserve-3d" }}
+            >
+              <CardItem
+                {...card}
+                fieldTiltOnParent
+                hp={card.hp ?? 0}
+                maxHp={card.maxHp ?? 0}
+                attack={card.attack ?? 0}
+                className={`${isHovered ? styles.target_highlight : ""} ${isDropped ? styles.drop_success : ""} ${attackTargets.includes(card.uniqueId) ? styles.attack_highlight : ""} ${isFieldCardSelectable ? styles.selection_highlight : ""} ${isDescSelected ? styles.selection_highlight : ""}`}
+                style={{
+                  ...(isAttacking ? { animation: "enemyCardAttack 0.9s ease-in-out forwards" } : {}),
+                  ...(isSpellTarget ? { animation: "spellTargetFlash 0.6s ease-out" } : {}),
+                  ...(isFieldCardSelectable ? { cursor: "pointer" } : {}),
+                }}
+                onDragOver={onDragOver}
+                onDrop={() => onDrop(card.uniqueId)}
+                isTarget={attackTargets.includes(card.uniqueId)}
+                ref={(el: HTMLDivElement | null) => {
+                  enemyFieldRefs.current[card.uniqueId] = el;
+                }}
+                onMouseEnter={() => onCardHoverEnter && onCardHoverEnter(card.uniqueId)}
+                onMouseLeave={() => onCardHoverLeave && onCardHoverLeave()}
+                onClick={() => {
+                  if (isFieldCardSelectable) {
+                    applySelection([card.uniqueId]);
+                  } else if (onCardClick) {
+                    onCardClick(card.uniqueId);
+                  }
+                }}
+              />
+            </motion.div>
           );
         })}
       </div>
