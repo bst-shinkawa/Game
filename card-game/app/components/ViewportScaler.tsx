@@ -67,7 +67,15 @@ export default function ViewportScaler({ children, designWidth = DESIGN_W, desig
       <div ref={containerRef} style={{ width: containerSize.w, height: containerSize.h, position: "relative", overflow: "hidden" }}>
         <ViewportContext.Provider value={{ scale: Math.round(scale * 100) / 100, containerLeft: containerOffset.left, containerTop: containerOffset.top, containerWidth: containerSize.w, containerHeight: containerSize.h }}>
           {/* inner box: unscaled layout, scaled via transform so typography & layout scale uniformly */}
-          <div style={{ width: designWidth, height: designHeight, transform: `scale(${Math.round(scale * 100) / 100})`, transformOrigin: "top left" }}>
+          <div
+            style={{
+              width: designWidth,
+              height: designHeight,
+              transform: `scale(${Math.round(scale * 100) / 100})`,
+              transformOrigin: "top left",
+              ["--design-w" as string]: `${designWidth}px`,
+            } as React.CSSProperties}
+          >
             {children}
           </div>
         </ViewportContext.Provider>

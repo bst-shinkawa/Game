@@ -1,5 +1,11 @@
 @use 'template' as t;
 
+// 設計キャンバス幅（ViewportScaler の designWidth と一致。--design-w は内側ラッパーで注入）
+$design-canvas-w: 1280;
+@function design-w-px($px) {
+    @return calc(#{$px} * var(--design-w, #{$design-canvas-w}px) / #{$design-canvas-w});
+}
+
 .pregame{
     &__wrap{
         padding: 40px;
@@ -595,7 +601,7 @@
                     }
                 }
                 .card{
-                    width: clamp(70px, 7vw, 90px);
+                    width: design-w-px(90);
                 }
             }
             &_card{
@@ -623,7 +629,7 @@
                 position: fixed;
                 right: 2.8%;
                 bottom: 11%;
-                width: clamp(68px, 6.7vw, 88px);
+                width: design-w-px(88);
                 aspect-ratio: 180 / 250;
                 z-index: 1100;
                 pointer-events: none;
@@ -659,7 +665,7 @@
             position: fixed;
             left: 2.8%;
             top: 11%;
-            width: clamp(68px, 6.7vw, 88px);
+            width: design-w-px(88);
             aspect-ratio: 180 / 250;
             z-index: 1100;
             pointer-events: none;
@@ -969,7 +975,7 @@
         }
     }
     &_slot {
-        width: clamp(80px, 8vw, 100px);
+        width: design-w-px(100);
         aspect-ratio: 180/250;
         border: 2px dashed #ccc;
         border-radius: 8px;
@@ -1001,7 +1007,7 @@
 }
 
 .card{
-    width: clamp(80px, 8vw, 100px);
+    width: design-w-px(100);
     aspect-ratio: 180 / 250;
     position: relative;
     box-sizing: border-box;
@@ -1139,7 +1145,7 @@
             position: absolute;
             right: 6%;
             top: 44%;
-            width: clamp(70px, 7vw, 90px);
+            width: design-w-px(90);
             aspect-ratio: 180 / 250;
             transform: translateY(-50%);
             pointer-events: none;

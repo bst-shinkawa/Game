@@ -566,7 +566,7 @@
   transform: none !important;
 }
 .field_player_hand_area .card {
-  width: clamp(70px, 7vw, 90px);
+  width: calc(90 * var(--design-w, 1280px) / 1280);
 }
 .field_player_hand_card {
   position: absolute;
@@ -587,7 +587,7 @@
   position: fixed;
   right: 2.8%;
   bottom: 11%;
-  width: clamp(68px, 6.7vw, 88px);
+  width: calc(88 * var(--design-w, 1280px) / 1280);
   aspect-ratio: 180/250;
   z-index: 1100;
   pointer-events: none;
@@ -615,7 +615,7 @@
   position: fixed;
   left: 2.8%;
   top: 11%;
-  width: clamp(68px, 6.7vw, 88px);
+  width: calc(88 * var(--design-w, 1280px) / 1280);
   aspect-ratio: 180/250;
   z-index: 1100;
   pointer-events: none;
@@ -909,7 +909,7 @@
   line-height: 1.8em;
 }
 .field_slot {
-  width: clamp(80px, 8vw, 100px);
+  width: calc(100 * var(--design-w, 1280px) / 1280);
   aspect-ratio: 180/250;
   border: 2px dashed #ccc;
   border-radius: 8px;
@@ -938,7 +938,7 @@
 }
 
 .card {
-  width: clamp(80px, 8vw, 100px);
+  width: calc(100 * var(--design-w, 1280px) / 1280);
   aspect-ratio: 180/250;
   position: relative;
   box-sizing: border-box;
@@ -1062,7 +1062,7 @@
   position: absolute;
   right: 6%;
   top: 44%;
-  width: clamp(70px, 7vw, 90px);
+  width: calc(90 * var(--design-w, 1280px) / 1280);
   aspect-ratio: 180/250;
   transform: translateY(-50%);
   pointer-events: none;
