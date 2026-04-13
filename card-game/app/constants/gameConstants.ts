@@ -7,4 +7,4 @@ export const INITIAL_USURPER_HERO_HP = 15;
 export const KING_SPECIAL_WIN_FIELD_COUNT = 3;
 export const KING_SPECIAL_WIN_STREAK_TURNS = 5;
 export const MAX_FIELD_SIZE = 5;
-export const TURN_DURATION_SECONDS = 60;
+export const TURN_DURATION_SECONDS = 30;

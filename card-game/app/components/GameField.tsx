@@ -25,7 +25,7 @@ import type { CostByDaggerPlayStacks } from "@/app/services/synergyUtils";
 import type { RuntimeCard, SelectionMode, SelectionConfig } from "@/app/types/gameTypes";
 import styles from "@/app/assets/css/Game.Master.module.css";
 import ViewportContext from "@/app/context/ViewportContext";
-import { KING_SPECIAL_WIN_STREAK_TURNS } from "@/app/constants/gameConstants";
+import { KING_SPECIAL_WIN_STREAK_TURNS, TURN_DURATION_SECONDS } from "@/app/constants/gameConstants";
 
 import { useDragHandler } from "@/app/hooks/useDragHandler";
 import { useArrowCanvas } from "@/app/hooks/useArrowCanvas";
@@ -161,7 +161,14 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
   const viewport = useContext(ViewportContext);
   const isPlayerTurn = turn % 2 === 1;
   const isTimeCritical = isPlayerTurn && turnSecondsRemaining <= 20;
-  const timerProgress = Math.max(0, Math.min(1, turnSecondsRemaining / 60));
+  const isTimeDanger = isPlayerTurn && turnSecondsRemaining <= 10;
+  const timerProgress = Math.max(0, Math.min(1, turnSecondsRemaining / TURN_DURATION_SECONDS));
+  const turnRingColor = (() => {
+    if (!isPlayerTurn) return "#5878ab";
+    if (turnSecondsRemaining > 20) return "#6ea4f1";
+    if (turnSecondsRemaining > 10) return "#e39b43";
+    return "#d94a3a";
+  })();
   const isTargetSelectionActive = selectionMode === "select_target";
   // 表示上のマナ上限は「YOUR TURN / ENEMY TURN モーダル表示開始時」に更新する
   const [displayPlayerMaxMana, setDisplayPlayerMaxMana] = useState(maxMana);
@@ -627,24 +634,10 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
           <div className={`${styles.field_turn_mana_badge} ${styles.field_turn_mana_badge_enemy}`}>
             {displayEnemyCurrentMana}/{displayEnemyMaxMana}
           </div>
-          <svg className={`${styles.field_turn_outline} ${isTimeCritical ? styles.field_turn_outline_critical : ""}`} viewBox="0 0 200 84" aria-hidden="true">
-            <rect className={styles.field_turn_outline_track} x="4" y="4" width="192" height="76" rx="38" ry="38" />
-            <rect
-              className={styles.field_turn_outline_progress}
-              x="4"
-              y="4"
-              width="192"
-              height="76"
-              rx="38"
-              ry="38"
-              pathLength={100}
-              strokeDasharray={`${timerProgress * 100} 100`}
-            />
-          </svg>
           <button
             onClick={() => endTurn()}
             disabled={!isPlayerTurn || aiRunning || preGame || showGameStart || gameOver.over || isTargetSelectionActive}
-            className={isTimeCritical ? styles.field_turn_end_critical : ""}
+            className={`${isTimeCritical ? styles.field_turn_end_critical : ""} ${isTimeDanger ? styles.field_turn_end_urgent : ""}`}
             title={
               preGame ? "ゲーム開始前です" :
               isTargetSelectionActive ? "対象選択を完了またはキャンセルしてください" :
@@ -652,7 +645,22 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
               !isPlayerTurn ? "相手のターンです" : "ターンを終了します"
             }
           >
-            <span className={styles.field_turn_text}>TURN END</span>
+            <svg className={styles.field_turn_ring} viewBox="0 0 180 60" aria-hidden="true">
+              <rect className={styles.field_turn_ring_track} x="3" y="3" width="174" height="54" rx="27" ry="27" />
+              <rect
+                className={styles.field_turn_ring_progress}
+                x="3"
+                y="3"
+                width="174"
+                height="54"
+                rx="27"
+                ry="27"
+                pathLength={100}
+                stroke={turnRingColor}
+                strokeDasharray={`${timerProgress * 100} 100`}
+              />
+            </svg>
+            <span className={styles.field_turn_text}>{isPlayerTurn ? "TURN END" : "ENEMY TURN"}</span>
           </button>
           <div className={`${styles.field_turn_mana_badge} ${styles.field_turn_mana_badge_player}`}>
             {displayPlayerCurrentMana}/{displayPlayerMaxMana}

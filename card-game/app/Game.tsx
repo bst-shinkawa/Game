@@ -236,10 +236,10 @@ export function useGame(): {
   const [currentMana, setCurrentMana] = useState(1);
   const [enemyMaxMana, setEnemyMaxMana] = useState(1);
   const [enemyCurrentMana, setEnemyCurrentMana] = useState(1);
-  const [turnSecondsRemaining, setTurnSecondsRemaining] = useState<number>(60);
+  const [turnSecondsRemaining, setTurnSecondsRemaining] = useState<number>(TURN_DURATION_SECONDS);
   // TurnTimer を使用して正確な 1 秒カウントを行う（プレイヤー / 敵で別々に管理）
-  const playerTurnTimerRef = useRef<TurnTimer | null>(new TurnTimer(60));
-  const enemyTurnTimerRef = useRef<TurnTimer | null>(new TurnTimer(60));
+  const playerTurnTimerRef = useRef<TurnTimer | null>(new TurnTimer(TURN_DURATION_SECONDS));
+  const enemyTurnTimerRef = useRef<TurnTimer | null>(new TurnTimer(TURN_DURATION_SECONDS));
   // UI側からタイマーとAIを一時停止するフラグ（ターン開始のモーダル表示など）
   const [pauseTimer, setPauseTimer] = useState<boolean>(false);
   // 初回ターンかどうか（プリゲーム後の最初の turn を特別扱いするためのフラグ）

@@ -727,12 +727,13 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 15px;
 }
 .field_turn_mana_badge {
-  min-width: 86px;
-  height: 86px;
-  border-radius: 50%;
+  width: 100%;
+  max-width: 100px;
+  padding: 10px 20px;
+  border-radius: 50px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -740,20 +741,21 @@
   font-size: 20px;
   font-weight: 700;
   line-height: 1;
-  text-shadow: 0 0 12px rgba(0, 0, 0, 0.9);
+  letter-spacing: 0.02em;
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.9), 0 0 3px rgba(0, 0, 0, 0.85);
   pointer-events: none;
-  border: 2px solid rgba(255, 255, 255, 0.5);
-  box-shadow: 0 0 12px rgba(0, 0, 0, 0.35);
+  border: 2px solid rgba(205, 195, 170, 0.72);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 3px 8px rgba(0, 0, 0, 0.3);
 }
 .field_turn_mana_badge_enemy {
-  color: #ffd7d7;
-  background: radial-gradient(circle at 30% 30%, rgba(255, 110, 110, 0.95), rgba(120, 20, 20, 0.92));
-  border-color: rgba(255, 180, 180, 0.9);
+  color: #ffd9cb;
+  background: radial-gradient(circle at 32% 28%, rgba(167, 79, 68, 0.95), rgba(62, 24, 22, 0.94));
+  border-color: rgba(190, 128, 112, 0.9);
 }
 .field_turn_mana_badge_player {
-  color: #d9f7ff;
-  background: radial-gradient(circle at 30% 30%, rgba(100, 220, 255, 0.95), rgba(20, 70, 120, 0.92));
-  border-color: rgba(160, 230, 255, 0.9);
+  color: #e6ecff;
+  background: radial-gradient(circle at 32% 28%, rgba(92, 112, 146, 0.95), rgba(28, 40, 58, 0.94));
+  border-color: rgba(142, 158, 188, 0.9);
 }
 .field_turn_outline {
   position: absolute;
@@ -762,7 +764,7 @@
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  filter: drop-shadow(0 0 8px rgba(0, 255, 255, 0.4));
+  filter: drop-shadow(0 0 5px rgba(197, 185, 143, 0.35));
   pointer-events: none;
   z-index: 1;
 }
@@ -773,7 +775,7 @@
 }
 .field_turn_outline_progress {
   fill: none;
-  stroke: rgba(0, 255, 255, 0.95);
+  stroke: rgba(204, 193, 150, 0.92);
   stroke-width: 8;
   stroke-linecap: round;
   transform: scaleX(-1);
@@ -781,52 +783,77 @@
   transition: stroke-dasharray 1s linear;
 }
 .field_turn_outline_critical {
-  filter: drop-shadow(0 0 12px rgba(255, 87, 34, 0.7));
+  filter: drop-shadow(0 0 8px rgba(189, 82, 50, 0.56));
 }
 .field_turn_outline_critical .field_turn_outline_progress {
-  stroke: rgba(255, 120, 90, 0.95);
+  stroke: rgba(222, 133, 97, 0.95);
 }
 .field_turn button {
   position: relative;
   width: 180px;
   height: 60px;
   border-radius: 30px;
-  font-weight: bold;
-  font-size: 20px;
-  letter-spacing: 2px;
+  font-family: serif;
+  font-weight: 700;
+  font-size: 19px;
+  letter-spacing: 1px;
   cursor: pointer;
   /* 初期設定（非活性時） */
-  background-color: rgba(40, 44, 52, 0.7);
-  border: 2px solid #5a5f6b;
-  color: #a0a4b0;
-  box-shadow: none;
+  background: linear-gradient(180deg, rgba(56, 48, 40, 0.92), rgba(33, 29, 24, 0.94));
+  border: none;
+  color: #b3a791;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
   transition: all 0.3s ease;
   overflow: hidden;
   z-index: 2;
   /* 活性時のスタイル */
 }
 .field_turn button:not(:disabled) {
-  background-color: rgba(30, 40, 50, 0.9); /* 濃い青背景 */
-  border: 3px solid #00ffff; /* ネオンシアンの枠線 */
-  color: #ccffff; /* 明るいテキスト */
-  box-shadow: 0 0 10px rgba(0, 255, 255, 0.6), 0 0 20px rgba(0, 255, 255, 0.3);
+  background: linear-gradient(180deg, rgba(92, 76, 56, 0.95), rgba(48, 39, 30, 0.95));
+  color: #f6e8c7;
+  box-shadow: 0 0 8px rgba(186, 160, 106, 0.3), 0 0 18px rgba(88, 66, 32, 0.3);
 }
 .field_turn button:not(:disabled):hover {
-  background-color: rgb(40, 50, 60);
-  border-color: #33ffff;
-  box-shadow: 0 0 15px rgba(0, 255, 255, 0.8), 0 0 30px rgba(0, 255, 255, 0.5);
-  transform: scale(1.05); /* 少し大きくする */
+  background: linear-gradient(180deg, rgba(108, 88, 64, 0.98), rgba(57, 45, 33, 0.98));
+  border-color: #d2bc8b;
+  box-shadow: 0 0 10px rgba(210, 188, 139, 0.36), 0 0 22px rgba(118, 93, 49, 0.28);
+  transform: scale(1.03);
 }
 .field_turn button:not(:disabled):active {
-  transform: scale(0.98); /* 少し沈み込ませる */
-  box-shadow: 0 0 5px rgba(0, 255, 255, 0.4);
+  transform: scale(0.99);
+  box-shadow: 0 0 5px rgba(163, 144, 90, 0.34);
+}
+.field_turn_ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 1;
+  filter: drop-shadow(0 0 7px rgba(88, 118, 171, 0.28));
+}
+.field_turn_ring_track {
+  fill: none;
+  stroke: rgba(115, 109, 94, 0.48);
+  stroke-width: 6;
+}
+.field_turn_ring_progress {
+  fill: none;
+  stroke-width: 6;
+  stroke-linecap: round;
+  transform: scaleX(-1);
+  transform-origin: 50% 50%;
+  transition: stroke-dasharray 1s linear, stroke 0.35s ease;
 }
 .field_turn {
   /* ボタンテキスト */
 }
 .field_turn_text {
   position: relative;
-  z-index: 2; /* ネオンの上にテキストを表示 */
+  z-index: 3;
+  font-family: serif;
+  letter-spacing: 0.08em;
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.5);
 }
 .field_turn {
   /* --- (オプション) 簡易的なアニメーション --- */
@@ -849,21 +876,29 @@
 }
 @keyframes criticalGlow {
   0% {
-    /* ベースの赤色と弱い光 */
-    border-color: #ff5722; /* 鮮やかな赤 */
-    box-shadow: 0 0 10px rgba(255, 87, 34, 0.7);
+    box-shadow: 0 0 10px rgba(214, 135, 62, 0.55), 0 0 22px rgba(138, 84, 30, 0.32);
     transform: scale(1);
   }
   50% {
-    /* 強い光と拡大 */
-    border-color: #ffccbc; /* 明るい赤 */
-    box-shadow: 0 0 20px rgb(255, 87, 34), 0 0 40px rgba(255, 87, 34, 0.6);
-    transform: scale(1.03); /* 少し拡大 */
+    box-shadow: 0 0 14px rgba(234, 155, 76, 0.72), 0 0 30px rgba(173, 105, 37, 0.4);
+    transform: scale(1.015);
   }
   100% {
-    /* 元に戻る */
-    border-color: #ff5722;
-    box-shadow: 0 0 10px rgba(255, 87, 34, 0.7);
+    box-shadow: 0 0 10px rgba(214, 135, 62, 0.55), 0 0 22px rgba(138, 84, 30, 0.32);
+    transform: scale(1);
+  }
+}
+@keyframes dangerGlow {
+  0% {
+    box-shadow: 0 0 12px rgba(212, 67, 49, 0.72), 0 0 24px rgba(121, 34, 25, 0.38);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 16px rgba(233, 79, 59, 0.88), 0 0 34px rgba(152, 44, 32, 0.52);
+    transform: scale(1.015);
+  }
+  100% {
+    box-shadow: 0 0 12px rgba(212, 67, 49, 0.72), 0 0 24px rgba(121, 34, 25, 0.38);
     transform: scale(1);
   }
 }
@@ -872,18 +907,21 @@
 }
 .field_turn_end_critical {
   /* 色を赤系に上書き */
-  background-color: rgba(60, 20, 20, 0.9) !important;
-  border-color: #ff5722 !important;
-  color: #fff3e0 !important; /* テキストを明るく */
+  background: linear-gradient(180deg, rgba(95, 52, 30, 0.95), rgba(62, 33, 18, 0.95)) !important;
+  color: #ffead8 !important;
   /* 脈動アニメーションを適用 */
-  animation: criticalGlow 1.2s infinite alternate ease-in-out;
+  animation: criticalGlow 1.35s infinite alternate ease-in-out;
   animation-fill-mode: both;
 }
 .field_turn_end_critical:hover {
   animation: none; /* 脈動を停止 */
-  transform: scale(1.08) !important; /* 通常時より大きく拡大 */
-  border-color: #ffccbc !important;
-  box-shadow: 0 0 30px rgb(255, 87, 34), 0 0 50px rgba(255, 87, 34, 0.8) !important;
+  transform: scale(1.04) !important;
+  box-shadow: 0 0 18px rgba(229, 151, 70, 0.72), 0 0 32px rgba(146, 87, 33, 0.5) !important;
+}
+.field_turn_end_urgent {
+  background: linear-gradient(180deg, rgba(112, 34, 29, 0.97), rgba(74, 22, 18, 0.97)) !important;
+  color: #ffe8e3 !important;
+  animation: dangerGlow 1.05s infinite alternate ease-in-out !important;
 }
 .field_card_description {
   position: absolute;
