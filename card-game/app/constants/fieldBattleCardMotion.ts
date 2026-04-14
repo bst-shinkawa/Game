@@ -12,10 +12,10 @@ export const FIELD_CARD_POSE = {
 
 /** 召喚開始: 卓に寝かす前（より立っている）→ FIELD_CARD_POSE へ */
 export const FIELD_SUMMON_FROM = {
-  rotateX: 52,
-  scaleY: 0.94,
-  y: -22,
-  scale: 0.88,
-  opacity: 0.92,
-  boxShadow: "0 6px 18px rgba(0, 0, 0, 0.38)",
+  rotateX: 34,
+  scaleY: 1.08,
+  y: -86,
+  scale: 0.96,
+  opacity: 0,
+  boxShadow: "0 8px 22px rgba(0, 0, 0, 0.42)",
 } as const;

@@ -72,6 +72,7 @@ export function useGame(): {
   playerAttackAnimation: { sourceCardId: string; targetId: string | "hero" } | null;
   enemyAttackAnimation: { sourceCardId: string | null; targetId: string | "hero" } | null;
   enemySpellAnimation: { targetId: string | "hero"; effect: string } | null;
+  playerSpellCastCard: Card | null;
   gameOver: GameOverState;
   playerRole: "king" | "usurper" | null;
   kingBoardControlStreak: number;
@@ -296,6 +297,9 @@ export function useGame(): {
   const [enemyAttackAnimation, setEnemyAttackAnimation] = useState<{ sourceCardId: string | null; targetId: string | "hero" } | null>(null);
   // 敵のスペル使用アニメーション用
   const [enemySpellAnimation, setEnemySpellAnimation] = useState<{ targetId: string | "hero"; effect: string } | null>(null);
+  // プレイヤーが使ったスペルを短時間だけ中央表示（進行遅延なし）
+  const [playerSpellCastCard, setPlayerSpellCastCard] = useState<Card | null>(null);
+  const pendingPlayerSpellCastIdsRef = useRef<Set<string>>(new Set());
 
   // --- 初期手札 ---
   const initializedRef = useRef<boolean>(false);
@@ -387,12 +391,28 @@ export function useGame(): {
     }
   }, [turn, preGame, coinResult]);
 
-  // ドローはポップアップが閉まった後に1回だけ実行（同じターンで二重ドロー・二重カードを防ぐため ref でガード）
+  // ドローはターンモーダル表示サイクル（pause=true→false）完了後に1回だけ実行
   const lastTurnDrawnRef = useRef<number | null>(null);
   const drewCardForTurnRef = useRef<number | null>(null);
+  const turnModalPausedRef = useRef<number | null>(null);
+  const [drawReadyTurn, setDrawReadyTurn] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (preGame) {
+      turnModalPausedRef.current = null;
+      setDrawReadyTurn(null);
+      return;
+    }
+    if (pauseTimer) {
+      turnModalPausedRef.current = turn;
+      setDrawReadyTurn(null);
+    }
+  }, [turn, preGame, pauseTimer]);
 
   useEffect(() => {
     if (preGame || pauseTimer) return;
+    if (turnModalPausedRef.current !== turn) return;
+    if (drawReadyTurn !== turn) return;
     if (lastTurnDrawnRef.current === turn) return;
     lastTurnDrawnRef.current = turn;
 
@@ -427,7 +447,7 @@ export function useGame(): {
         return prev.slice(1);
       });
     }
-  }, [turn, preGame, pauseTimer]);
+  }, [turn, preGame, pauseTimer, drawReadyTurn]);
 
   // マナを現在マナに同期（ターン開始時に実行）
   const maxManaRef = useRef<number>(maxMana);
@@ -462,11 +482,18 @@ export function useGame(): {
     // ターン切替用モーダルを表示している間は必ずタイマーを一時停止する
     modalPauseRef.current = true;
     setPauseTimer(true);
-    const modalDuration = (turn % 2 === 1) ? 2000 : 1200;
+    setDrawReadyTurn(null);
+    const modalDurationBase = (turn % 2 === 1) ? 2000 : 1200;
+    // 初回ターンのみ、Game Start 演出(1400ms)ぶん表示モーダル開始が遅れるためロジック側にも加算
+    const initialShowGameStartDelay = initialTurnRef.current ? 1400 : 0;
+    const modalDuration = modalDurationBase + initialShowGameStartDelay;
+    let drawReadyTimer: ReturnType<typeof setTimeout> | null = null;
     const modalTimer = setTimeout(() => {
       if (modalPauseRef.current) {
         modalPauseRef.current = false;
         setPauseTimer(false);
+        drawReadyTimer = setTimeout(() => setDrawReadyTurn(turn), 120);
+        initialTurnRef.current = false;
       }
     }, modalDuration);
 
@@ -524,6 +551,7 @@ export function useGame(): {
     return () => {
       clearTimeout(modalTimer);
       clearTimeout(startTimerTimeout);
+      if (drawReadyTimer) clearTimeout(drawReadyTimer);
       modalPauseRef.current = false;
       if (offPlayerTick) offPlayerTick();
       if (offPlayerEnd) offPlayerEnd();
@@ -899,6 +927,8 @@ export function useGame(): {
     turnProcessedKeys.current.clear();
     lastTurnDrawnRef.current = null;
     drewCardForTurnRef.current = null;
+    turnModalPausedRef.current = null;
+    setDrawReadyTurn(null);
   };
 
   // コイントスの結果確定（'player' が先攻、'enemy' が後攻）
@@ -1173,6 +1203,7 @@ export function useGame(): {
 
   // --- スペルの発動 ---
   const castSpell = (cardUniqueId: string, targetId: string | "hero", isPlayer: boolean = true, setAttackTargets?: (targets: string[]) => void) => {
+    if (isPlayer && pendingPlayerSpellCastIdsRef.current.has(cardUniqueId)) return;
     // プレイヤーか敵かの手札からカードを探す
     const card = isPlayer 
       ? playerHandCards.find((c) => c.uniqueId === cardUniqueId) 
@@ -1208,80 +1239,96 @@ export function useGame(): {
       setEnemyCurrentMana((m) => m - spellManaCost);
     }
 
-    // ref から最新の state を渡して stale closure を回避
-    applySpell(card, targetId, isPlayer, {
-      playerFieldCards: playerFieldCardsRef.current,
-      enemyFieldCards: enemyFieldCardsRef.current,
-      setPlayerFieldCards,
-      setEnemyFieldCards,
-      setPlayerHeroHp,
-      setEnemyHeroHp,
-      playerHeroMaxHp: playerMaxHeroHp,
-      enemyHeroMaxHp: enemyMaxHeroHp,
-      setPlayerGraveyard,
-      setEnemyGraveyard,
-      setGameOver,
-      stopTimer: () => {
-        try { playerTurnTimerRef.current?.stop(); enemyTurnTimerRef.current?.stop(); } catch (e) { /* ignore */ }
-      },
-      setAiRunning,
-      addCardToDestroying,
-      playerHandCards: playerHandCardsRef.current,
-      enemyHandCards: enemyHandCardsRef.current,
-      setPlayerHandCards,
-      setEnemyHandCards,
-      playerGraveyard: playerGraveyardRef.current,
-      enemyGraveyard: enemyGraveyardRef.current,
-      setDeck,
-      setEnemyDeck,
-      currentMana,
-      setCurrentMana,
-      enemyCurrentMana,
-      setEnemyCurrentMana,
-      drawPlayerCard,
-      drawEnemyCard,
-      drawPlayerCards,
-      drawEnemyCards,
-      daggerCount: isPlayer ? playerDaggerCountRef.current : enemyDaggerCountRef.current,
-      fieldSize: isPlayer ? playerFieldCardsRef.current.length : enemyFieldCardsRef.current.length,
-    });
+    const resolveSpell = () => {
+      // ref から最新の state を渡して stale closure を回避
+      applySpell(card, targetId, isPlayer, {
+        playerFieldCards: playerFieldCardsRef.current,
+        enemyFieldCards: enemyFieldCardsRef.current,
+        setPlayerFieldCards,
+        setEnemyFieldCards,
+        setPlayerHeroHp,
+        setEnemyHeroHp,
+        playerHeroMaxHp: playerMaxHeroHp,
+        enemyHeroMaxHp: enemyMaxHeroHp,
+        setPlayerGraveyard,
+        setEnemyGraveyard,
+        setGameOver,
+        stopTimer: () => {
+          try { playerTurnTimerRef.current?.stop(); enemyTurnTimerRef.current?.stop(); } catch (e) { /* ignore */ }
+        },
+        setAiRunning,
+        addCardToDestroying,
+        playerHandCards: playerHandCardsRef.current,
+        enemyHandCards: enemyHandCardsRef.current,
+        setPlayerHandCards,
+        setEnemyHandCards,
+        playerGraveyard: playerGraveyardRef.current,
+        enemyGraveyard: enemyGraveyardRef.current,
+        setDeck,
+        setEnemyDeck,
+        currentMana,
+        setCurrentMana,
+        enemyCurrentMana,
+        setEnemyCurrentMana,
+        drawPlayerCard,
+        drawEnemyCard,
+        drawPlayerCards,
+        drawEnemyCards,
+        daggerCount: isPlayer ? playerDaggerCountRef.current : enemyDaggerCountRef.current,
+        fieldSize: isPlayer ? playerFieldCardsRef.current.length : enemyFieldCardsRef.current.length,
+      });
 
-    // 暗器（id:15）使用時：ターン用カウント＋（打出し直前に手札にいた対象カードごとに）コスト軽減スタック
-    if (card.id === 15 && daggerTargetsInHandBeforeResolve) {
-      const { had23, had28 } = daggerTargetsInHandBeforeResolve;
-      if (isPlayer) {
-        setPlayerDaggerCount((c) => c + 1);
-        playerDaggerCountRef.current += 1;
-        if (had23) playerCostByDaggerStacksRef.current[23] += 1;
-        if (had28) playerCostByDaggerStacksRef.current[28] += 1;
-        if (had23 || had28) {
-          setPlayerCostByDaggerStacks({ ...playerCostByDaggerStacksRef.current });
-        }
-      } else {
-        setEnemyDaggerCount((c) => c + 1);
-        enemyDaggerCountRef.current += 1;
-        if (had23) enemyCostByDaggerStacksRef.current[23] += 1;
-        if (had28) enemyCostByDaggerStacksRef.current[28] += 1;
-        if (had23 || had28) {
-          setEnemyCostByDaggerStacks({ ...enemyCostByDaggerStacksRef.current });
+      // 暗器（id:15）使用時：ターン用カウント＋（打出し直前に手札にいた対象カードごとに）コスト軽減スタック
+      if (card.id === 15 && daggerTargetsInHandBeforeResolve) {
+        const { had23, had28 } = daggerTargetsInHandBeforeResolve;
+        if (isPlayer) {
+          setPlayerDaggerCount((c) => c + 1);
+          playerDaggerCountRef.current += 1;
+          if (had23) playerCostByDaggerStacksRef.current[23] += 1;
+          if (had28) playerCostByDaggerStacksRef.current[28] += 1;
+          if (had23 || had28) {
+            setPlayerCostByDaggerStacks({ ...playerCostByDaggerStacksRef.current });
+          }
+        } else {
+          setEnemyDaggerCount((c) => c + 1);
+          enemyDaggerCountRef.current += 1;
+          if (had23) enemyCostByDaggerStacksRef.current[23] += 1;
+          if (had28) enemyCostByDaggerStacksRef.current[28] += 1;
+          if (had23 || had28) {
+            setEnemyCostByDaggerStacks({ ...enemyCostByDaggerStacksRef.current });
+          }
         }
       }
-    }
 
-    // 手札から除去して墓地へ
-    if (isPlayer) {
-      setPlayerHandCards((h) => h.filter((c) => c.uniqueId !== cardUniqueId));
-      setPlayerGraveyard((g) => [...g, createUniqueCard(card)]);
-    } else {
-      setEnemyHandCards((h) => h.filter((c) => c.uniqueId !== cardUniqueId));
-      setEnemyGraveyard((g) => [...g, createUniqueCard(card)]);
-      // 敵がスペルを使ったら視覚的に見えるようにアニメーションをトリガー
-      setEnemySpellAnimation({ targetId, effect: card.effect || "" });
-      setTimeout(() => setEnemySpellAnimation(null), 600);
-    }
+      // 手札から除去して墓地へ
+      if (isPlayer) {
+        setPlayerHandCards((h) => h.filter((c) => c.uniqueId !== cardUniqueId));
+        setPlayerGraveyard((g) => [...g, createUniqueCard(card)]);
+        pendingPlayerSpellCastIdsRef.current.delete(cardUniqueId);
+      } else {
+        setEnemyHandCards((h) => h.filter((c) => c.uniqueId !== cardUniqueId));
+        setEnemyGraveyard((g) => [...g, createUniqueCard(card)]);
+        // 敵がスペルを使ったら視覚的に見えるようにアニメーションをトリガー
+        setEnemySpellAnimation({ targetId, effect: card.effect || "" });
+        setTimeout(() => setEnemySpellAnimation(null), 600);
+      }
+    };
 
     // ハイライト解除
     setAttackTargets?.([]);
+
+    if (isPlayer) {
+      pendingPlayerSpellCastIdsRef.current.add(cardUniqueId);
+      setPlayerSpellCastCard(card);
+      window.setTimeout(() => {
+        setPlayerSpellCastCard(null);
+        if (pendingPlayerSpellCastIdsRef.current.has(cardUniqueId)) {
+          resolveSpell();
+        }
+      }, 1000);
+    } else {
+      resolveSpell();
+    }
   };
 
   return {
@@ -1318,6 +1365,7 @@ export function useGame(): {
     playerAttackAnimation,
     enemyAttackAnimation,
     enemySpellAnimation,
+    playerSpellCastCard,
     gameOver,
     playerRole: coinResult === "player" ? "king" as const : coinResult === "enemy" ? "usurper" as const : null,
     kingBoardControlStreak: kingFieldStreakRef.current,

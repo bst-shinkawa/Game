@@ -20,7 +20,8 @@ export interface DamageFloat {
   y: number;
 }
 
-export function useGameUI() {
+export function useGameUI(options?: { lockHandCollapse?: boolean }) {
+  const lockHandCollapse = options?.lockHandCollapse ?? false;
   // ダメージフロート
   const [damageFloats, setDamageFloats] = useState<DamageFloat[]>([]);
 
@@ -86,6 +87,7 @@ export function useGameUI() {
       if (descCardId && !target?.closest('[data-uniqueid]') && !target?.closest('[data-card-description="true"]')) {
         setDescCardId(null);
       }
+      if (lockHandCollapse) return;
       if (isHandExpanded && handAreaRef.current && !handAreaRef.current.contains(event.target as Node)) {
         collapseHand();
       }
@@ -93,7 +95,7 @@ export function useGameUI() {
 
     document.addEventListener('click', handleOutsideClick);
     return () => document.removeEventListener('click', handleOutsideClick);
-  }, [isHandExpanded, collapseHand, descCardId]);
+  }, [isHandExpanded, collapseHand, descCardId, lockHandCollapse]);
 
   // ダメージフロート自動消去
   useEffect(() => {

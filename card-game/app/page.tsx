@@ -10,7 +10,7 @@ import styles from "./assets/css/Game.Master.module.css";
 const GamePage: React.FC = () => {
   const [mode, setMode] = useState<"menu" | "game" | "deck">("menu");
   const gameState = useGameContext();
-  const uiState = useGameUI();
+  const uiState = useGameUI({ lockHandCollapse: gameState.selectionMode !== "none" });
 
   if (mode === "menu") {
     const tryLockLandscape = async () => {

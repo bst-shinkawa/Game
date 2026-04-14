@@ -28,15 +28,15 @@ const StartMenu: React.FC<Props> = ({ onSelectMode, onDeck }) => {
         </p>
         <p style={{ paddingTop: 30, color: "#fff"}}>
           <span style={{ color: "#f0c040"}}>勝利条件</span><br />
-          相手のヒーローの体力を0にする
+          相手プレイヤーの体力を0にする
           <br />
           <br />
           <span style={{ color: "#f0c040"}}>特殊勝利条件</span><br />
-          <span style={{ color: "#f0c040"}}>王様：</span>10ラウンド耐えきる、もしくは自分の場に3体以上を合計5回達成すると勝利です。<br />
-          <span style={{ color: "#f0c040"}}>簒奪者：</span>10ラウンド以内に倒しきる、もしくは王様の手札を枯らした方が勝利です。
+          <span style={{ color: "#f0c040"}}>王様：</span>10ラウンド耐えきる、もしくは自分の場に3体以上を合計5回達成すると勝利<br />
+          <span style={{ color: "#f0c040"}}>簒奪者：</span>10ラウンド以内に倒しきる、もしくは王様の手札を0枚にすると勝利
         </p>
         <p style={{ paddingTop: 30, color: "#fff"}}>
-          王側は、場に3枚カード出していることで特殊ボーナスを発生<br />
+          王側は、場に3枚カード出している状態で特殊ボーナスを発生<br />
           簒奪者側は、1ターン事に使用する暗器の使用回数によって特殊ボーナスを発生<br />
         </p>
       </div>

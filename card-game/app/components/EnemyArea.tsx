@@ -229,7 +229,7 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
               layout={false}
               initial={
                 isSummoning
-                  ? { ...FIELD_SUMMON_FROM, filter: "brightness(1)" }
+                  ? { ...FIELD_SUMMON_FROM }
                   : false
               }
               animate={
@@ -244,19 +244,17 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
                     ? {
                         ...FIELD_CARD_POSE,
                         opacity: 1,
-                        filter: "brightness(1)",
                       }
                     : {
                         ...FIELD_CARD_POSE,
                         opacity: 1,
-                        filter: "brightness(1)",
                       }
               }
               transition={
                 isDestroying
                   ? { duration: 0.45, ease: "easeOut" }
                   : isSummoning
-                    ? { type: "spring", stiffness: 240, damping: 20, mass: 0.88 }
+                    ? { duration: 1.04, ease: [0.18, 0.72, 0.3, 1] }
                     : { duration: 0.2, ease: "easeOut" }
               }
               onAnimationComplete={() => {

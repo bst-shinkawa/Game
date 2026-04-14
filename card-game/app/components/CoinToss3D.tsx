@@ -19,7 +19,7 @@ const createCoinFaceTexture = (kind: "king" | "thief") => {
   const ctx = canvas.getContext("2d");
   if (!ctx) return null;
 
-  ctx.fillStyle = kind === "king" ? "#f4d06f" : "#d9b86a";
+  ctx.fillStyle = kind === "king" ? "#ffd95f" : "#f1be54";
   ctx.fillRect(0, 0, 512, 512);
 
   const ring = ctx.createRadialGradient(256, 256, 30, 256, 256, 245);
@@ -36,7 +36,7 @@ const createCoinFaceTexture = (kind: "king" | "thief") => {
   ctx.arc(256, 256, 195, 0, Math.PI * 2);
   ctx.stroke();
 
-  ctx.fillStyle = "#53380f";
+  ctx.fillStyle = "#2f1a05";
   if (kind === "king") {
     // crown
     ctx.beginPath();
@@ -51,48 +51,86 @@ const createCoinFaceTexture = (kind: "king" | "thief") => {
     ctx.fill();
 
     ctx.fillRect(160, 330, 192, 32);
-    ctx.fillStyle = "#fff2bf";
+    ctx.fillStyle = "#f4d88b";
     ctx.beginPath();
     ctx.arc(256, 287, 17, 0, Math.PI * 2);
     ctx.fill();
   } else {
-    // simple dagger mark
+    // fantasy thief dagger mark (curved blade + leather grip)
     ctx.save();
     ctx.translate(256, 256);
-    ctx.rotate(-0.42);
+    ctx.rotate(-0.24);
 
-    // blade
-    ctx.fillStyle = "#f7f7f7";
+    // blade base shape (slightly curved)
+    ctx.fillStyle = "#c8a96a";
     ctx.beginPath();
-    ctx.moveTo(-20, -122);
-    ctx.lineTo(24, -18);
-    ctx.lineTo(6, 6);
-    ctx.lineTo(-38, -98);
+    ctx.moveTo(-8, -136);
+    ctx.quadraticCurveTo(20, -124, 38, -82);
+    ctx.quadraticCurveTo(26, -34, 10, -8);
+    ctx.lineTo(-18, -12);
+    ctx.quadraticCurveTo(-28, -60, -20, -108);
     ctx.closePath();
     ctx.fill();
 
-    // blade edge shadow
-    ctx.fillStyle = "rgba(40,40,40,0.28)";
+    // blade highlight
+    ctx.fillStyle = "rgba(236,220,170,0.45)";
     ctx.beginPath();
-    ctx.moveTo(-10, -102);
-    ctx.lineTo(10, -52);
-    ctx.lineTo(3, -42);
-    ctx.lineTo(-18, -92);
+    ctx.moveTo(-2, -118);
+    ctx.quadraticCurveTo(10, -100, 18, -68);
+    ctx.quadraticCurveTo(12, -36, 2, -16);
+    ctx.lineTo(-6, -18);
+    ctx.quadraticCurveTo(2, -54, -2, -96);
     ctx.closePath();
     ctx.fill();
 
-    // guard
-    ctx.fillStyle = "#5b3a14";
-    ctx.fillRect(-52, -8, 104, 20);
-
-    // handle
-    ctx.fillStyle = "#3d240c";
-    ctx.fillRect(-14, 10, 28, 112);
-
-    // pommel
-    ctx.fillStyle = "#c7a158";
+    // blade edge shadow for depth
+    ctx.fillStyle = "rgba(12,7,3,0.58)";
     ctx.beginPath();
-    ctx.arc(0, 134, 16, 0, Math.PI * 2);
+    ctx.moveTo(20, -98);
+    ctx.quadraticCurveTo(30, -66, 20, -28);
+    ctx.lineTo(11, -12);
+    ctx.quadraticCurveTo(22, -52, 16, -88);
+    ctx.closePath();
+    ctx.fill();
+
+    // guard (compact, thief-like)
+    ctx.fillStyle = "#251607";
+    ctx.beginPath();
+    ctx.moveTo(-42, -8);
+    ctx.quadraticCurveTo(-8, -22, 28, -6);
+    ctx.quadraticCurveTo(10, 12, -30, 10);
+    ctx.closePath();
+    ctx.fill();
+
+    // handle core
+    ctx.fillStyle = "#1a0f05";
+    ctx.beginPath();
+    ctx.moveTo(-18, 4);
+    ctx.lineTo(5, 8);
+    ctx.lineTo(-4, 122);
+    ctx.lineTo(-24, 116);
+    ctx.closePath();
+    ctx.fill();
+
+    // leather wraps
+    ctx.strokeStyle = "#5f3a12";
+    ctx.lineWidth = 4;
+    for (let i = 0; i < 5; i += 1) {
+      const y = 24 + i * 18;
+      ctx.beginPath();
+      ctx.moveTo(-19, y);
+      ctx.lineTo(1, y + 4);
+      ctx.stroke();
+    }
+
+    // pommel ring
+    ctx.fillStyle = "#7a511a";
+    ctx.beginPath();
+    ctx.arc(-13, 132, 14, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#2a1907";
+    ctx.beginPath();
+    ctx.arc(-13, 132, 7, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
   }
@@ -136,29 +174,40 @@ export const CoinToss3D: React.FC<CoinToss3DProps> = ({
     renderer.domElement.style.display = "block";
     mount.appendChild(renderer.domElement);
 
-    scene.add(new THREE.AmbientLight(0xffffff, 0.72));
-    const directional = new THREE.DirectionalLight(0xffffff, 1.15);
-    directional.position.set(2.5, 3, 3.5);
-    scene.add(directional);
+    scene.add(new THREE.AmbientLight(0xffe6b8, 0.72));
+    const hemi = new THREE.HemisphereLight(0xffd78a, 0x3a2a18, 0.5);
+    scene.add(hemi);
+    const keyLight = new THREE.DirectionalLight(0xffcc72, 1.28);
+    keyLight.position.set(2.8, 3.2, 3.8);
+    scene.add(keyLight);
+    const rimLight = new THREE.DirectionalLight(0xfff0c2, 0.46);
+    rimLight.position.set(-2.6, 1.4, -2.4);
+    scene.add(rimLight);
 
     const edgeMaterial = new THREE.MeshStandardMaterial({
-      color: 0xc28c32,
-      roughness: 0.37,
-      metalness: 0.95,
+      color: 0xe3a93a,
+      roughness: 0.24,
+      metalness: 0.96,
+      emissive: 0x5a3a0b,
+      emissiveIntensity: 0.12,
     });
     const kingTexture = createCoinFaceTexture("king");
     const thiefTexture = createCoinFaceTexture("thief");
 
     const headMaterial = new THREE.MeshStandardMaterial({
-      color: 0xffd66d,
-      roughness: 0.28,
-      metalness: 0.9,
+      color: 0xffe06a,
+      roughness: 0.16,
+      metalness: 0.92,
+      emissive: 0x7a520f,
+      emissiveIntensity: 0.14,
       map: kingTexture,
     });
     const tailMaterial = new THREE.MeshStandardMaterial({
-      color: 0xe6b347,
-      roughness: 0.35,
-      metalness: 0.88,
+      color: 0xffc14f,
+      roughness: 0.18,
+      metalness: 0.9,
+      emissive: 0x73490e,
+      emissiveIntensity: 0.14,
       map: thiefTexture,
     });
     const coin = new THREE.Mesh(

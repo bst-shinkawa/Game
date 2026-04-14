@@ -198,10 +198,15 @@ export async function runEnemyTurn(ctx: AIGameContext) {
     const lethalThreshold = 5;
     if (playerHeroHp <= lethalThreshold) {
       let remainingMana = enemyCurrentMana;
+      const canHitHeroDirectly = (c: Card) => {
+        if (c.effect !== "damage_single" && c.effect !== "damage_all") return false;
+        const selectableTargets = c.selectableTargets ?? ["hero", "field_card"];
+        return c.effect === "damage_all" || selectableTargets.includes("hero");
+      };
       let lethalSpell = localHand.find(
         (c) =>
           c.type === "spell" &&
-          (c.effect === "damage_single" || c.effect === "damage_all") &&
+          canHitHeroDirectly(c) &&
           c.cost <= remainingMana
       );
       while (lethalSpell && remainingMana >= lethalSpell.cost) {
@@ -245,7 +250,7 @@ export async function runEnemyTurn(ctx: AIGameContext) {
         lethalSpell = localHand.find(
           (c) =>
             c.type === "spell" &&
-            (c.effect === "damage_single" || c.effect === "damage_all") &&
+            canHitHeroDirectly(c) &&
             c.cost <= remainingMana
         );
       }
@@ -389,23 +394,26 @@ export async function runEnemyTurn(ctx: AIGameContext) {
           });
         }
       } else if (card.summonEffect?.type === "damage_single") {
-        const dmg = card.summonEffect.value ?? 1;
-        setPlayerFieldCards((list) => {
-          if (list.length === 0) {
-            setPlayerHeroHp((hp) => {
-              const next = Math.max(hp - dmg, 0);
-              if (next <= 0) { setGameOver({ over: true, winner: "enemy" }); try { stopTimer(); } catch (_) {} return 0; }
-              return next;
-            });
-            return list;
-          }
-          const idx = Math.floor(Math.random() * list.length);
-          const updated = list.map((c, i) => (i === idx ? { ...c, hp: (c.hp ?? 0) - dmg } : c));
-          const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
-          if (dead.length)
-            setPlayerGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
-          return updated.filter((c) => (c.hp ?? 0) > 0);
-        });
+        // 槍兵（id:10）は選択時1ダメージ固定
+        const dmg = card.id === 10 ? 1 : (card.summonEffect.value ?? 1);
+        const currentPlayerFieldCards = getCurrentPlayerFieldCards();
+        if (currentPlayerFieldCards.length === 0) {
+          setPlayerHeroHp((hp) => {
+            const next = Math.max(hp - dmg, 0);
+            if (next <= 0) { setGameOver({ over: true, winner: "enemy" }); try { stopTimer(); } catch (_) {} return 0; }
+            return next;
+          });
+        } else {
+          const target = currentPlayerFieldCards[Math.floor(Math.random() * currentPlayerFieldCards.length)];
+          setPlayerFieldCards((list) => {
+            const updated = list.map((c) => (c.uniqueId === target.uniqueId ? { ...c, hp: (c.hp ?? 0) - dmg } : c));
+            const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
+            if (dead.length) {
+              setPlayerGraveyard((g) => [...g, ...dead.filter((d) => !g.some((x) => x.uniqueId === d.uniqueId))]);
+            }
+            return updated.filter((c) => (c.hp ?? 0) > 0);
+          });
+        }
       }
 
       if (card.summonTrigger?.type === "add_card_hand" && card.summonTrigger.cardId) {
@@ -511,6 +519,9 @@ export async function runEnemyTurn(ctx: AIGameContext) {
       syncEnemyMana(remainingMana);
 
       let targetId: string | "hero" = "hero";
+      const selectableTargets = spell.selectableTargets ?? ["hero", "field_card"];
+      const canTargetHero = selectableTargets.includes("hero");
+      const canTargetField = selectableTargets.includes("field_card");
       switch (spell.effect) {
         case "reduce_cost": {
           const others = localHand.filter((c) => c.cost > 0 && c.uniqueId !== spellId);
@@ -528,12 +539,14 @@ export async function runEnemyTurn(ctx: AIGameContext) {
         case "freeze_single":
         case "haste": {
           const currentPlayerFieldCards = getCurrentPlayerFieldCards();
-          if (currentPlayerFieldCards.length > 0) {
+          if (canTargetField && currentPlayerFieldCards.length > 0) {
             if (spell.effect === "freeze_single" && Math.random() < 0.7) {
               targetId = currentPlayerFieldCards.reduce((best, c) => ((c.attack ?? 0) > (best.attack ?? 0) ? c : best)).uniqueId;
             } else {
               targetId = currentPlayerFieldCards[Math.floor(Math.random() * currentPlayerFieldCards.length)].uniqueId;
             }
+          } else if (canTargetHero) {
+            targetId = "hero";
           }
           break;
         }
@@ -543,7 +556,7 @@ export async function runEnemyTurn(ctx: AIGameContext) {
             targetId = Math.random() < 0.7
               ? currentPlayerFieldCards.reduce((best, c) => ((c.hp ?? 0) > (best.hp ?? 0) ? c : best)).uniqueId
               : currentPlayerFieldCards[Math.floor(Math.random() * currentPlayerFieldCards.length)].uniqueId;
-          } else {
+          } else if (canTargetHero) {
             targetId = "hero";
           }
           break;
@@ -568,7 +581,8 @@ export async function runEnemyTurn(ctx: AIGameContext) {
 
       if (
         (spell.effect === "steal_follower" && targetId === "hero") ||
-        (spell.effect === "poison" && targetId === "hero")
+        (spell.effect === "poison" && targetId === "hero") ||
+        (!canTargetHero && targetId === "hero")
       ) {
         // 対象がいないのでこのスペルはスキップ
         spellCandidates = spellCandidates.filter((c) => c.uniqueId !== spellId);

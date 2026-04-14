@@ -86,6 +86,7 @@ interface GameFieldProps {
   playerAttackAnimation: { sourceCardId: string; targetId: string | "hero" } | null;
   enemyAttackAnimation: { sourceCardId: string | null; targetId: string | "hero" } | null;
   enemySpellAnimation: { targetId: string | "hero"; effect: string } | null;
+  playerSpellCastCard: Card | null;
   selectionMode: SelectionMode;
   selectionConfig: SelectionConfig | null;
   playCardToField: (card: Card, selectedTargetIds?: string[]) => void;
@@ -137,7 +138,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
     descCardId, rouletteRunning, rouletteLabel,
     showCoinPopup, mulliganTimer, swapIds, showGameStart,
     attackClone, movingAttack, playerAttackAnimation,
-    enemyAttackAnimation, enemySpellAnimation,
+    enemyAttackAnimation, enemySpellAnimation, playerSpellCastCard,
     selectionMode, selectionConfig,
     playCardToField, endTurn, attack, castSpell,
     resetGame, goToMenu, finalizeCoin, doMulligan, startMatch,
@@ -205,6 +206,12 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
       if (usageType === "cast_spell_select_target") {
         const selectableTargets = (card as any).selectableTargets || ["hero", "field_card"];
         const selectCount = (card as any).selectCount || 1;
+        const closesHandOnUse =
+          card.effect === "heal_single" &&
+          (selectableTargets.includes("own_hero") || selectableTargets.includes("own_field_card"));
+        if (closesHandOnUse) {
+          setIsHandExpanded(false);
+        }
         initializeSelection({
           sourceCardId: cardId, selectableTargets, selectCount,
           onComplete: (selectedIds: string[]) => { if (selectedIds.length > 0) castSpell(cardId, selectedIds[0], true); },
@@ -301,14 +308,18 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
   // --- Turn modal ---
   useEffect(() => {
     if (preGame || showGameStart) { setShowTurnModal(false); return; }
-    // モーダル表示と同時に、そのターンの表示マナ上限を確定させる
-    setDisplayPlayerMaxMana(maxMana);
-    setDisplayEnemyMaxMana(enemyMaxMana);
     setShowTurnModal(true);
-    const duration = isPlayerTurn ? 2000 : 1200;
+    const duration = 2000;
     const t = setTimeout(() => setShowTurnModal(false), duration);
     return () => { clearTimeout(t); setShowTurnModal(false); };
-  }, [isPlayerTurn, turn, preGame, showGameStart, maxMana, enemyMaxMana, setShowTurnModal]);
+  }, [isPlayerTurn, turn, preGame, showGameStart, setShowTurnModal]);
+
+  useEffect(() => {
+    if (!showTurnModal || preGame || showGameStart) return;
+    // 表示上のマナ上限は、ターン開始モーダル表示開始タイミングで確定させる
+    setDisplayPlayerMaxMana(maxMana);
+    setDisplayEnemyMaxMana(enemyMaxMana);
+  }, [showTurnModal, preGame, showGameStart, maxMana, enemyMaxMana]);
 
   // --- Mulligan timer ---
   useEffect(() => {
@@ -440,16 +451,20 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
             const { start, end, card, duration } = attackClone;
             const deltaX = end.left - start.left;
             const deltaY = end.top - start.top;
+            const CARD_ASPECT = 180 / 250;
+            const cloneHeight = start.height;
+            const cloneWidth = cloneHeight * CARD_ASPECT;
+            const leftOffset = (start.width - cloneWidth) / 2;
             return (
               <motion.div
                 key={attackClone.key}
                 className={styles.card}
                 style={{
                   position: "fixed",
-                  left: start.left,
+                  left: start.left + leftOffset,
                   top: start.top,
-                  width: start.width,
-                  height: start.height,
+                  width: cloneWidth,
+                  height: cloneHeight,
                   zIndex: 980,
                   pointerEvents: "none",
                 }}
@@ -481,6 +496,19 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
         <div className={styles.overlayModal}>
           <div className={`${styles.overlayModalInner} ${styles.overlayModalInnerGameStart}`}>
             <h1 className={styles.overlayModalTitleGameStart}>GameStart</h1>
+          </div>
+        </div>
+      )}
+
+      {playerSpellCastCard && (
+        <div className={styles.player_spell_cast_popup} aria-hidden={true}>
+          <div className={styles.player_spell_cast_popup_inner}>
+            <div className={styles.card}>
+              {playerSpellCastCard.image ? (
+                <img src={playerSpellCastCard.image} alt={playerSpellCastCard.name} style={{ width: "100%", height: "100%", borderRadius: 10 }} />
+              ) : null}
+            </div>
+            <div className={styles.player_spell_cast_popup_name}>{playerSpellCastCard.name}</div>
           </div>
         </div>
       )}

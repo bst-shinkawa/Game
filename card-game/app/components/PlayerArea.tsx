@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useRef, useEffect, useContext, useState } from "react";
+import React, { useRef, useEffect, useLayoutEffect, useContext, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import CardItem from "./CardItem";
 import Image from "next/image";
@@ -220,7 +220,7 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
     };
   }, []);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const currentIds = playerHandCards.map((c) => c.uniqueId);
     const first = prevHandIdsRef.current.length === 0;
     if (first) {
@@ -261,22 +261,20 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
         const reason: "draw" | "generate" | "return" = deckDropped ? "draw" : isReturn ? "return" : "generate";
 
         const returnRect = returnedFromField ? prevFieldCardRectsRef.current[returnedFromField.uniqueId] : null;
+        const viewportCenterX = viewport.containerLeft + viewport.containerWidth / 2 - 35;
+        const viewportCenterY = viewport.containerTop + viewport.containerHeight / 2 - 50;
         const fromX =
           reason === "draw"
             ? (pileRect ? pileRect.left + pileRect.width / 2 - 35 : targetRect.left)
             : reason === "return" && returnRect
             ? returnRect.x
-            : battleRect
-            ? battleRect.left + battleRect.width / 2 - 35
-            : targetRect.left;
+            : viewportCenterX;
         const fromY =
           reason === "draw"
             ? (pileRect ? pileRect.top + pileRect.height / 2 - 50 : targetRect.top)
             : reason === "return" && returnRect
             ? returnRect.y
-            : battleRect
-            ? battleRect.top + 20
-            : targetRect.top;
+            : viewportCenterY;
         return {
           id: card.uniqueId,
           card,
@@ -397,23 +395,20 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
   }, [enemySpellAnimation, styles, playerHeroRef]);  return (
     <div className={styles.field_player}>
       {/* プレイヤーヒーロー */}
-      <div className={styles.field_player_hero}>
+      <div
+        className={`${styles.field_player_hero} ${isOwnHeroSelectable(selectionMode, selectionConfig) ? styles.selection_highlight : ''}`}
+        style={isOwnHeroSelectable(selectionMode, selectionConfig) ? { cursor: "pointer" } : {}}
+        onClick={() => {
+          if (isOwnHeroSelectable(selectionMode, selectionConfig)) applySelection(["hero"]);
+        }}
+      >
         <div className={styles.field_player_hero_wrap}>
-          {(() => {
-            const isOwnHeroSel = isOwnHeroSelectable(selectionMode, selectionConfig);
-            return (
-              <div
-                ref={playerHeroRef}
-                className={`${styles.field_player_hero_hp} ${hoverTarget?.type === 'playerHero' && attackTargets.includes('playerHero') ? styles.attack_highlight : ''} ${isOwnHeroSel ? styles.selection_highlight : ''}`}
-                style={isOwnHeroSel ? { cursor: "pointer" } : {}}
-                onClick={() => {
-                  if (isOwnHeroSel) applySelection(["hero"]);
-                }}
-              >
-                {!preGame && <p className={getHpClass(playerHeroHp)}>{playerHeroHp}</p>}
-              </div>
-            );
-          })()}
+          <div
+            ref={playerHeroRef}
+            className={`${styles.field_player_hero_hp} ${hoverTarget?.type === 'playerHero' && attackTargets.includes('playerHero') ? styles.attack_highlight : ''}`}
+          >
+            {!preGame && <p className={getHpClass(playerHeroHp)}>{playerHeroHp}</p>}
+          </div>
           {!preGame && <HeroHpBar hp={playerHeroHp} maxHp={playerMaxHeroHp} side="player" />}
         </div>
       </div>
@@ -445,7 +440,7 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
                 layout={false}
                 initial={
                   isSummoning
-                    ? { ...FIELD_SUMMON_FROM, filter: "brightness(1)" }
+                    ? { ...FIELD_SUMMON_FROM }
                     : false
                 }
                 animate={
@@ -460,19 +455,17 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
                       ? {
                           ...FIELD_CARD_POSE,
                           opacity: 1,
-                          filter: "brightness(1)",
                         }
                       : {
                           ...FIELD_CARD_POSE,
                           opacity: isDragging ? 0.15 : 1,
-                          filter: "brightness(1)",
                         }
                 }
                 transition={
                   isDestroying
                     ? { duration: 0.45, ease: "easeOut" }
                     : isSummoning
-                      ? { type: "spring", stiffness: 240, damping: 20, mass: 0.88 }
+                      ? { duration: 1.04, ease: [0.18, 0.72, 0.3, 1] }
                       : { duration: 0.12, ease: "easeOut" }
                 }
                 onAnimationComplete={() => {
