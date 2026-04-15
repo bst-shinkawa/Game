@@ -19,6 +19,7 @@ import ViewportContext from "@/app/context/ViewportContext";
 import { FIELD_CARD_POSE, FIELD_SUMMON_FROM } from "@/app/constants/fieldBattleCardMotion";
 
 interface PlayerAreaProps {
+  heroRole?: "king" | "usurper" | null;
   playerHeroHp: number;
   playerMaxHeroHp: number;
   playerHandCards: Card[];
@@ -77,6 +78,7 @@ interface PlayerAreaProps {
 }
 
 export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: string | null; id?: string | null }, dropSuccess?: { type: string | null; id?: string | null } }> = ({
+  heroRole,
   playerHeroHp,
   playerMaxHeroHp,
   playerHandCards = [],
@@ -129,6 +131,23 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
   dropSuccess,
   attackTargets = [],
 }) => {
+  const display =
+    heroRole === "king" ? "king" : heroRole === "usurper" ? "usurper" : "unknown";
+  const heroName = display === "king" ? "王様" : display === "usurper" ? "簒奪者" : "？";
+  const heroIcon = display === "king" ? "👑" : display === "usurper" ? "🗡" : "？";
+  const heroThemeClass =
+    display === "king"
+      ? styles.hero_theme_king
+      : display === "usurper"
+        ? styles.hero_theme_usurper
+        : styles.hero_theme_unknown;
+  const heroSilhouetteClass =
+    display === "king"
+      ? styles.hero_silhouette_king
+      : display === "usurper"
+        ? styles.hero_silhouette_usurper
+        : styles.hero_silhouette_unknown;
+
   const destroyingRef = useRef(destroyingCards);
   destroyingRef.current = destroyingCards;
 
@@ -177,6 +196,34 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
     if (ratio > 0.25) return styles.hpYellow;
     return styles.hpRed;
   };
+
+  const prevPlayerHeroHpRef = useRef(playerHeroHp);
+  const [playerHeroHpFlash, setPlayerHeroHpFlash] = useState<"none" | "damage" | "heal">("none");
+  const [playerHeroFlashKey, setPlayerHeroFlashKey] = useState(0);
+  const playerHeroFlashClearRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (preGame) {
+      prevPlayerHeroHpRef.current = playerHeroHp;
+      setPlayerHeroHpFlash("none");
+      return;
+    }
+    const prev = prevPlayerHeroHpRef.current;
+    if (playerHeroHp === prev) return;
+    if (playerHeroHp < prev) {
+      setPlayerHeroHpFlash("damage");
+      setPlayerHeroFlashKey((k) => k + 1);
+    } else {
+      setPlayerHeroHpFlash("heal");
+      setPlayerHeroFlashKey((k) => k + 1);
+    }
+    prevPlayerHeroHpRef.current = playerHeroHp;
+    if (playerHeroFlashClearRef.current != null) window.clearTimeout(playerHeroFlashClearRef.current);
+    playerHeroFlashClearRef.current = window.setTimeout(() => setPlayerHeroHpFlash("none"), 560);
+    return () => {
+      if (playerHeroFlashClearRef.current != null) window.clearTimeout(playerHeroFlashClearRef.current);
+    };
+  }, [playerHeroHp, preGame]);
 
   // ViewportContext を使用
   const viewport = useContext(ViewportContext);
@@ -402,14 +449,28 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
           if (isOwnHeroSelectable(selectionMode, selectionConfig)) applySelection(["hero"]);
         }}
       >
-        <div className={styles.field_player_hero_wrap}>
-          <div
-            ref={playerHeroRef}
-            className={`${styles.field_player_hero_hp} ${hoverTarget?.type === 'playerHero' && attackTargets.includes('playerHero') ? styles.attack_highlight : ''}`}
-          >
-            {!preGame && <p className={getHpClass(playerHeroHp)}>{playerHeroHp}</p>}
-          </div>
-          {!preGame && <HeroHpBar hp={playerHeroHp} maxHp={playerMaxHeroHp} side="player" />}
+        {!preGame && (
+          <HeroHpBar
+            hp={playerHeroHp}
+            maxHp={playerMaxHeroHp}
+            valueClassName={getHpClass(playerHeroHp)}
+          />
+        )}
+        <div
+          ref={playerHeroRef}
+          className={`${styles.field_player_hero_wrap} ${heroThemeClass} ${hoverTarget?.type === 'playerHero' && attackTargets.includes('playerHero') ? styles.attack_highlight : ''}`}
+        >
+          <div className={styles.hero_back_aura} aria-hidden="true" />
+          <div className={styles.hero_role_icon} aria-hidden="true">{heroIcon}</div>
+          <div className={styles.hero_name}>{heroName}</div>
+          <div className={`${styles.hero_silhouette} ${heroSilhouetteClass}`} aria-hidden="true" />
+          {!preGame && playerHeroHpFlash !== "none" && (
+            <div
+              key={playerHeroFlashKey}
+              className={`${styles.hero_hp_flash_overlay} ${playerHeroHpFlash === "damage" ? styles.hero_hp_flash_overlay_damage : styles.hero_hp_flash_overlay_heal}`}
+              aria-hidden="true"
+            />
+          )}
         </div>
       </div>
 

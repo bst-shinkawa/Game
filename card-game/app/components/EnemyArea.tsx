@@ -19,6 +19,7 @@ import HeroHpBar from "./HeroHpBar";
 import { FIELD_CARD_POSE, FIELD_SUMMON_FROM } from "@/app/constants/fieldBattleCardMotion";
 
 interface EnemyAreaProps {
+  heroRole?: "king" | "usurper" | null;
   enemyHeroHp: number;
   enemyMaxHeroHp: number;
   preGame: boolean;
@@ -49,6 +50,7 @@ interface EnemyAreaProps {
 }
 
 export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string | null; id?: string | null }, dropSuccess?: { type: string | null; id?: string | null }, attackTargets?: string[], descCardId?: string | null }> = ({
+  heroRole,
   enemyHeroHp,
   enemyMaxHeroHp,
   preGame,
@@ -104,6 +106,34 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
     if (ratio > 0.25) return styles.hpYellow;
     return styles.hpRed;
   };
+
+  const prevEnemyHeroHpRef = useRef(enemyHeroHp);
+  const [enemyHeroHpFlash, setEnemyHeroHpFlash] = useState<"none" | "damage" | "heal">("none");
+  const [enemyHeroFlashKey, setEnemyHeroFlashKey] = useState(0);
+  const enemyHeroFlashClearRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (preGame) {
+      prevEnemyHeroHpRef.current = enemyHeroHp;
+      setEnemyHeroHpFlash("none");
+      return;
+    }
+    const prev = prevEnemyHeroHpRef.current;
+    if (enemyHeroHp === prev) return;
+    if (enemyHeroHp < prev) {
+      setEnemyHeroHpFlash("damage");
+      setEnemyHeroFlashKey((k) => k + 1);
+    } else {
+      setEnemyHeroHpFlash("heal");
+      setEnemyHeroFlashKey((k) => k + 1);
+    }
+    prevEnemyHeroHpRef.current = enemyHeroHp;
+    if (enemyHeroFlashClearRef.current != null) window.clearTimeout(enemyHeroFlashClearRef.current);
+    enemyHeroFlashClearRef.current = window.setTimeout(() => setEnemyHeroHpFlash("none"), 560);
+    return () => {
+      if (enemyHeroFlashClearRef.current != null) window.clearTimeout(enemyHeroFlashClearRef.current);
+    };
+  }, [enemyHeroHp, preGame]);
 
   const enemyHandCount = enemyHandCards.length;
   const enemyMaxAngle = -20;
@@ -181,6 +211,22 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
   // 選択モード中のハイライト判定（selectionService を使用）
   const isHeroSelectable = isEnemyHeroSelectable(selectionMode, selectionConfig);
   const isFieldCardSelectable = isEnemyFieldCardSelectable(selectionMode, selectionConfig);
+  const display =
+    heroRole === "king" ? "king" : heroRole === "usurper" ? "usurper" : "unknown";
+  const heroName = display === "king" ? "王様" : display === "usurper" ? "簒奪者" : "？";
+  const heroIcon = display === "king" ? "👑" : display === "usurper" ? "🗡" : "？";
+  const heroThemeClass =
+    display === "king"
+      ? styles.hero_theme_king
+      : display === "usurper"
+        ? styles.hero_theme_usurper
+        : styles.hero_theme_unknown;
+  const heroSilhouetteClass =
+    display === "king"
+      ? styles.hero_silhouette_king
+      : display === "usurper"
+        ? styles.hero_silhouette_usurper
+        : styles.hero_silhouette_unknown;
 
   return (
     <div className={`${styles.field_enemy} ${enemySpellAnimation ? styles.spell_cast_flash : ""}`}>
@@ -205,12 +251,26 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
             : isHeroSelectable ? { cursor: "pointer" } : {}
         }
       >
-        <div className={styles.field_enemy_hero_wrap}>
-          <div className={styles.field_enemy_hero_hp}>
-            {!preGame && <p className={getHpClass(enemyHeroHp)}>{enemyHeroHp}</p>}
-          </div>
-          {!preGame && <HeroHpBar hp={enemyHeroHp} maxHp={enemyMaxHeroHp} side="enemy" />}
+        <div className={`${styles.field_enemy_hero_wrap} ${heroThemeClass}`}>
+          <div className={styles.hero_back_aura} aria-hidden="true" />
+          <div className={styles.hero_role_icon} aria-hidden="true">{heroIcon}</div>
+          <div className={styles.hero_name}>{heroName}</div>
+          <div className={`${styles.hero_silhouette} ${heroSilhouetteClass}`} aria-hidden="true" />
+          {!preGame && enemyHeroHpFlash !== "none" && (
+            <div
+              key={enemyHeroFlashKey}
+              className={`${styles.hero_hp_flash_overlay} ${enemyHeroHpFlash === "damage" ? styles.hero_hp_flash_overlay_damage : styles.hero_hp_flash_overlay_heal}`}
+              aria-hidden="true"
+            />
+          )}
         </div>
+        {!preGame && (
+          <HeroHpBar
+            hp={enemyHeroHp}
+            maxHp={enemyMaxHeroHp}
+            valueClassName={getHpClass(enemyHeroHp)}
+          />
+        )}
       </div>
 
       {/* 敵フィールド */}

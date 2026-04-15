@@ -163,6 +163,8 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
   const isPlayerTurn = turn % 2 === 1;
   const isTimeCritical = isPlayerTurn && turnSecondsRemaining <= 20;
   const isTimeDanger = isPlayerTurn && turnSecondsRemaining <= 10;
+  const computedPlayerRole = playerRole ?? (coinResult === "player" ? "king" : coinResult === "enemy" ? "usurper" : null);
+  const computedEnemyRole = computedPlayerRole === "king" ? "usurper" : computedPlayerRole === "usurper" ? "king" : null;
   const timerProgress = Math.max(0, Math.min(1, turnSecondsRemaining / TURN_DURATION_SECONDS));
   const turnRingColor = (() => {
     if (!isPlayerTurn) return "#5878ab";
@@ -515,6 +517,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
 
       {/* Enemy area */}
       <EnemyArea
+        heroRole={computedEnemyRole}
         enemyHeroHp={enemyHeroHp}
         enemyMaxHeroHp={enemyMaxHeroHp}
         preGame={preGame}
@@ -583,6 +586,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
 
       {/* Player area */}
       <PlayerArea
+        heroRole={computedPlayerRole}
         playerHeroHp={playerHeroHp}
         playerMaxHeroHp={playerMaxHeroHp}
         playerHandCards={preGame ? [] : playerHandCards}
@@ -776,7 +780,6 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
       {/* ラウンドカウンター・シナジーインジケーター・手札警告 */}
       {!preGame && !gameOver.over && (() => {
         const currentRound = round ?? Math.ceil(turn / 2);
-        const computedPlayerRole = playerRole ?? (coinResult === "player" ? "king" : coinResult === "enemy" ? "usurper" : null);
         const isKing = computedPlayerRole === "king";
         const isUsurper = computedPlayerRole === "usurper";
         const handLow = playerHandCards.length <= 2;
