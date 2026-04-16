@@ -6,7 +6,8 @@ import { v4 as uuidv4 } from "uuid";
 import type { Card } from "./data/cards";
 import { cards } from "./data/cards";
 import { deck as initialDeck, drawInitialHand } from "./data/game";
-import { createDeck } from "./data/deck";
+import { createDeckFromIds } from "./data/deck";
+import { getDeckIdsForBattle } from "./data/deckBuilder";
 import { runEnemyTurn } from "./data/enemyAI";
 import type { AIGameContext } from "./types/gameTypes";
 import { TurnTimer } from "./data/turnTimer";
@@ -953,8 +954,8 @@ export function useGame(): {
     setPlayerHeroHp(playerInitialHp);
     setEnemyHeroHp(enemyInitialHp);
 
-    const playerFullDeck = createDeck(playerRole);
-    const enemyFullDeck = createDeck(enemyRole);
+    const playerFullDeck = createDeckFromIds(getDeckIdsForBattle(playerRole), playerRole);
+    const enemyFullDeck = createDeckFromIds(getDeckIdsForBattle(enemyRole), enemyRole);
     const playerDrawResult = drawInitialHand(playerFullDeck, 5);
     const enemyDrawResult = drawInitialHand(enemyFullDeck, 5);
     const playerHand = playerDrawResult.hand.map((c) => ({ ...c, uniqueId: uuidv4() }));

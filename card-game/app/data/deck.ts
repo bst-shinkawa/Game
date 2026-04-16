@@ -1,6 +1,8 @@
 // deck.ts
 import { cards, Card } from "./cards";
 
+export type DeckRole = "king" | "usurper";
+
 // 役割別固定デッキ（20枚）
 const kingCardIds: number[] = [
   1,1,   // 勅命×2
@@ -19,9 +21,9 @@ const kingCardIds: number[] = [
 
 const usurperCardIds: number[] = [
   14,14, // 暗躍×2
-  15,    // 暗器×1
+  15,15, // 暗器×2
   17,17, // 携帯補給×2
-  18,18,18, // 簒奪者×3（旧影を縫う者枠を統合）
+  18,18, // 簒奪者×22
   19,    // 裏切りの手引き×1
   20,20, // 破壊工作×2
   21,    // 市民の暴動×1
@@ -40,15 +42,25 @@ function shuffle<T>(array: T[]): T[] {
   return array;
 }
 
-function buildDeckFromIds(ids: number[]): Card[] {
+function buildDeckFromIds(ids: number[], role?: DeckRole): Card[] {
   const list: Card[] = [];
   ids.forEach((id) => {
     const card = cards.find((c) => c.id === id);
-    if (card) list.push({ ...card, uniqueId: crypto.randomUUID() });
+    if (!card) return;
+    if (role && card.owner !== role) return;
+    list.push({ ...card, uniqueId: crypto.randomUUID() });
   });
   return shuffle(list);
 }
 
-export function createDeck(role: "king" | "usurper" = "king"): Card[] {
-  return role === "king" ? buildDeckFromIds(kingCardIds) : buildDeckFromIds(usurperCardIds);
+export function getDefaultDeckIds(role: DeckRole): number[] {
+  return role === "king" ? [...kingCardIds] : [...usurperCardIds];
+}
+
+export function createDeck(role: DeckRole = "king"): Card[] {
+  return buildDeckFromIds(getDefaultDeckIds(role), role);
+}
+
+export function createDeckFromIds(ids: number[], role: DeckRole): Card[] {
+  return buildDeckFromIds(ids, role);
 }

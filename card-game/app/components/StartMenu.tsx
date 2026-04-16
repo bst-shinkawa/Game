@@ -9,15 +9,21 @@ type Props = {
 
 const StartMenu: React.FC<Props> = ({ onSelectMode, onDeck }) => {
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20 }}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20}}>
       <h1 style={{ color: "#fff", fontSize: 48 }}>Usurper's Gambit</h1>
-      <div style={{ display: "flex", gap: 12, color: "#fff" }}>
-        <button className={styles.field_turn ? "" : ""} onClick={() => onSelectMode("cpu")} style={{color: "#d0d0d0"}}>CPU対戦</button>
-        <button onClick={onDeck} disabled title="準備中">ネット対戦</button>
-        <button onClick={onDeck} disabled title="準備中">デッキ作成</button>
+      <div className={styles.field_turn} style={{ display: "flex", gap: 12, color: "#fff", flexDirection: "unset" }}>
+        <button onClick={() => onSelectMode("cpu")} style={{ color: "#d0d0d0", cursor: "pointer" }}>
+          CPU対戦
+        </button>
+        <button disabled title="準備中" style={{ cursor: "not-allowed" }}>
+          ネット対戦
+        </button>
+        <button onClick={onDeck} style={{ cursor: "pointer" }}>
+          デッキ作成
+        </button>
       </div>
       <p style={{ color: "#d0d0d0", maxWidth: 600, textAlign: "center" }}>
-        デッキ作成は後で実装します。今は CPU 対戦でゲームを開始してください。
+        CPU対戦とデッキ作成は利用できます。<br />デッキ作成で保存した内容は次の対戦から反映されます。
       </p>
 
       <div style={{ border: "1px solid #fff", padding: 30, borderRadius: 10, marginTop: 20 }}>
