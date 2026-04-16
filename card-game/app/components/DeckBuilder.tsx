@@ -140,7 +140,6 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
         width: "100%",
         maxWidth: 1280,
         margin: "0 auto",
-        height: "calc(75dvh - 24px)",
         overflow: "hidden",
         display: "grid",
         gridTemplateRows: "auto auto auto 1fr auto",
