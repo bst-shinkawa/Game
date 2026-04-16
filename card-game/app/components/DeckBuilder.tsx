@@ -140,7 +140,7 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
         width: "100%",
         maxWidth: 1280,
         margin: "0 auto",
-        height: "calc(100dvh - 24px)",
+        height: "calc(75dvh - 24px)",
         overflow: "hidden",
         display: "grid",
         gridTemplateRows: "auto auto auto 1fr auto",
@@ -242,14 +242,16 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
           minHeight: 0,
           display: "grid",
           gridTemplateRows: "auto 1fr",
+          height: "100dvw",
+          maxHeight: "450px",
         }}
       >
         <h3 style={{ marginTop: 0, marginBottom: 8 }}>カード一覧（クリックで追加）</h3>
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(108px, 1fr))",
-            gap: 8,
+            gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+            gap: 10,
             overflowY: "auto",
             minHeight: 0,
             paddingRight: 4,
@@ -278,7 +280,7 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
                     cursor: "pointer",
                     width: "100%",
                     aspectRatio: "3 / 4",
-                    borderRadius: 8,
+                    borderRadius: 10,
                     overflow: "hidden",
                     background: "rgba(0,0,0,0.4)",
                   }}
@@ -296,7 +298,7 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
                     />
                   ) : null}
                 </div>
-                <div onClick={() => setSelectedCardId(card.id)} style={{ fontSize: 11, minHeight: 30, cursor: "pointer" }}>
+                <div onClick={() => setSelectedCardId(card.id)} style={{ fontSize: 12, minHeight: 34, cursor: "pointer" }}>
                   <div style={{ color: "#f0c040", fontWeight: 700, opacity: addDisabled ? 0.8 : 1 }}>[{card.cost}] {card.name}</div>
                   <div style={{ opacity: addDisabled ? 0.65 : 0.9 }}>所持: {count}枚</div>
                 </div>
