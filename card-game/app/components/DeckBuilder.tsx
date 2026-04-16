@@ -140,18 +140,19 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
         width: "100%",
         maxWidth: 1280,
         margin: "0 auto",
-        height: "calc(75vh - 32px)",
+        height: "calc(100dvh - 24px)",
         overflow: "hidden",
         display: "grid",
         gridTemplateRows: "auto auto auto 1fr auto",
         gap: 10,
         boxSizing: "border-box",
         position: "relative",
+        padding: "8px",
       }}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <div>
-          <div style={{ display: "flex", gap: 8}}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button
               onClick={() => switchRole("king")}
               disabled={role === "king"}
@@ -206,7 +207,7 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
         </button>
       </div>
 
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <span style={{ padding: "6px 10px", borderRadius: 999, background: "rgba(255,255,255,0.1)" }}>
           現在: {roleLabels[role]}
         </span>
@@ -237,7 +238,7 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
           background: "rgba(0,0,0,0.35)",
           border: "1px solid rgba(255,255,255,0.18)",
           borderRadius: 12,
-          padding: 12,
+          padding: 8,
           minHeight: 0,
           display: "grid",
           gridTemplateRows: "auto 1fr",
@@ -247,11 +248,12 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(8, minmax(0, 1fr))",
+            gridTemplateColumns: "repeat(auto-fill, minmax(108px, 1fr))",
             gap: 8,
             overflowY: "auto",
             minHeight: 0,
             paddingRight: 4,
+            alignContent: "start",
           }}
         >
           {roleCards.map((card) => {
@@ -348,7 +350,7 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
             position: "absolute",
             top: 0,
             right: 0,
-            width: "min(500px, 92vw)",
+            width: "min(500px, 100vw)",
             height: "100%",
             background: "rgba(10,10,12,0.97)",
             borderLeft: "1px solid rgba(255,255,255,0.2)",
