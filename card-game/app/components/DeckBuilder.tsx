@@ -239,11 +239,11 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
           border: "1px solid rgba(255,255,255,0.18)",
           borderRadius: 12,
           padding: 8,
-          minHeight: 0,
           display: "grid",
           gridTemplateRows: "auto 1fr",
           height: "100dvw",
           maxHeight: "450px",
+          minHeight: "250px",
         }}
       >
         <h3 style={{ marginTop: 0, marginBottom: 8 }}>カード一覧（クリックで追加）</h3>
