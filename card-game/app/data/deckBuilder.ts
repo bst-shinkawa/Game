@@ -23,6 +23,10 @@ export function getDeckBuilderRules() {
 export function validateDeckIds(ids: number[], role: DeckRole): string[] {
   const errors: string[] = [];
 
+  if (ids.length < DECK_LIMIT) {
+    errors.push(`デッキは${DECK_LIMIT}枚で保存してください。`);
+  }
+
   if (ids.length > DECK_LIMIT) {
     errors.push(`デッキ枚数は最大${DECK_LIMIT}枚です。`);
   }

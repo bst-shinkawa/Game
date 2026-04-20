@@ -272,7 +272,7 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
         </span>
       </div>
       <p style={{ margin: 0, opacity: 0.9, fontSize: 13 }}>
-        ルール: 同名最大{rules.sameCardLimit}枚・コスト{rules.highCostThreshold}以上の同名は最大{rules.highCostLimit}枚・{rules.deckLimit}枚を超える保存不可
+        ルール: 保存は{rules.deckLimit}枚ちょうどのみ・同名最大{rules.sameCardLimit}枚・コスト{rules.highCostThreshold}以上の同名は最大{rules.highCostLimit}枚
       </p>
       <div
         style={{
