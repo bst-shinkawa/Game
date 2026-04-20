@@ -1,5 +1,6 @@
 import { promises as fs } from "fs";
 import path from "path";
+import { kv } from "@vercel/kv";
 
 export type SavedDecks = {
   king: number[] | null;
@@ -19,9 +20,11 @@ const DATA_DIR = path.join(process.cwd(), ".game-data");
 const RUNTIME_DATA_DIR = process.env.VERCEL ? "/tmp/game-data" : DATA_DIR;
 const DATA_FILE = path.join(RUNTIME_DATA_DIR, "users.json");
 let volatileStore: UserDataMap = {};
+const hasKvConfig = Boolean(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
+const USER_KEY_PREFIX = "user";
 
 async function ensureStore() {
-  await fs.mkdir(DATA_DIR, { recursive: true });
+  await fs.mkdir(RUNTIME_DATA_DIR, { recursive: true });
   try {
     await fs.access(DATA_FILE);
   } catch {
@@ -58,14 +61,43 @@ function createDefaultUserData(): UserData {
   };
 }
 
+function createUserStorageKey(userId: string): string {
+  return `${USER_KEY_PREFIX}:${userId}`;
+}
+
+function normalizeUserData(data: UserData | null | undefined): UserData {
+  return data ?? createDefaultUserData();
+}
+
 export async function getUserData(userId: string): Promise<UserData> {
+  if (hasKvConfig) {
+    try {
+      const fromKv = await kv.get<UserData>(createUserStorageKey(userId));
+      return normalizeUserData(fromKv);
+    } catch {
+      // Fall back to local/in-memory store when KV access fails.
+    }
+  }
   const all = await readAll();
-  return all[userId] ?? createDefaultUserData();
+  return normalizeUserData(all[userId]);
 }
 
 export async function updateUserData(userId: string, updater: (prev: UserData) => UserData): Promise<UserData> {
+  if (hasKvConfig) {
+    try {
+      const key = createUserStorageKey(userId);
+      const prev = normalizeUserData(await kv.get<UserData>(key));
+      const next = updater(prev);
+      const withUpdatedAt = { ...next, updatedAt: new Date().toISOString() };
+      await kv.set(key, withUpdatedAt);
+      return withUpdatedAt;
+    } catch {
+      // Fall back to local/in-memory store when KV access fails.
+    }
+  }
+
   const all = await readAll();
-  const prev = all[userId] ?? createDefaultUserData();
+  const prev = normalizeUserData(all[userId]);
   const next = updater(prev);
   const withUpdatedAt = { ...next, updatedAt: new Date().toISOString() };
   all[userId] = withUpdatedAt;
