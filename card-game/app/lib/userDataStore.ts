@@ -16,7 +16,9 @@ export type UserData = {
 type UserDataMap = Record<string, UserData>;
 
 const DATA_DIR = path.join(process.cwd(), ".game-data");
-const DATA_FILE = path.join(DATA_DIR, "users.json");
+const RUNTIME_DATA_DIR = process.env.VERCEL ? "/tmp/game-data" : DATA_DIR;
+const DATA_FILE = path.join(RUNTIME_DATA_DIR, "users.json");
+let volatileStore: UserDataMap = {};
 
 async function ensureStore() {
   await fs.mkdir(DATA_DIR, { recursive: true });
@@ -28,13 +30,23 @@ async function ensureStore() {
 }
 
 async function readAll(): Promise<UserDataMap> {
-  await ensureStore();
-  const raw = await fs.readFile(DATA_FILE, "utf-8");
-  return JSON.parse(raw) as UserDataMap;
+  try {
+    await ensureStore();
+    const raw = await fs.readFile(DATA_FILE, "utf-8");
+    return JSON.parse(raw) as UserDataMap;
+  } catch {
+    // Fallback for restricted runtimes where file IO is unavailable.
+    return volatileStore;
+  }
 }
 
 async function writeAll(data: UserDataMap) {
-  await fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2), "utf-8");
+  volatileStore = data;
+  try {
+    await fs.writeFile(DATA_FILE, JSON.stringify(data, null, 2), "utf-8");
+  } catch {
+    // Keep running with in-memory fallback.
+  }
 }
 
 function createDefaultUserData(): UserData {

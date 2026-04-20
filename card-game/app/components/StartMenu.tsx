@@ -5,13 +5,28 @@ import styles from "../assets/css/Game.Master.module.css";
 type Props = {
   authChecked: boolean;
   showEntryChoice: boolean;
+  isLoggedIn: boolean;
   onSelectGuest: () => void;
   onGoogleLogin: () => void;
+  onLogout: () => void;
+  onOpenProfile: () => void;
   onSelectMode: (mode: "cpu" | "pvp") => void;
   onDeck: () => void;
 };
 
-const StartMenu: React.FC<Props> = ({ authChecked, showEntryChoice, onSelectGuest, onGoogleLogin, onSelectMode, onDeck }) => {
+const StartMenu: React.FC<Props> = ({
+  authChecked,
+  showEntryChoice,
+  isLoggedIn,
+  onSelectGuest,
+  onGoogleLogin,
+  onLogout,
+  onOpenProfile,
+  onSelectMode,
+  onDeck,
+}) => {
+  const [menuOpen, setMenuOpen] = React.useState(false);
+
   if (!authChecked) {
     return <div style={{ color: "#fff" }}>認証状態を確認中...</div>;
   }
@@ -37,7 +52,87 @@ const StartMenu: React.FC<Props> = ({ authChecked, showEntryChoice, onSelectGues
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20}}>
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20, position: "relative" }}>
+      <button
+        type="button"
+        onClick={() => setMenuOpen((prev) => !prev)}
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          width: 40,
+          height: 40,
+          borderRadius: 8,
+          border: "1px solid rgba(255,255,255,0.3)",
+          background: "rgba(0,0,0,0.35)",
+          color: "#fff",
+          fontSize: 22,
+          lineHeight: 1,
+          cursor: "pointer",
+        }}
+        aria-label="メニュー"
+        title="メニュー"
+      >
+        ☰
+      </button>
+      {menuOpen ? (
+        <div
+          style={{
+            position: "absolute",
+            top: 46,
+            left: 0,
+            zIndex: 10,
+            minWidth: 180,
+            borderRadius: 10,
+            border: "1px solid rgba(255,255,255,0.24)",
+            background: "rgba(10,10,12,0.96)",
+            padding: 8,
+            display: "grid",
+            gap: 6,
+          }}
+        >
+          {isLoggedIn ? (
+            <>
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  onOpenProfile();
+                }}
+                style={{
+                  cursor: "pointer",
+                  borderRadius: 8,
+                  border: "1px solid rgba(255,255,255,0.25)",
+                  background: "rgba(255,255,255,0.08)",
+                  color: "#fff",
+                  padding: "8px 10px",
+                  textAlign: "left",
+                }}
+              >
+                プロフィール設定
+              </button>
+              <button
+                onClick={() => {
+                  setMenuOpen(false);
+                  onLogout();
+                }}
+                style={{
+                  cursor: "pointer",
+                  borderRadius: 8,
+                  border: "1px solid rgba(255,170,170,0.35)",
+                  background: "rgba(255,120,120,0.16)",
+                  color: "#ffdede",
+                  padding: "8px 10px",
+                  textAlign: "left",
+                }}
+              >
+                サインアウト
+              </button>
+            </>
+          ) : (
+            <p style={{ margin: 0, color: "#d0d0d0", fontSize: 13 }}>ログインするとメニューが有効になります。</p>
+          )}
+        </div>
+      ) : null}
       <h1 style={{ color: "#fff", fontSize: 48 }}>Usurper's Gambit</h1>
       <div className={styles.field_turn} style={{ display: "flex", gap: 12, color: "#fff", flexDirection: "unset" }}>
         <button onClick={() => onSelectMode("cpu")} style={{ color: "#d0d0d0", cursor: "pointer" }}>
@@ -53,7 +148,6 @@ const StartMenu: React.FC<Props> = ({ authChecked, showEntryChoice, onSelectGues
       <p style={{ color: "#d0d0d0", maxWidth: 600, textAlign: "center" }}>
         ゲストでもデッキ保存は可能です（この端末のみ）。<br />※編集したデッキは他の端末ではプレイ出来ません。
       </p>
-
       <div style={{ border: "1px solid #fff", padding: 30, borderRadius: 10, marginTop: 20 }}>
         <p style={{ color: "#fff", fontSize: 24 ,textAlign: "center"}}>ルール説明</p>
         <p style={{ color: "#fff", paddingTop: 30}}>

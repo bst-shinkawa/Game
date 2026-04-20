@@ -1,15 +1,17 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import dynamic from 'next/dynamic';
+import { signOut } from "next-auth/react";
 import { useGameContext } from "./context/GameContext";
 import { useGameUI } from "./hooks/useGameUI";
 const GameField = dynamic(() => import('./components/GameField').then(mod => mod.GameField), { ssr: false, loading: () => <div>Loading...</div> });
 import StartMenu from "./components/StartMenu";
 import DeckBuilder from "./components/DeckBuilder";
+import ProfileSettings from "./components/ProfileSettings";
 import styles from "./assets/css/Game.Master.module.css";
 
 const GamePage: React.FC = () => {
-  const [mode, setMode] = useState<"menu" | "game" | "deck">("menu");
+  const [mode, setMode] = useState<"menu" | "game" | "deck" | "profile">("menu");
   const [authChecked, setAuthChecked] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [guestSelected, setGuestSelected] = useState(false);
@@ -63,10 +65,21 @@ const GamePage: React.FC = () => {
       <StartMenu
         authChecked={authChecked}
         showEntryChoice={!isLoggedIn && !guestSelected}
+        isLoggedIn={isLoggedIn}
         onSelectGuest={() => setGuestSelected(true)}
         onGoogleLogin={() => {
           window.location.href = "/api/auth/signin/google";
         }}
+        onLogout={async () => {
+          try {
+            await signOut({ redirect: false });
+          } finally {
+            setIsLoggedIn(false);
+            setGuestSelected(false);
+            setMode("menu");
+          }
+        }}
+        onOpenProfile={() => setMode("profile")}
         onSelectMode={async (m) => {
           if (m === "cpu") {
             gameState.resetGame("cpu");
@@ -91,6 +104,14 @@ const GamePage: React.FC = () => {
     return (
       <div className={styles.pregame__wrap}>
         <DeckBuilder onBack={() => setMode("menu")} />
+      </div>
+    );
+  }
+
+  if (mode === "profile") {
+    return (
+      <div className={styles.pregame__wrap}>
+        <ProfileSettings onBack={() => setMode("menu")} />
       </div>
     );
   }
