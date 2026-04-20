@@ -3,11 +3,39 @@ import React from "react";
 import styles from "../assets/css/Game.Master.module.css";
 
 type Props = {
+  authChecked: boolean;
+  showEntryChoice: boolean;
+  onSelectGuest: () => void;
+  onGoogleLogin: () => void;
   onSelectMode: (mode: "cpu" | "pvp") => void;
   onDeck: () => void;
 };
 
-const StartMenu: React.FC<Props> = ({ onSelectMode, onDeck }) => {
+const StartMenu: React.FC<Props> = ({ authChecked, showEntryChoice, onSelectGuest, onGoogleLogin, onSelectMode, onDeck }) => {
+  if (!authChecked) {
+    return <div style={{ color: "#fff" }}>認証状態を確認中...</div>;
+  }
+
+  if (showEntryChoice) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20 }}>
+        <h1 style={{ color: "#fff", fontSize: 48 }}>Usurper&apos;s Gambit</h1>
+        <p style={{ color: "#d0d0d0", maxWidth: 600, textAlign: "center" }}>
+          はじめにプレイ方法を選んでください。<br />
+          Googleログインでクラウド同期、ゲストでこの端末だけ保存できます。
+        </p>
+        <div className={styles.field_turn} style={{ display: "flex", gap: 12, color: "#fff" }}>
+          <button onClick={onGoogleLogin} style={{ cursor: "pointer" }}>
+            Googleでログイン
+          </button>
+          <button onClick={onSelectGuest} style={{ cursor: "pointer" }}>
+            ゲストでプレイ
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20}}>
       <h1 style={{ color: "#fff", fontSize: 48 }}>Usurper's Gambit</h1>
@@ -23,7 +51,7 @@ const StartMenu: React.FC<Props> = ({ onSelectMode, onDeck }) => {
         </button>
       </div>
       <p style={{ color: "#d0d0d0", maxWidth: 600, textAlign: "center" }}>
-        CPU対戦とデッキ作成は利用できます。<br />デッキ作成で保存した内容は次の対戦から反映されます。
+        ゲストでもデッキ保存は可能です（この端末のみ）。<br />※編集したデッキは他の端末ではプレイ出来ません。
       </p>
 
       <div style={{ border: "1px solid #fff", padding: 30, borderRadius: 10, marginTop: 20 }}>

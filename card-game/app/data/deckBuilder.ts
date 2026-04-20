@@ -87,3 +87,38 @@ export function getDeckIdsForBattle(role: DeckRole): number[] {
   return getDeckIdsFromStorage(role) ?? getDefaultDeckIds(role);
 }
 
+export async function fetchDeckIdsFromServer(role: DeckRole): Promise<number[] | null> {
+  try {
+    const res = await fetch("/api/decks", { method: "GET", credentials: "include" });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { decks?: { king?: number[] | null; usurper?: number[] | null } };
+    const ids = role === "king" ? data.decks?.king : data.decks?.usurper;
+    if (!ids) return null;
+    const errors = validateDeckIds(ids, role);
+    return errors.length === 0 ? ids : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function saveDeckIdsToServer(role: DeckRole, ids: number[]): Promise<{ ok: boolean; error?: string }> {
+  const errors = validateDeckIds(ids, role);
+  if (errors.length > 0) return { ok: false, error: errors[0] };
+
+  try {
+    const res = await fetch("/api/decks", {
+      method: "PUT",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [role]: ids }),
+    });
+    if (!res.ok) {
+      const body = (await res.json().catch(() => ({}))) as { error?: string };
+      return { ok: false, error: body.error ?? "サーバー保存に失敗しました。" };
+    }
+    return { ok: true };
+  } catch {
+    return { ok: false, error: "通信エラーのためサーバー保存に失敗しました。" };
+  }
+}
+

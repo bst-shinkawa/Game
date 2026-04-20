@@ -1,12 +1,14 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { cards } from "../data/cards";
 import { DeckRole, getDefaultDeckIds } from "../data/deck";
 import styles from "../assets/css/Game.Master.module.css";
 import {
+  fetchDeckIdsFromServer,
   getDeckBuilderRules,
   getDeckIdsFromStorage,
+  saveDeckIdsToServer,
   saveDeckIdsToStorage,
   validateDeckIds,
 } from "../data/deckBuilder";
@@ -26,9 +28,9 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
   const [messageType, setMessageType] = useState<"error" | "success">("success");
   const [showDeckDrawer, setShowDeckDrawer] = useState(false);
   const [selectedCardId, setSelectedCardId] = useState<number | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-  const initial = useMemo(() => getDeckIdsFromStorage(role) ?? getDefaultDeckIds(role), [role]);
-  const [deckIds, setDeckIds] = useState<number[]>(initial);
+  const [deckIds, setDeckIds] = useState<number[]>(getDeckIdsFromStorage("king") ?? getDefaultDeckIds("king"));
 
   const rules = getDeckBuilderRules();
 
@@ -78,6 +80,34 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
     setSelectedCardId(null);
   };
 
+  useEffect(() => {
+    let mounted = true;
+    const bootstrap = async () => {
+      try {
+        const sessionRes = await fetch("/api/auth/session", { credentials: "include" });
+        if (!sessionRes.ok) return;
+        const session = (await sessionRes.json()) as { user?: { id?: string } };
+        if (!mounted) return;
+        const authed = !!session?.user?.id;
+        setIsAuthenticated(authed);
+        if (!authed) {
+          setDeckIds(getDeckIdsFromStorage(role) ?? getDefaultDeckIds(role));
+          return;
+        }
+        const fromServer = await fetchDeckIdsFromServer(role);
+        if (!mounted) return;
+        setDeckIds(fromServer ?? getDeckIdsFromStorage(role) ?? getDefaultDeckIds(role));
+      } catch {
+        if (!mounted) return;
+        setDeckIds(getDeckIdsFromStorage(role) ?? getDefaultDeckIds(role));
+      }
+    };
+    bootstrap();
+    return () => {
+      mounted = false;
+    };
+  }, [role]);
+
   const addCard = (cardId: number) => {
     setDeckIds((prev) => [...prev, cardId]);
     setMessage("");
@@ -92,15 +122,27 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
     setMessage("");
   };
 
-  const save = () => {
+  const save = async () => {
     const result = saveDeckIdsToStorage(role, deckIds);
     if (!result.ok) {
       setMessageType("error");
       setMessage(result.errors[0] ?? "保存に失敗しました。");
       return;
     }
+    if (isAuthenticated) {
+      const serverResult = await saveDeckIdsToServer(role, deckIds);
+      if (!serverResult.ok) {
+        setMessageType("error");
+        setMessage(serverResult.error ?? "サーバー保存に失敗しました。");
+        return;
+      }
+    }
     setMessageType("success");
-    setMessage(`${roleLabels[role]}デッキを保存しました。`);
+    setMessage(
+      isAuthenticated
+        ? `${roleLabels[role]}デッキを保存しました。（クラウド同期済み）`
+        : `${roleLabels[role]}デッキを保存しました。（この端末のみ）`
+    );
   };
 
   const resetToDefault = () => {
