@@ -29,7 +29,7 @@ export function validatePlayerName(name: string): { ok: boolean; reason?: string
     return { ok: false, reason: `名前は${MIN_LEN}〜${MAX_LEN}文字で入力してください。` };
   }
 
-  if (!/^[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}A-Za-z0-9_-\s]+$/u.test(normalized)) {
+  if (!/^[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}A-Za-z0-9_\-\s]+$/u.test(normalized)) {
     return { ok: false, reason: "使用できない文字が含まれています。" };
   }
 
