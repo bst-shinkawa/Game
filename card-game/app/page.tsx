@@ -2,6 +2,8 @@
 import React, { useEffect, useState } from "react";
 import dynamic from 'next/dynamic';
 import { signOut } from "next-auth/react";
+import { clearGuestDeckStorage } from "./data/deckBuilder";
+import { logger } from "./lib/logger";
 import { useGameContext } from "./context/GameContext";
 import { useGameUI } from "./hooks/useGameUI";
 const GameField = dynamic(() => import('./components/GameField').then(mod => mod.GameField), { ssr: false, loading: () => <div>Loading...</div> });
@@ -15,6 +17,7 @@ const GamePage: React.FC = () => {
   const [authChecked, setAuthChecked] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [guestSelected, setGuestSelected] = useState(false);
+  const [playerName, setPlayerName] = useState<string | null>(null);
   const gameState = useGameContext();
   const uiState = useGameUI({ lockHandCollapse: gameState.selectionMode !== "none" });
 
@@ -27,7 +30,13 @@ const GamePage: React.FC = () => {
         if (!mounted) return;
         const loggedIn = !!data?.user?.id;
         setIsLoggedIn(loggedIn);
-        if (loggedIn) setGuestSelected(true);
+        if (loggedIn) {
+          setGuestSelected(true);
+          fetch("/api/profile/name", { credentials: "include" })
+            .then((r) => r.ok ? r.json() : null)
+            .then((d) => { if (mounted && d) setPlayerName((d as { playerName?: string | null }).playerName ?? null); })
+            .catch(() => {});
+        }
       } catch {
         if (!mounted) return;
         setIsLoggedIn(false);
@@ -49,15 +58,13 @@ const GamePage: React.FC = () => {
         if (document.fullscreenEnabled) {
           await document.documentElement.requestFullscreen();
         }
-        // @ts-ignore
-        if (screen?.orientation && (screen.orientation as any).lock) {
-          // try locking to landscape-primary first
-          // @ts-ignore
-          await (screen.orientation as any).lock("landscape");
+        const orientation = screen?.orientation as (ScreenOrientation & { lock?: (type: string) => Promise<void> }) | undefined;
+        if (orientation?.lock) {
+          await orientation.lock("landscape");
         }
       } catch (e) {
         // ignore; we'll show rotate overlay via AppViewport
-        console.info("orientation lock failed or not supported", e);
+        logger.info("orientation lock failed or not supported", e);
       }
     };
 
@@ -66,6 +73,7 @@ const GamePage: React.FC = () => {
         authChecked={authChecked}
         showEntryChoice={!isLoggedIn && !guestSelected}
         isLoggedIn={isLoggedIn}
+        playerName={playerName}
         onSelectGuest={() => setGuestSelected(true)}
         onGoogleLogin={() => {
           window.location.href = "/api/auth/signin/google";
@@ -73,9 +81,11 @@ const GamePage: React.FC = () => {
         onLogout={async () => {
           try {
             await signOut({ redirect: false });
+            clearGuestDeckStorage();
           } finally {
             setIsLoggedIn(false);
             setGuestSelected(false);
+            setPlayerName(null);
             setMode("menu");
           }
         }}
@@ -111,7 +121,7 @@ const GamePage: React.FC = () => {
   if (mode === "profile") {
     return (
       <div className={styles.pregame__wrap}>
-        <ProfileSettings onBack={() => setMode("menu")} />
+        <ProfileSettings onBack={() => setMode("menu")} onNameSaved={(name) => setPlayerName(name)} />
       </div>
     );
   }

@@ -7,6 +7,7 @@ import { addCardToHand, createFieldCard } from "./cardService";
 import { MAX_FIELD_SIZE, MAX_HAND } from "../constants/gameConstants";
 import type { SpellContext } from "./spellService";
 import { castSpell as spellServiceCastSpell } from "./spellService";
+import { random } from "../lib/seededRandom";
 
 // ---------------------------------------------------------------------------
 // contextual types used by both play and spell handling
@@ -65,7 +66,7 @@ function moveRandomOpponentHandToDeck(
     ctx.setEnemyHandCards((h) => {
       let next = [...h];
       for (let i = 0; i < count && next.length > 0; i++) {
-        const ix = Math.floor(Math.random() * next.length);
+        const ix = Math.floor(random() * next.length);
         toDeck.push(next[ix]);
         next.splice(ix, 1);
       }
@@ -79,7 +80,7 @@ function moveRandomOpponentHandToDeck(
     ctx.setPlayerHandCards((h) => {
       let next = [...h];
       for (let i = 0; i < count && next.length > 0; i++) {
-        const ix = Math.floor(Math.random() * next.length);
+        const ix = Math.floor(random() * next.length);
         toDeck.push(next[ix]);
         next.splice(ix, 1);
       }
@@ -144,7 +145,7 @@ export function executePlayEffects(
           const tokensToAdd: RuntimeCard[] = [];
           for (let i = 0; i < addCount; i++) {
             const token = createFieldCard(tokenBase, eff.canAttack ?? false);
-            if (eff.noTrigger) delete (token as any).summonTrigger;
+            if (eff.noTrigger) (token as RuntimeCard).summonTrigger = undefined;
             if (tokenBuff) {
               token.baseAttack = token.attack ?? 0;
               token.baseHp = token.hp ?? 0;
@@ -165,7 +166,7 @@ export function executePlayEffects(
           return [...f, ...tokensToAdd];
         });
         setTimeout(() => {
-          setOwnField((f) => f.map((c) => ((c as any).isAnimating ? { ...c, isAnimating: false } : c)));
+          setOwnField((f) => f.map((c) => (c.isAnimating ? { ...c, isAnimating: false } : c)));
         }, 600);
         break;
       }
@@ -183,8 +184,8 @@ export function executePlayEffects(
             const token = createFieldCard(baseCard, eff.canAttack ?? false);
             if (eff.buff) {
               // バフ前の基礎スタッツを保存（CardItemで緑色表示に使用）
-              (token as any).baseAttack = baseCard.attack ?? 0;
-              (token as any).baseHp = baseCard.hp ?? 0;
+              (token as RuntimeCard).baseAttack = baseCard.attack ?? 0;
+              (token as RuntimeCard).baseHp = baseCard.hp ?? 0;
               token.attack = (token.attack ?? 0) + (eff.buff.attack ?? 0);
               token.hp = (token.hp ?? 0) + (eff.buff.hp ?? 0);
               token.maxHp = (token.maxHp ?? 0) + (eff.buff.hp ?? 0);
@@ -194,7 +195,7 @@ export function executePlayEffects(
           return [...f, ...tokensToAdd];
         });
         setTimeout(() => {
-          setOwnField((f) => f.map((c) => ((c as any).isAnimating ? { ...c, isAnimating: false } : c)));
+          setOwnField((f) => f.map((c) => (c.isAnimating ? { ...c, isAnimating: false } : c)));
         }, 600);
         break;
       }
@@ -203,7 +204,7 @@ export function executePlayEffects(
         const maxCost = eff.maxCost ?? Infinity;
         const valid = oppGraveyard.filter((c) => c.cost <= maxCost);
         if (valid.length > 0) {
-          const chosen = valid[Math.floor(Math.random() * valid.length)];
+          const chosen = valid[Math.floor(random() * valid.length)];
           const newCard = { ...chosen, uniqueId: uuidv4() };
           const setHand = isPlayer ? ctx.setPlayerHandCards : ctx.setEnemyHandCards;
           const setGrave = isPlayer ? ctx.setPlayerGraveyard : ctx.setEnemyGraveyard;
@@ -222,9 +223,9 @@ export function executePlayEffects(
             let idx: number;
             if (targetId) {
               idx = hand.findIndex((c) => c.uniqueId === targetId);
-              if (idx === -1) idx = Math.floor(Math.random() * hand.length);
+              if (idx === -1) idx = Math.floor(random() * hand.length);
             } else {
-              idx = Math.floor(Math.random() * hand.length);
+              idx = Math.floor(random() * hand.length);
             }
             const discarded = hand[idx];
             setOwnGrave((g) => [...g, discarded]);
@@ -260,7 +261,7 @@ export function executePlayEffects(
             .map((_, i) => i)
             .filter((i) => !(list[i] as { frozen?: number }).frozen && !toFreezeIdx.has(i));
           const needRandom = Math.max(0, totalFreeze - toFreezeIdx.size);
-          const shuffled = [...notFrozen].sort(() => Math.random() - 0.5);
+          const shuffled = [...notFrozen].sort(() => random() - 0.5);
           for (let k = 0; k < needRandom && k < shuffled.length; k++) {
             toFreezeIdx.add(shuffled[k]);
           }
@@ -352,7 +353,7 @@ export function applySpell(
           context.setEnemyHandCards((hand: Card[]) => {
             const newHand = [...hand];
             if (newHand.length > 0) {
-              const idx = Math.floor(Math.random() * newHand.length);
+              const idx = Math.floor(random() * newHand.length);
               const [removed] = newHand.splice(idx, 1);
               context.setEnemyGraveyard((g: Card[]) => [...g, removed]);
             }
@@ -362,7 +363,7 @@ export function applySpell(
           context.setPlayerHandCards((hand: Card[]) => {
             const newHand = [...hand];
             if (newHand.length > 0) {
-              const idx = Math.floor(Math.random() * newHand.length);
+              const idx = Math.floor(random() * newHand.length);
               const [removed] = newHand.splice(idx, 1);
               context.setPlayerGraveyard((g: Card[]) => [...g, removed]);
             }
@@ -492,7 +493,7 @@ function handleSummonEffect(card: Card, isPlayer: boolean, ctx: PlayContext, sel
         return updated.filter((c) => (c.hp ?? 0) > 0);
       });
     } else if (fieldCards.length > 0) {
-      const idx = Math.floor(Math.random() * fieldCards.length);
+      const idx = Math.floor(random() * fieldCards.length);
       const target = fieldCards[idx];
       dmgTargetSetter((list) => {
         const updated = list.map((c) => (c.uniqueId === target.uniqueId ? { ...c, hp: (c.hp ?? 0) - dmg } : c));

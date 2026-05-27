@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import type { Card } from "../data/cards";
 import type { RuntimeCard } from "../types/gameTypes";
 
@@ -38,18 +38,16 @@ export function useArrowCanvas({
   lastAttackTargetsRef,
 }: UseArrowCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [arrowProgress, setArrowProgress] = useState<number>(0);
+  const arrowProgressRef = useRef<number>(0);
 
-  // Arrow progress animation on hover
+  // Arrow progress animation on hover — ref ベースで管理し RAF ループが直接読む
   useEffect(() => {
+    arrowProgressRef.current = 0;
     if (hoverTarget.type && attackTargets.includes(hoverTarget.id || "hero")) {
-      setArrowProgress(0);
       const interval = setInterval(() => {
-        setArrowProgress((prev) => Math.min(prev + 0.05, 1));
+        arrowProgressRef.current = Math.min(arrowProgressRef.current + 0.05, 1);
       }, 50);
       return () => clearInterval(interval);
-    } else {
-      setArrowProgress(0);
     }
   }, [hoverTarget, attackTargets]);
 
@@ -137,14 +135,15 @@ export function useArrowCanvas({
         const endX = target.x;
         const endY = target.y;
         const distance = Math.sqrt((endX - startX) ** 2 + (endY - startY) ** 2);
-        const ratio = Math.min((distance * arrowProgress) / distance, 1);
+        const progress = arrowProgressRef.current;
+        const ratio = Math.min(progress, 1);
         const currentEndX = startX + (endX - startX) * ratio;
         const currentEndY = startY + (endY - startY) * ratio;
 
         ctx2d.lineWidth = 3;
         ctx2d.strokeStyle = target.kind === "heal" ? "#4caf50" : "#ff5722";
         ctx2d.setLineDash([5, 5]);
-        ctx2d.lineDashOffset = -arrowProgress * 20;
+        ctx2d.lineDashOffset = -progress * 20;
         ctx2d.beginPath();
         ctx2d.moveTo(startX, startY);
         ctx2d.lineTo(currentEndX, currentEndY);
@@ -170,7 +169,7 @@ export function useArrowCanvas({
     };
     tick();
     return () => cancelAnimationFrame(rafId);
-  }, [draggingCard, dragPosition, playerFieldCards, playerHandCards, enemyFieldCards, arrowProgress, hoverTarget, arrowStartPos, enemyHeroRef, playerHeroRef, playerFieldRefs, enemyFieldRefs, lastAttackTargetsRef, setAttackTargets]);
+  }, [draggingCard, dragPosition, playerFieldCards, playerHandCards, enemyFieldCards, hoverTarget, arrowStartPos, enemyHeroRef, playerHeroRef, playerFieldRefs, enemyFieldRefs, lastAttackTargetsRef, setAttackTargets]);
 
-  return { canvasRef, arrowProgress, setArrowProgress };
+  return { canvasRef };
 }

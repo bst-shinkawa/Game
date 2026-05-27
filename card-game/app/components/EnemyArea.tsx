@@ -1,5 +1,6 @@
 "use client";
 
+import { logger } from "@/app/lib/logger";
 import React, { useRef, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import CardItem from "./CardItem";
@@ -83,7 +84,9 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
   applySelection,
 }) => {
   const destroyingRef = useRef(destroyingCards);
-  destroyingRef.current = destroyingCards;
+  useEffect(() => {
+    destroyingRef.current = destroyingCards;
+  });
 
   const enemyHandAreaRef = useRef<HTMLDivElement | null>(null);
   const enemyDeckPileRef = useRef<HTMLDivElement | null>(null);
@@ -362,7 +365,7 @@ export const EnemyArea: React.FC<EnemyAreaProps & { hoverTarget?: { type: string
         {enemyHandCards.reduce((acc, card) => {
           // 同じ uniqueId が既に追加されていないかチェック（重複排除）
           if (acc.some((c) => c.uniqueId === card.uniqueId)) {
-            console.warn(`敵手札に重複したカードが検出されました: ${card.name} (${card.uniqueId})`);
+            logger.warn(`敵手札に重複したカードが検出されました: ${card.name} (${card.uniqueId})`);
             return acc;
           }
           return [...acc, card];

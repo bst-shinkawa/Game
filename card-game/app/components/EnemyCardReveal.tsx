@@ -44,7 +44,9 @@ const EnemyCardReveal: React.FC<EnemyCardRevealProps> = ({
   const popDoneRef = useRef(false);
   const flyDoneRef = useRef(false);
   const segmentRef = useRef<Segment>(segment);
-  segmentRef.current = segment;
+  useEffect(() => {
+    segmentRef.current = segment;
+  });
 
   const resolveTargetPos = (): { x: number; y: number } | null => {
     const tid = reveal.targetId;

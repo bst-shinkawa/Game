@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useRef, useEffect, useLayoutEffect, useContext, useState } from "react";
+import { logger } from "@/app/lib/logger";
 import { AnimatePresence, motion } from "framer-motion";
 import CardItem from "./CardItem";
 import Image from "next/image";
@@ -17,6 +18,7 @@ import cardBack from "@/public/img/field/card_back.png";
 import HeroHpBar from "./HeroHpBar";
 import ViewportContext from "@/app/context/ViewportContext";
 import { FIELD_CARD_POSE, FIELD_SUMMON_FROM } from "@/app/constants/fieldBattleCardMotion";
+import { useIsPointerDevice } from "@/app/hooks/useIsPointerDevice";
 
 interface PlayerAreaProps {
   heroRole?: "king" | "usurper" | null;
@@ -131,6 +133,9 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
   dropSuccess,
   attackTargets = [],
 }) => {
+  // タッチ端末（iOS/Android）では HTML5 DnD 未対応なので draggable を立てない
+  const isPointerDevice = useIsPointerDevice();
+
   const display =
     heroRole === "king" ? "king" : heroRole === "usurper" ? "usurper" : "unknown";
   const heroName = display === "king" ? "王様" : display === "usurper" ? "簒奪者" : "？";
@@ -149,7 +154,9 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
         : styles.hero_silhouette_unknown;
 
   const destroyingRef = useRef(destroyingCards);
-  destroyingRef.current = destroyingCards;
+  useEffect(() => {
+    destroyingRef.current = destroyingCards;
+  });
 
   // 手札レイアウト計算
   useEffect(() => {
@@ -360,7 +367,7 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
     }
 
     if (!targetElement) {
-      console.log('[PlayerArea] Target element not found for attack! (card destroyed):', targetId);
+      logger.debug('[PlayerArea] Target element not found for attack! (card destroyed):', targetId);
       return;
     }
 
@@ -411,7 +418,7 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
   useEffect(() => {
     if (!enemySpellAnimation || !playerHeroRef.current) return;
 
-    console.log('[PlayerArea] Enemy spell animation triggered:', enemySpellAnimation);
+    logger.debug('[PlayerArea] Enemy spell animation triggered:', enemySpellAnimation);
 
     const heroRect = playerHeroRef.current.getBoundingClientRect();
     
@@ -542,9 +549,9 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
                   hp={card.hp ?? 0}
                   maxHp={card.maxHp ?? 0}
                   attack={card.attack ?? 0}
-                  baseAttack={(card as any).baseAttack}
-                  baseHp={(card as any).baseHp}
-                  draggable={card.canAttack && !isOwnFieldSel && !isTargetSelectionActive}
+                  baseAttack={card.baseAttack}
+                  baseHp={card.baseHp}
+                  draggable={isPointerDevice && card.canAttack && !isOwnFieldSel && !isTargetSelectionActive}
                   onDragStart={(e) => {
                     if (!isPlayerTurn || isOwnFieldSel || isTargetSelectionActive) return;
                     onDragStart(card, e);
@@ -599,7 +606,7 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
         {playerHandCards.reduce((acc, card) => {
           // 同じ uniqueId が既に追加されていないかチェック（重複排除）
           if (acc.some((c) => c.uniqueId === card.uniqueId)) {
-            console.warn(`重複したカードが検出されました: ${card.name} (${card.uniqueId})`);
+            logger.warn(`重複したカードが検出されました: ${card.name} (${card.uniqueId})`);
             return acc;
           }
           return [...acc, card];
@@ -656,7 +663,7 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
                     playerDaggerCount,
                     playerCostByDaggerStacks
                   )}
-                  draggable={selectionMode === "none"}
+                  draggable={isPointerDevice && selectionMode === "none"}
                   inHand
                   currentMana={currentMana}
                   aria-hidden={true}
@@ -680,7 +687,7 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
                     playerDaggerCount,
                     playerCostByDaggerStacks
                   )}
-                  draggable={selectionMode === "none"}
+                  draggable={isPointerDevice && selectionMode === "none"}
                   inHand
                   currentMana={currentMana}
                   onDragStart={(e) => {
@@ -689,8 +696,8 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
                     onDragStart(card, e);
                   }}
                   onDragEnd={onDragEnd}
-                  onMouseEnter={() => setDescCardId(card.uniqueId)}
-                  onMouseLeave={() => setDescCardId(null)}
+                  onPointerEnter={() => setDescCardId(card.uniqueId)}
+                  onPointerLeave={() => setDescCardId(null)}
                   style={{
                     ...swapIds.includes(card.uniqueId) ? { border: '2px solid limegreen' } : undefined,
                     opacity: isDragging ? 0.3 : 1,
@@ -747,11 +754,11 @@ export const PlayerArea: React.FC<PlayerAreaProps & { hoverTarget?: { type: stri
             {flight.reason !== "draw" ? (
               <span className={styles.draw_flight_badge}>{flight.reason === "generate" ? "生成" : "回収"}</span>
             ) : null}
-            <div className={styles.card}>
+            <div className={styles.card} style={{ position: "relative" }}>
               {flight.reason === "draw" ? (
-                <img src={cardBack.src} alt="card back" style={{ width: "100%", height: "100%", borderRadius: 10 }} />
+                <Image src={cardBack} alt="card back" fill unoptimized style={{ borderRadius: 10, objectFit: "cover" }} />
               ) : flight.card.image ? (
-                <img src={flight.card.image} alt={flight.card.name} style={{ width: "100%", height: "100%", borderRadius: 10 }} />
+                <Image src={flight.card.image} alt={flight.card.name} fill unoptimized style={{ borderRadius: 10, objectFit: "cover" }} />
               ) : null}
             </div>
           </motion.div>

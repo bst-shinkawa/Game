@@ -4,6 +4,7 @@ import { authOptions } from "@/auth";
 import { getUserData, updateUserData } from "@/app/lib/userDataStore";
 import { validateDeckIds } from "@/app/data/deckBuilder";
 import type { DeckRole } from "@/app/data/deck";
+import { rateLimit } from "@/app/lib/rateLimit";
 
 const roles: DeckRole[] = ["king", "usurper"];
 
@@ -20,6 +21,11 @@ export async function PUT(request: Request) {
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
   if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
+  const rl = rateLimit(`decks-${userId}`, { windowMs: 60_000, max: 30 });
+  if (!rl.allowed) {
+    return NextResponse.json({ error: "リクエストが多すぎます。しばらくしてから再試行してください。" }, { status: 429 });
+  }
 
   const body = (await request.json()) as Partial<Record<DeckRole, number[]>>;
   const nextDecks: Partial<Record<DeckRole, number[] | null>> = {};

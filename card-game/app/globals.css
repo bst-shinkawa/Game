@@ -19,6 +19,24 @@
   }
 }
 
+/*
+ * iOS Safari ではアドレスバーの出現/消滅で 100vh が変動し、
+ * transform: scale() による固定レイアウトが崩れる。
+ * html/body を fixed+overflow:hidden にすることで
+ * ページ全体のスクロール・バウンス・リフロー発生を防ぐ。
+ */
+html,
+body {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none; /* iOS バウンス無効化 */
+  touch-action: none;        /* ドラッグ中の慣性スクロールを全面抑止 */
+  -webkit-tap-highlight-color: transparent; /* iOS タップ時の青枠を消す */
+}
+
 body {
   background: var(--background);
   color: var(--foreground);

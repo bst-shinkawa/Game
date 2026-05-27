@@ -87,10 +87,7 @@ export function useDragHandler({
 
   // Drag tracking: mouse/touch position → hover target
   useEffect(() => {
-    if (!draggingCard) {
-      setHoverTarget({ type: null });
-      return;
-    }
+    if (!draggingCard) return;
 
     const scheduleFlush = () => {
       if (dragRafRef.current != null) return;
@@ -132,9 +129,7 @@ export function useDragHandler({
       });
     };
 
-    const handleMouseMove = (e: MouseEvent) => {
-      const cx = e.clientX;
-      const cy = e.clientY;
+    const updatePending = (cx: number, cy: number) => {
       let dx, dy;
       if (viewport?.scale) {
         dx = Math.round((cx - (viewport.containerLeft || 0)) / (viewport.scale || 1));
@@ -144,22 +139,16 @@ export function useDragHandler({
       scheduleFlush();
     };
 
-    const handleDragOver = (e: DragEvent) => {
-      const cx = e.clientX;
-      const cy = e.clientY;
-      let dx, dy;
-      if (viewport?.scale) {
-        dx = Math.round((cx - (viewport.containerLeft || 0)) / (viewport.scale || 1));
-        dy = Math.round((cy - (viewport.containerTop || 0)) / (viewport.scale || 1));
-      }
-      dragPendingRef.current = { x: cx, y: cy, dx, dy };
-      scheduleFlush();
-    };
+    // pointermove: mouse・touch・stylus すべてを統一して追跡する。
+    // iOS Safari は mousemove を発火しないため pointermove が唯一の更新経路になる。
+    const handlePointerMove = (e: PointerEvent) => updatePending(e.clientX, e.clientY);
+    // dragover: PCブラウザの HTML5 DnD フォールバック（念のため残す）
+    const handleDragOver = (e: DragEvent) => updatePending(e.clientX, e.clientY);
 
-    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("pointermove", handlePointerMove);
     document.addEventListener("dragover", handleDragOver);
     return () => {
-      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("pointermove", handlePointerMove);
       document.removeEventListener("dragover", handleDragOver);
       if (dragRafRef.current) cancelAnimationFrame(dragRafRef.current);
       dragPendingRef.current = null;
@@ -186,16 +175,21 @@ export function useDragHandler({
       startRect = el.getBoundingClientRect();
       let dragStarted = false;
 
-      const forceStart = () => {
-        if (dragStarted) return;
+      const startDrag = (x: number, y: number) => {
         dragStarted = true;
         try { (document.activeElement as HTMLElement | null)?.blur(); } catch {}
         pointerOffset = { x: startX - startRect!.left, y: startY - startRect!.top };
+        // dragOffsetRef を同期: scheduleFlush (pointermove 経由) が正しいオフセットを使えるようにする
+        dragOffsetRef.current = pointerOffset;
         setDraggingCard(id);
         arrowStartPos.current = { x: startRect!.left + startRect!.width / 2, y: startRect!.top + startRect!.height / 2 };
-        setDragPosition({ x: startX - pointerOffset.x, y: startY - pointerOffset.y });
-        try { document.body.style.touchAction = "none"; } catch {}
-        lastPointerRef.current = { x: startX, y: startY };
+        setDragPosition({ x: x - pointerOffset.x, y: y - pointerOffset.y });
+        lastPointerRef.current = { x, y };
+      };
+
+      const forceStart = () => {
+        if (dragStarted) return;
+        startDrag(startX, startY);
       };
 
       const onMove = (x: number, y: number, preventDefaultIfStarted = true): boolean | false => {
@@ -203,13 +197,7 @@ export function useDragHandler({
         const dy = y - startY;
         if (!dragStarted) {
           if (Math.hypot(dx, dy) > DRAG_START_THRESHOLD) {
-            dragStarted = true;
-            try { (document.activeElement as HTMLElement | null)?.blur(); } catch {}
-            pointerOffset = { x: startX - startRect!.left, y: startY - startRect!.top };
-            setDraggingCard(id);
-            arrowStartPos.current = { x: startRect!.left + startRect!.width / 2, y: startRect!.top + startRect!.height / 2 };
-            setDragPosition({ x: x - pointerOffset.x, y: y - pointerOffset.y });
-            lastPointerRef.current = { x, y };
+            startDrag(x, y);
             return true;
           }
           return false;
@@ -224,7 +212,8 @@ export function useDragHandler({
         startRect = null;
         activePointerId = null;
         stopMonitor();
-        try { document.body.style.touchAction = ""; } catch {}
+        // dragOffsetRef をリセット（iOS では onDragEnd が発火しないためここでクリア）
+        dragOffsetRef.current = { x: 0, y: 0 };
         try {
           if (capturedPointerElement && capturedPointerId != null) {
             capturedPointerElement.releasePointerCapture(capturedPointerId);
@@ -272,7 +261,6 @@ export function useDragHandler({
 
       setDraggingCard(null);
       arrowStartPos.current = null;
-      try { document.body.style.touchAction = ""; } catch {}
     };
 
     const onPointerDown = (e: PointerEvent) => {
@@ -348,78 +336,12 @@ export function useDragHandler({
       document.addEventListener("pointercancel", cancelHandler);
     };
 
-    const onTouchStart = (e: TouchEvent) => {
-      const t = e.touches[0];
-      if (!t) return;
-      const el = (e.target as HTMLElement).closest("[data-uniqueid]") as HTMLElement | null;
-      if (!el) return;
-      const id = el.getAttribute("data-uniqueid");
-      if (!id) return;
-
-      const handCard = playerHandCards.find((c) => c.uniqueId === id);
-      const fieldCard = playerFieldCards.find((c) => c.uniqueId === id && c.canAttack);
-      if (!handCard && !fieldCard) return;
-      if (!isPlayerTurn) return;
-      if (
-        handCard &&
-        (selectionMode === "select_hand_card" || selectionMode === "select_target")
-      ) {
-        return;
-      }
-
-      const startX = t.clientX;
-      const startY = t.clientY;
-      const pd = beginPotentialDrag(startX, startY, el, id, null);
-
-      let longPressTimer: number | null = window.setTimeout(() => pd.forceStart(), LONG_PRESS_MS) as unknown as number;
-
-      const touchMove = (ev: TouchEvent) => {
-        const t2 = ev.touches[0];
-        if (!t2) return;
-        if (Math.hypot(t2.clientX - startX, t2.clientY - startY) > 4 && longPressTimer != null) { clearTimeout(longPressTimer); longPressTimer = null; }
-        if (pd.onMove(t2.clientX, t2.clientY)) {
-          if (longPressTimer != null) { clearTimeout(longPressTimer); longPressTimer = null; }
-          ev.preventDefault();
-        }
-      };
-
-      const touchCancel = () => {
-        if (longPressTimer != null) { clearTimeout(longPressTimer); longPressTimer = null; }
-        document.removeEventListener("touchmove", touchMove as EventListenerOrEventListenerObject);
-        document.removeEventListener("touchend", touchEnd as EventListenerOrEventListenerObject);
-        document.removeEventListener("touchcancel", touchCancel as EventListenerOrEventListenerObject);
-        pd.finish();
-      };
-
-      const touchEnd = (ev: TouchEvent) => {
-        if (longPressTimer != null) { clearTimeout(longPressTimer); longPressTimer = null; }
-        const t2 = ev.changedTouches[0];
-        if (!t2) return;
-        if (pd.onMove(t2.clientX, t2.clientY, false) === false) {
-          document.removeEventListener("touchmove", touchMove as EventListenerOrEventListenerObject);
-          document.removeEventListener("touchend", touchEnd as EventListenerOrEventListenerObject);
-          document.removeEventListener("touchcancel", touchCancel as EventListenerOrEventListenerObject);
-          pd.finish();
-          return;
-        }
-        const dropEl = document.elementFromPoint(t2.clientX, t2.clientY) as HTMLElement | null;
-        handleDrop(dropEl, handCard, fieldCard, id);
-        document.removeEventListener("touchmove", touchMove as EventListenerOrEventListenerObject);
-        document.removeEventListener("touchend", touchEnd as EventListenerOrEventListenerObject);
-        document.removeEventListener("touchcancel", touchCancel as EventListenerOrEventListenerObject);
-        pd.finish();
-      };
-
-      document.addEventListener("touchmove", touchMove, { passive: false } as any);
-      document.addEventListener("touchend", touchEnd as any);
-      document.addEventListener("touchcancel", touchCancel as any);
-    };
-
+    // touchstart/touchmove/touchend は登録しない。
+    // iOS Safari を含む全タッチ端末で Pointer Events API (pointerdown/pointermove/pointerup/pointercancel) が
+    // 正しくサポートされており、touch イベントと同時登録すると二重発火で攻撃・召喚が暴発するため。
     document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("touchstart", onTouchStart, { passive: false } as any);
     return () => {
       document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("touchstart", onTouchStart as any);
     };
   }, [playerHandCards, playerFieldCards, enemyFieldCards, isPlayerTurn, preGame, coinResult, swapIds, selectionMode, refs, actions, setDraggingCard, setDragPosition, stopMonitor]);
 
@@ -427,7 +349,6 @@ export function useDragHandler({
   useEffect(() => {
     if (!draggingCard) {
       stopMonitor();
-      try { document.body.style.touchAction = ""; } catch {}
     }
   }, [draggingCard, stopMonitor]);
 

@@ -1,20 +1,18 @@
 const MIN_LEN = 2;
 const MAX_LEN = 16;
 
-// 初期辞書。運用しながら追加する前提。
+// 禁止ワード辞書。正規化後の小文字と照合する。運用しながら追加する前提。
 const BANNED_WORDS = [
-  "ちん",
-  "まん",
-  "せっくす",
-  "sex",
-  "fuck",
-  "fack",
-  "shit",
-  "penis",
-  "vagina",
-  "おっぱい",
-  "ちんこ",
-  "まんこ",
+  // 日本語
+  "ちん", "ちんこ", "まん", "まんこ", "おっぱい", "せっくす",
+  "うんこ", "くそ", "ばか", "あほ", "死ね", "しね", "殺す", "ころす",
+  "レイプ", "れいぷ",
+  // 英語
+  "sex", "fuck", "fack", "shit", "cunt", "dick", "cock", "ass",
+  "penis", "vagina", "bitch", "whore", "nigger", "nigga", "faggot",
+  "kys", "kill yourself",
+  // 数字混じり読み換え (leet)
+  "f4ck", "sh1t", "d1ck",
 ];
 
 const RESERVED_NAMES = ["admin", "administrator", "official", "運営", "管理者"];

@@ -34,6 +34,8 @@ type Props = {
   onDrop?: (e: React.DragEvent<HTMLDivElement>) => void;
   onMouseEnter?: (e: React.MouseEvent<HTMLDivElement>) => void;
   onMouseLeave?: (e: React.MouseEvent<HTMLDivElement>) => void;
+  onPointerEnter?: (e: React.PointerEvent<HTMLDivElement>) => void;
+  onPointerLeave?: (e: React.PointerEvent<HTMLDivElement>) => void;
   onTouchStart?: (e: React.TouchEvent<HTMLDivElement>) => void;
   onTouchEnd?: (e: React.TouchEvent<HTMLDivElement>) => void;
   onTouchCancel?: (e: React.TouchEvent<HTMLDivElement>) => void;
@@ -106,6 +108,8 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
   fieldTiltOnParent = false,
   onMouseEnter,
   onMouseLeave,
+  onPointerEnter,
+  onPointerLeave,
   onTouchStart,
   onTouchEnd,
   onTouchCancel,
@@ -163,12 +167,13 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
       onDrop={onDrop}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
+      onPointerEnter={onPointerEnter}
+      onPointerLeave={onPointerLeave}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
       onTouchCancel={onTouchCancel}
       onTouchMove={onTouchMove}
       style={{
-        touchAction: (draggable || inHand) ? 'none' : undefined,
         ...style,
         border: `${borderWidth}px solid ${borderColor}`,
       }}
@@ -243,5 +248,7 @@ const CardItem = React.forwardRef<HTMLDivElement, Props>(({
     </div>
   );
 });
+
+CardItem.displayName = "CardItem";
 
 export default CardItem;

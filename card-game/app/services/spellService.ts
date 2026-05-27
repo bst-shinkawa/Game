@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import type { Card } from "../data/cards";
 import type { RuntimeCard, GameOverState } from "../types/gameTypes";
 import { MAX_HAND } from "../constants/gameConstants";
+import { logger } from "../lib/logger";
 import { getSynergyDamageBonus } from "./synergyUtils";
 import { normalizeReturnedHandCardFromRuntime } from "./cardService";
 
@@ -36,7 +37,7 @@ export function castSpell(
   isPlayer: boolean,
   context: SpellContext
 ): void {
-  console.debug(`[Spell] ${isPlayer ? "Player" : "Enemy"} casts ${card.name} (${card.effect}) on ${targetId}`);
+  logger.debug(`[Spell] ${isPlayer ? "Player" : "Enemy"} casts ${card.name} (${card.effect}) on ${targetId}`);
   const {
     playerFieldCards,
     enemyFieldCards,
@@ -134,7 +135,7 @@ export function castSpell(
       // custom effects; the logic lives in the caller (useCardOperations)
       break;
     default:
-      console.debug("未対応の spell effect:", effect);
+      logger.debug("未対応の spell effect:", effect);
       break;
   }
 }
@@ -201,7 +202,7 @@ function handleDamageAllSpell(
   setTargetHeroHp((h) => {
     const hasWallGuard = targetFieldCards.some((c) => (c as { wallGuard?: boolean }).wallGuard);
     if (hasWallGuard) {
-      console.log("敵は鉄壁を持っているため、全体ダメージからヒーローは保護されます");
+      logger.debug("敵は鉄壁を持っているため、全体ダメージからヒーローは保護されます");
       return h;
     }
     const next = Math.max(h - dmg, 0);
@@ -302,7 +303,7 @@ function handleFreezeSpell(
       )
     );
   } else {
-    console.log("ヒーローは凍結できません");
+    logger.debug("ヒーローは凍結できません");
   }
 }
 
@@ -328,7 +329,7 @@ function handleHasteSpell(
         )
       );
     } else {
-      console.log("加速呪文：攻撃済みまたは既に突進を持っているため付与できません");
+      logger.debug("加速呪文：攻撃済みまたは既に突進を持っているため付与できません");
     }
   }
 }

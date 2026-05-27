@@ -38,4 +38,4 @@ yarn-error.log*
 
 # typescript
 *.tsbuildinfo
-next-env.d.ts
+# next-env.d.ts は Next.js が自動生成するファイルでリポジトリへのコミットが推奨されているため除外しない

@@ -6,6 +6,7 @@ import { applySpell, executePlayEffects } from "../services/effectService";
 import type { PlayContext } from "../services/effectService";
 import { MAX_MANA, MAX_HAND } from "../constants/gameConstants";
 import { getEffectiveCost, checkSynergy, getSynergyAttackBonus } from "../services/synergyUtils";
+import { random } from "../lib/seededRandom";
 
 export function evaluateBoardState({
   enemyFieldCards,
@@ -290,12 +291,12 @@ export async function runEnemyTurn(ctx: AIGameContext) {
         };
       });
 
-    if (Math.random() < 0.5) {
+    if (random() < 0.5) {
       followerCandidates.sort((a, b) =>
         b.efficiency !== a.efficiency ? b.efficiency - a.efficiency : b.score - a.score
       );
     } else {
-      followerCandidates.sort(() => Math.random() - 0.5);
+      followerCandidates.sort(() => random() - 0.5);
     }
 
     const localSummoned: (RuntimeCard & { uniqueId: string; isAnimating?: boolean })[] = [];
@@ -315,17 +316,17 @@ export async function runEnemyTurn(ctx: AIGameContext) {
       let entry;
       if (isDefensiveTurn) {
         const wallCandidates = followerCandidates.filter(
-          (e) => (e.card.hp ?? 0) >= 5 || (e.card as any).wallGuard
+          (e) => (e.card.hp ?? 0) >= 5 || e.card.wallGuard
         );
         entry =
           wallCandidates.find((e) => e.effectiveCost <= remainingMana) ||
           followerCandidates.find((e) => e.effectiveCost <= remainingMana);
       } else {
-        if (Math.random() < 0.7) {
+        if (random() < 0.7) {
           entry = followerCandidates.find((e) => e.effectiveCost <= remainingMana);
         } else {
           const affordable = followerCandidates.filter((e) => e.effectiveCost <= remainingMana);
-          entry = affordable.length > 0 ? affordable[Math.floor(Math.random() * affordable.length)] : undefined;
+          entry = affordable.length > 0 ? affordable[Math.floor(random() * affordable.length)] : undefined;
         }
       }
       if (!entry) break;
@@ -404,7 +405,7 @@ export async function runEnemyTurn(ctx: AIGameContext) {
             return next;
           });
         } else {
-          const target = currentPlayerFieldCards[Math.floor(Math.random() * currentPlayerFieldCards.length)];
+          const target = currentPlayerFieldCards[Math.floor(random() * currentPlayerFieldCards.length)];
           setPlayerFieldCards((list) => {
             const updated = list.map((c) => (c.uniqueId === target.uniqueId ? { ...c, hp: (c.hp ?? 0) - dmg } : c));
             const dead = updated.filter((c) => (c.hp ?? 0) <= 0);
@@ -432,7 +433,7 @@ export async function runEnemyTurn(ctx: AIGameContext) {
       ) {
         const freezePick = getCurrentPlayerFieldCards();
         if (freezePick.length > 0) {
-          playEffectExtraIds = [freezePick[Math.floor(Math.random() * freezePick.length)].uniqueId];
+          playEffectExtraIds = [freezePick[Math.floor(random() * freezePick.length)].uniqueId];
         }
       }
       executePlayEffects(
@@ -490,8 +491,8 @@ export async function runEnemyTurn(ctx: AIGameContext) {
           getEffectiveCost(c, fieldCount, localDaggerCount, ctx.enemyCostByDaggerStacksRef.current) <= remainingMana
       );
       if (!spell) {
-        const priorityOrder = Math.random() < 0.5;
-        const order = priorityOrder ? [...spellPriority] : [...spellPriority].sort(() => Math.random() - 0.5);
+        const priorityOrder = random() < 0.5;
+        const order = priorityOrder ? [...spellPriority] : [...spellPriority].sort(() => random() - 0.5);
         for (const type of order) {
           spell = spellCandidates.find(
             (c) =>
@@ -540,10 +541,10 @@ export async function runEnemyTurn(ctx: AIGameContext) {
         case "haste": {
           const currentPlayerFieldCards = getCurrentPlayerFieldCards();
           if (canTargetField && currentPlayerFieldCards.length > 0) {
-            if (spell.effect === "freeze_single" && Math.random() < 0.7) {
+            if (spell.effect === "freeze_single" && random() < 0.7) {
               targetId = currentPlayerFieldCards.reduce((best, c) => ((c.attack ?? 0) > (best.attack ?? 0) ? c : best)).uniqueId;
             } else {
-              targetId = currentPlayerFieldCards[Math.floor(Math.random() * currentPlayerFieldCards.length)].uniqueId;
+              targetId = currentPlayerFieldCards[Math.floor(random() * currentPlayerFieldCards.length)].uniqueId;
             }
           } else if (canTargetHero) {
             targetId = "hero";
@@ -553,9 +554,9 @@ export async function runEnemyTurn(ctx: AIGameContext) {
         case "poison": {
           const currentPlayerFieldCards = getCurrentPlayerFieldCards();
           if (currentPlayerFieldCards.length > 0) {
-            targetId = Math.random() < 0.7
+            targetId = random() < 0.7
               ? currentPlayerFieldCards.reduce((best, c) => ((c.hp ?? 0) > (best.hp ?? 0) ? c : best)).uniqueId
-              : currentPlayerFieldCards[Math.floor(Math.random() * currentPlayerFieldCards.length)].uniqueId;
+              : currentPlayerFieldCards[Math.floor(random() * currentPlayerFieldCards.length)].uniqueId;
           } else if (canTargetHero) {
             targetId = "hero";
           }
@@ -689,7 +690,7 @@ export async function runEnemyTurn(ctx: AIGameContext) {
         const selectableFollowerTargets = hasWallGuardOnPlayer ? guardTargets : validTargets;
 
         if (selectableFollowerTargets.length > 0) {
-          if (Math.random() < 0.6) {
+          if (random() < 0.6) {
             const mostThreatened = selectableFollowerTargets.reduce((best, c) => {
               const bestScore = (best.attack ?? 0) * 2 + (best.hp ?? 0) + (best.effect ? 1.5 : 0);
               const cScore = (c.attack ?? 0) * 2 + (c.hp ?? 0) + (c.effect ? 1.5 : 0);
@@ -697,7 +698,7 @@ export async function runEnemyTurn(ctx: AIGameContext) {
             });
             target = mostThreatened.uniqueId;
           } else {
-            target = selectableFollowerTargets[Math.floor(Math.random() * selectableFollowerTargets.length)].uniqueId;
+            target = selectableFollowerTargets[Math.floor(random() * selectableFollowerTargets.length)].uniqueId;
           }
         }
 
@@ -706,7 +707,7 @@ export async function runEnemyTurn(ctx: AIGameContext) {
           else continue;
         } else if (target === "hero" && !allowHeroTarget) {
           if (selectableFollowerTargets.length > 0) {
-            target = selectableFollowerTargets[Math.floor(Math.random() * selectableFollowerTargets.length)].uniqueId;
+            target = selectableFollowerTargets[Math.floor(random() * selectableFollowerTargets.length)].uniqueId;
           } else {
             continue;
           }

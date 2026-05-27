@@ -6,8 +6,13 @@ const googleClientSecret = process.env.AUTH_GOOGLE_SECRET ?? process.env.GOOGLE_
 const nextAuthSecret = process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET;
 
 if (!googleClientId || !googleClientSecret || !nextAuthSecret) {
-  // Helps identify missing Vercel environment variables quickly in runtime logs.
   throw new Error("NextAuth environment variables are missing. Set AUTH_GOOGLE_ID/AUTH_GOOGLE_SECRET and NEXTAUTH_SECRET.");
+}
+
+// Vercel 本番では VERCEL_URL（自動設定）を NEXTAUTH_URL のフォールバックとして使用する。
+// NEXTAUTH_URL が明示的に設定されていればそちらを優先する。
+if (!process.env.NEXTAUTH_URL && process.env.VERCEL_URL) {
+  process.env.NEXTAUTH_URL = `https://${process.env.VERCEL_URL}`;
 }
 
 export const authOptions: NextAuthOptions = {

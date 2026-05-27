@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useContext, useMemo, useCallback, useState } from "react";
+import { random } from "@/app/lib/seededRandom";
 import { createPortal } from "react-dom";
 import { TurnTimer } from "@/app/data/turnTimer";
 import { DamageFloater } from "./DamageFloater";
@@ -51,7 +52,7 @@ interface GameFieldProps {
   enemyMaxMana: number;
   turn: number;
   turnSecondsRemaining: number;
-  gameOver: { over: boolean; winner: null | "player" | "enemy"; reason?: string };
+  gameOver: { over: boolean; winner: null | "player" | "enemy"; reason?: import("@/app/types/gameTypes").GameOverReason };
   playerRole?: "king" | "usurper" | null;
   kingBoardControlStreak: number;
   round?: number;
@@ -204,10 +205,10 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
     if (!card) return;
 
     if (card.type === "spell") {
-      const usageType = (card as any).usageType;
+      const usageType = card.usageType;
       if (usageType === "cast_spell_select_target") {
-        const selectableTargets = (card as any).selectableTargets || ["hero", "field_card"];
-        const selectCount = (card as any).selectCount || 1;
+        const selectableTargets = card.selectableTargets || ["hero", "field_card"];
+        const selectCount = card.selectCount || 1;
         const closesHandOnUse =
           card.effect === "heal_single" &&
           (selectableTargets.includes("own_hero") || selectableTargets.includes("own_field_card"));
@@ -220,8 +221,8 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
           onCancel: () => {},
         });
       } else if (usageType === "cast_spell_select_hand") {
-        const selectableTargets = (card as any).selectableTargets || ["hand_card"];
-        const selectCount = (card as any).selectCount || 1;
+        const selectableTargets = card.selectableTargets || ["hand_card"];
+        const selectCount = card.selectCount || 1;
         initializeSelection({
           sourceCardId: cardId, selectableTargets, selectCount,
           onComplete: (selectedIds: string[]) => {
@@ -233,8 +234,8 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
         castSpell(cardId, "hero", true);
       }
     } else if (card.type === "follower") {
-      const summonSelectableTargets = (card as any).summonSelectableTargets;
-      if (summonSelectableTargets?.length > 0) {
+      const summonSelectableTargets = card.summonSelectableTargets;
+      if (summonSelectableTargets && summonSelectableTargets.length > 0) {
         initializeSelection({
           sourceCardId: cardId, selectableTargets: summonSelectableTargets, selectCount: 1,
           onComplete: (selectedIds: string[]) => playCardToField(card, selectedIds),
@@ -277,11 +278,18 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
     playerHandCards, playerFieldCards, enemyFieldCards,
     isPlayerTurn, preGame, coinResult, swapIds,
     selectionMode,
-    draggingCard, setDraggingCard, setDragPosition,
+    draggingCard,
+    // ドラッグ開始時（pointer パス）に詳細パネルを閉じる。
+    // iOS では HTML5 DnD の onDragStart が発火しないためここで処理する。
+    setDraggingCard: (id: string | null) => {
+      if (id !== null) setDescCardId(null);
+      setDraggingCard(id);
+    },
+    setDragPosition,
     refs: dragRefs, actions: dragActions,
   });
 
-  const { canvasRef, setArrowProgress } = useArrowCanvas({
+  const { canvasRef } = useArrowCanvas({
     draggingCard, dragPosition, playerHandCards, playerFieldCards, enemyFieldCards,
     hoverTarget, arrowStartPos, enemyHeroRef, playerHeroRef,
     playerFieldRefs, enemyFieldRefs, attackTargets, setAttackTargets,
@@ -340,7 +348,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
   useEffect(() => {
     if (!preGame || coinResult !== "deciding") return;
     if (rouletteLabel === "player" || rouletteLabel === "enemy") return;
-    const winner = Math.random() < 0.5 ? "player" : "enemy";
+    const winner = random() < 0.5 ? "player" : "enemy";
     setRouletteLabel(winner);
   }, [preGame, coinResult, rouletteLabel, setRouletteLabel]);
 
@@ -351,13 +359,11 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
   }, []);
 
   const isLocal = process.env.NODE_ENV !== "production";
-  const basePath = process.env.NODE_ENV === "production" ? "/Game" : "";
-
   // --- Render ---
   return (
     <div className={`${styles.field} ${isLocal ? styles.field_local : ""}`}>
       <div className={styles.field_bg}>
-        <video ref={videoRef} src={`${basePath}/img/field/bg.mp4`} autoPlay muted loop playsInline />
+        <video ref={videoRef} src="/img/field/bg.mp4" autoPlay muted loop playsInline />
       </div>
 
       {typeof document !== "undefined" && createPortal(<DamageFloater floats={damageFloats} />, document.body)}
@@ -505,9 +511,9 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
       {playerSpellCastCard && (
         <div className={styles.player_spell_cast_popup} aria-hidden={true}>
           <div className={styles.player_spell_cast_popup_inner}>
-            <div className={styles.card}>
+            <div className={styles.card} style={{ position: "relative" }}>
               {playerSpellCastCard.image ? (
-                <img src={playerSpellCastCard.image} alt={playerSpellCastCard.name} style={{ width: "100%", height: "100%", borderRadius: 10 }} />
+                <Image src={playerSpellCastCard.image} alt={playerSpellCastCard.name} fill unoptimized style={{ borderRadius: 10, objectFit: "cover" }} />
               ) : null}
             </div>
             <div className={styles.player_spell_cast_popup_name}>{playerSpellCastCard.name}</div>
@@ -548,7 +554,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
           const handCard = playerHandCards.find((c) => c.uniqueId === draggingCard);
           const keepExpandedForDagger = !!(handCard && handCard.type === "spell" && handCard.id === 15);
           if (handCard && handCard.type === "spell") {
-            const selectableTargets = (handCard as any).selectableTargets as ("hero" | "field_card")[] | undefined;
+            const selectableTargets = (handCard as Card & { selectableTargets?: Card["selectableTargets"] }).selectableTargets as ("hero" | "field_card")[] | undefined;
             const canTargetHero = !selectableTargets || selectableTargets.includes("hero");
             const canTargetField = !selectableTargets || selectableTargets.includes("field_card");
             if ((targetId === "hero" && !canTargetHero) || (targetId !== "hero" && !canTargetField)) {
@@ -619,17 +625,16 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
         setArrowStartPos={(pos) => { arrowStartPos.current = pos; }}
         onDragStart={(card, e) => {
           if (!isPlayerTurn) return;
-          setArrowProgress(0);
           try {
             e.dataTransfer?.setData("text/plain", card.uniqueId);
             e.dataTransfer?.setDragImage(new window.Image(), 0, 0);
           } catch {}
           const rect = e.currentTarget.getBoundingClientRect();
-          const offset = { x: (e as any).clientX - rect.left, y: (e as any).clientY - rect.top };
+          const offset = { x: e.clientX - rect.left, y: e.clientY - rect.top };
           dragOffsetRef.current = offset;
           setDraggingCard(card.uniqueId);
           arrowStartPos.current = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-          setDragPosition({ x: (e as any).clientX - offset.x, y: (e as any).clientY - offset.y });
+          setDragPosition({ x: e.clientX - offset.x, y: e.clientY - offset.y });
         }}
         onDragEnd={() => {
           setDraggingCard(null);
@@ -865,7 +870,7 @@ export const GameField: React.FC<GameFieldProps> = (props) => {
       {gameOver.over && (
         <GameOver
           winner={gameOver.winner}
-          reason={gameOver.reason as any}
+          reason={gameOver.reason}
           playerRole={playerRole ?? (coinResult === "player" ? "king" : coinResult === "enemy" ? "usurper" : null)}
           turn={turn}
           onRestart={() => resetGame("cpu")}

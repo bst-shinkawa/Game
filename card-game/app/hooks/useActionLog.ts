@@ -40,9 +40,10 @@ export function useActionLog() {
   }, []);
 
   useEffect(() => {
+    const timers = timerRef.current;
     return () => {
-      timerRef.current.forEach((timer) => clearTimeout(timer));
-      timerRef.current.clear();
+      timers.forEach((timer) => clearTimeout(timer));
+      timers.clear();
     };
   }, []);
 

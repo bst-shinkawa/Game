@@ -1,3 +1,4 @@
+import { logger } from "../lib/logger";
 // 攻撃処理に関するサービス
 import type { Card } from "../data/cards";
 import type { RuntimeCard, GameOverState } from "../types/gameTypes";
@@ -52,13 +53,13 @@ export function executeAttack(
 
   const attacker = attackerList.find((c) => c.uniqueId === attackerId);
   if (!attacker || !attacker.canAttack) {
-    console.log('[Attack] Attack aborted - attacker not found or cannot attack');
+    logger.debug('[Attack] Attack aborted - attacker not found or cannot attack');
     return;
   }
 
   // rush チェック
   if (attacker.rushInitialTurn && targetId === "hero") {
-    console.log("突撃はこのターン、相手フォロワーのみ攻撃可能です");
+    logger.debug("突撃はこのターン、相手フォロワーのみ攻撃可能です");
     onAttackBlocked?.("rush_hero_blocked");
     return;
   }
@@ -66,14 +67,14 @@ export function executeAttack(
   // wallGuard チェック（防御側＝攻撃対象側のフィールドに wallGuard があれば直接ヒーローを攻撃できない）
   const hasWallGuard = targetList.some((c) => (c as { wallGuard?: boolean }).wallGuard);
   if (hasWallGuard && targetId === "hero") {
-    console.log("相手は鉄壁を持っているため、ヒーローは攻撃できません");
+    logger.debug("相手は鉄壁を持っているため、ヒーローは攻撃できません");
     onAttackBlocked?.("guard_hero_blocked");
     return;
   }
   if (hasWallGuard && targetId !== "hero") {
     const target = targetList.find((c) => c.uniqueId === targetId);
     if (target && !(target as { wallGuard?: boolean }).wallGuard) {
-      console.log("相手は鉄壁を持っているため、鉄壁持ちフォロワー以外は攻撃できません");
+      logger.debug("相手は鉄壁を持っているため、鉄壁持ちフォロワー以外は攻撃できません");
       onAttackBlocked?.("guard_only_blocked");
       return;
     }
@@ -172,13 +173,13 @@ function attackFollower(
 ): void {
   const target = targetList.find((c) => c.uniqueId === targetId);
   if (!target) {
-    console.log('[Attack] Target not found');
+    logger.debug('[Attack] Target not found');
     return;
   }
 
   // ターゲットが隠密状態であれば攻撃不能
   if ((target as { stealth?: boolean }).stealth) {
-    console.log("そのフォロワーは隠密状態でターゲットにできません");
+    logger.debug("そのフォロワーは隠密状態でターゲットにできません");
     return;
   }
 
@@ -236,7 +237,7 @@ function attackFollower(
   if (deadAttackers.length) {
     // return_to_hand_once カードは墓地に加えず手札に戻す
     setAttackerGraveyard((g) => [...g, ...deadAttackers.filter(d => {
-      if ((d as any).deathTrigger && (d as any).deathTrigger.type === "return_to_hand_once") return false;
+      if (d.deathTrigger && d.deathTrigger.type === "return_to_hand_once") return false;
       return !g.some(x => x.uniqueId === d.uniqueId);
     })]);
     // 攻撃側カードの deathTrigger 処理

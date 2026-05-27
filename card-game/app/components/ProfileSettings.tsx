@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
+import { canChangePlayerName } from "../lib/playerName";
 
 type Props = {
   onBack: () => void;
+  onNameSaved?: (name: string) => void;
 };
 
 type ProfileResponse = {
@@ -11,7 +13,7 @@ type ProfileResponse = {
   lastNameChangedAt: string | null;
 };
 
-const ProfileSettings: React.FC<Props> = ({ onBack }) => {
+const ProfileSettings: React.FC<Props> = ({ onBack, onNameSaved }) => {
   const [loading, setLoading] = useState(true);
   const [playerName, setPlayerName] = useState("");
   const [lastNameChangedAt, setLastNameChangedAt] = useState<string | null>(null);
@@ -63,10 +65,12 @@ const ProfileSettings: React.FC<Props> = ({ onBack }) => {
         setMessage(data.error ?? "プロフィール更新に失敗しました。");
         return;
       }
-      setPlayerName(data.playerName ?? "");
+      const savedName = data.playerName ?? "";
+      setPlayerName(savedName);
       setLastNameChangedAt(data.lastNameChangedAt ?? null);
       setMessageType("success");
       setMessage("プロフィールを更新しました。");
+      onNameSaved?.(savedName);
     } catch {
       setMessageType("error");
       setMessage("通信エラーのため更新に失敗しました。");
@@ -78,6 +82,13 @@ const ProfileSettings: React.FC<Props> = ({ onBack }) => {
   const lastChangedLabel = lastNameChangedAt
     ? new Date(lastNameChangedAt).toLocaleString("ja-JP")
     : "未設定";
+
+  const changeStatus = useMemo(() => canChangePlayerName(lastNameChangedAt), [lastNameChangedAt]);
+  const nextAllowedLabel = changeStatus.ok
+    ? null
+    : changeStatus.nextAllowedAt
+    ? `次回変更可能時刻: ${changeStatus.nextAllowedAt.toLocaleString("ja-JP")}`
+    : null;
 
   return (
     <div
@@ -115,13 +126,16 @@ const ProfileSettings: React.FC<Props> = ({ onBack }) => {
         />
       </div>
       <p style={{ margin: 0, color: "#d0d0d0", fontSize: 13 }}>最終変更: {lastChangedLabel}</p>
+      {nextAllowedLabel && (
+        <p style={{ margin: 0, color: "#ffcc66", fontSize: 13 }}>{nextAllowedLabel}</p>
+      )}
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
         <button
           onClick={save}
-          disabled={loading || saving}
+          disabled={loading || saving || !changeStatus.ok}
           style={{
-            cursor: loading || saving ? "not-allowed" : "pointer",
+            cursor: loading || saving || !changeStatus.ok ? "not-allowed" : "pointer",
             borderRadius: 8,
             border: "1px solid rgba(138,255,181,0.45)",
             background: "rgba(138,255,181,0.18)",

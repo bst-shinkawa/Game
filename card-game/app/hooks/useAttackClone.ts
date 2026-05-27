@@ -40,8 +40,10 @@ export function useAttackClone({
 }: UseAttackCloneProps) {
   const enemyFieldCardsRef = useRef(enemyFieldCards);
   const playerFieldCardsRef = useRef(playerFieldCards);
-  enemyFieldCardsRef.current = enemyFieldCards;
-  playerFieldCardsRef.current = playerFieldCards;
+  useEffect(() => {
+    enemyFieldCardsRef.current = enemyFieldCards;
+    playerFieldCardsRef.current = playerFieldCards;
+  });
 
   useEffect(() => {
     if (movingAttack) {

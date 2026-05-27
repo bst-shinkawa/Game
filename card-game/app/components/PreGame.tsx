@@ -2,6 +2,7 @@
 
 import React, { useContext, useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import Image from "next/image";
 import CardItem from "./CardItem";
 import { CoinToss3D } from "./CoinToss3D";
 import type { Card } from "@/app/data/cards";
@@ -330,8 +331,8 @@ export const PreGame: React.FC<PreGameProps> = ({
                 setDrawFlights((prev) => prev.filter((f) => f.id !== flight.id));
               }}
             >
-              <div className={styles.card}>
-                {flight.card.image ? <img src={flight.card.image} alt={flight.card.name} style={{ width: "100%", height: "100%", borderRadius: 10 }} /> : null}
+              <div className={styles.card} style={{ position: "relative" }}>
+                {flight.card.image ? <Image src={flight.card.image} alt={flight.card.name} fill unoptimized style={{ borderRadius: 10, objectFit: "cover" }} /> : null}
               </div>
             </motion.div>
           ))}
@@ -344,8 +345,8 @@ export const PreGame: React.FC<PreGameProps> = ({
               exit={{ opacity: 0 }}
               transition={{ duration: 0.38, delay: flight.delay, ease: [0.4, 0, 0.2, 1] }}
             >
-              <div className={styles.card}>
-                {flight.card.image ? <img src={flight.card.image} alt={flight.card.name} style={{ width: "100%", height: "100%", borderRadius: 10 }} /> : null}
+              <div className={styles.card} style={{ position: "relative" }}>
+                {flight.card.image ? <Image src={flight.card.image} alt={flight.card.name} fill unoptimized style={{ borderRadius: 10, objectFit: "cover" }} /> : null}
               </div>
             </motion.div>
           ))}

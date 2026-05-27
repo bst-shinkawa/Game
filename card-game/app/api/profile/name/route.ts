@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/auth";
 import { canChangePlayerName, normalizePlayerName, validatePlayerName } from "@/app/lib/playerName";
 import { getUserData, updateUserData } from "@/app/lib/userDataStore";
+import { rateLimit } from "@/app/lib/rateLimit";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -20,6 +21,11 @@ export async function PATCH(request: Request) {
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id;
   if (!userId) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
+  const rl = rateLimit(`profile-name-${userId}`, { windowMs: 60_000, max: 10 });
+  if (!rl.allowed) {
+    return NextResponse.json({ error: "リクエストが多すぎます。しばらくしてから再試行してください。" }, { status: 429 });
+  }
 
   const body = (await request.json()) as { playerName?: string };
   const rawName = body.playerName ?? "";

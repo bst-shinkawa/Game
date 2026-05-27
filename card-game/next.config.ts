@@ -2,10 +2,8 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  output: undefined,
   images: {
-    // disable built-in optimizer to serve raw files directly;
-    // this avoids /_next/image overhead when many cards appear on screen
+    // 多数のカード画像を直接配信するため最適化を無効にしている
     unoptimized: true,
   },
 };

@@ -50,10 +50,11 @@ export function validateDeckIds(ids: number[], role: DeckRole): string[] {
     if (!target) continue;
     const maxByCard = target.cost >= HIGH_COST_THRESHOLD ? HIGH_COST_SAME_CARD_LIMIT : SAME_CARD_LIMIT;
     if (count > maxByCard) {
+      const cardName = target.name;
       if (target.cost >= HIGH_COST_THRESHOLD) {
-        errors.push(`コスト${HIGH_COST_THRESHOLD}以上の同名カードは最大${HIGH_COST_SAME_CARD_LIMIT}枚までです。`);
+        errors.push(`「${cardName}」はコスト${HIGH_COST_THRESHOLD}以上のため最大${HIGH_COST_SAME_CARD_LIMIT}枚までです。`);
       } else {
-        errors.push(`同名カードは最大${SAME_CARD_LIMIT}枚までです。`);
+        errors.push(`「${cardName}」は最大${SAME_CARD_LIMIT}枚までです。`);
       }
       break;
     }
@@ -83,8 +84,20 @@ export function saveDeckIdsToStorage(role: DeckRole, ids: number[]): { ok: boole
   const errors = validateDeckIds(ids, role);
   if (errors.length > 0) return { ok: false, errors };
   if (typeof window === "undefined") return { ok: false, errors: ["ブラウザでのみ保存できます。"] };
-  window.localStorage.setItem(STORAGE_KEYS[role], JSON.stringify(ids));
-  return { ok: true, errors: [] };
+  try {
+    window.localStorage.setItem(STORAGE_KEYS[role], JSON.stringify(ids));
+    return { ok: true, errors: [] };
+  } catch {
+    return { ok: false, errors: ["ローカルストレージへの保存に失敗しました。（プライベートモードか容量超過の可能性があります）"] };
+  }
+}
+
+/** ログアウト時にゲストデッキのローカルストレージを削除する */
+export function clearGuestDeckStorage(): void {
+  if (typeof window === "undefined") return;
+  for (const key of Object.values(STORAGE_KEYS)) {
+    window.localStorage.removeItem(key);
+  }
 }
 
 export function getDeckIdsForBattle(role: DeckRole): number[] {

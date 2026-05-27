@@ -125,5 +125,6 @@ const CircularTimer = forwardRef<TimerController, TimerProps>(({ duration, isPla
   );
 });
 
-// forwardRefでラップしたコンポーネントをエクスポートする
+CircularTimer.displayName = "CircularTimer";
+
 export default CircularTimer;

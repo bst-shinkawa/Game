@@ -1340,6 +1340,7 @@
   padding: 4px 8px 10px;
   scrollbar-width: thin;
   -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
 }
 .mulligan_trun {
   font-size: 30px;

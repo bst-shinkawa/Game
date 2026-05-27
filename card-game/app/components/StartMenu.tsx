@@ -6,6 +6,7 @@ type Props = {
   authChecked: boolean;
   showEntryChoice: boolean;
   isLoggedIn: boolean;
+  playerName?: string | null;
   onSelectGuest: () => void;
   onGoogleLogin: () => void;
   onLogout: () => void;
@@ -18,6 +19,7 @@ const StartMenu: React.FC<Props> = ({
   authChecked,
   showEntryChoice,
   isLoggedIn,
+  playerName,
   onSelectGuest,
   onGoogleLogin,
   onLogout,
@@ -133,7 +135,12 @@ const StartMenu: React.FC<Props> = ({
           )}
         </div>
       ) : null}
-      <h1 style={{ color: "#fff", fontSize: 48 }}>Usurper's Gambit</h1>
+      <h1 style={{ color: "#fff", fontSize: 48 }}>Usurper&apos;s Gambit</h1>
+      {isLoggedIn && !playerName && (
+        <p style={{ margin: 0, color: "#ffcc66", fontWeight: 700, fontSize: 14, textAlign: "center" }}>
+          プレイヤーネームが未設定です。☰メニュー → プロフィール設定から設定してください。
+        </p>
+      )}
       <div className={styles.field_turn} style={{ display: "flex", gap: 12, color: "#fff", flexDirection: "unset" }}>
         <button onClick={() => onSelectMode("cpu")} style={{ color: "#d0d0d0", cursor: "pointer" }}>
           CPU対戦

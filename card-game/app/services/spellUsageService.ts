@@ -1,3 +1,4 @@
+import { logger } from "../lib/logger";
 /**
  * スペル使用処理を管理するサービス
  */
@@ -19,7 +20,7 @@ export interface SpellUsageConfig {
  */
 export function handleSpellUsage(config: SpellUsageConfig): void {
   const { card, cardId, isPlayer, castSpell, playCardToField, initializeSelection } = config;
-  const usageType = (card as any).usageType;
+  const usageType = card.usageType;
 
   switch (usageType) {
     case "cast_spell_auto":
@@ -41,7 +42,7 @@ export function handleSpellUsage(config: SpellUsageConfig): void {
       break;
 
     default:
-      console.warn(`Unknown usage type: ${usageType}`);
+      logger.warn(`Unknown usage type: ${usageType}`);
   }
 }
 
@@ -66,7 +67,7 @@ function handleTargetSelectSpell(
   castSpell: (cardId: string, targetId: string | "hero", isPlayer: boolean) => void,
   isPlayer: boolean
 ): void {
-  const selectableTargets = (card as any).selectableTargets || ["hero", "field_card"];
+  const selectableTargets = card.selectableTargets || ["hero", "field_card"];
 
   initializeSelection({
     sourceCardId: cardId,
@@ -94,8 +95,8 @@ function handleHandSelectSpell(
   castSpell: (cardId: string, targetId: string | "hero", isPlayer: boolean) => void,
   isPlayer: boolean
 ): void {
-  const selectableTargets = (card as any).selectableTargets || ["hand_card"];
-  const selectCount = (card as any).selectCount || 1;
+  const selectableTargets = card.selectableTargets || ["hand_card"];
+  const selectCount = card.selectCount || 1;
 
   initializeSelection({
     sourceCardId: cardId,

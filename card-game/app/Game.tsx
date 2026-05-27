@@ -3,6 +3,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { v4 as uuidv4 } from "uuid";
+import { random, seedRandom, generateSeed, resetRandom } from "./lib/seededRandom";
+import { logger } from "./lib/logger";
 import type { Card } from "./data/cards";
 import { cards } from "./data/cards";
 import { deck as initialDeck, drawInitialHand } from "./data/game";
@@ -511,24 +513,24 @@ export function useGame(): {
     const playerTick = (remaining: number) => {
       if (turnRef.current % 2 === 1) {
         setTurnSecondsRemaining(remaining);
-        console.debug(`[Timer][player] turn=${turnRef.current} secondsRemaining -> ${remaining}`);
+        logger.debug(`[Timer][player] turn=${turnRef.current} secondsRemaining -> ${remaining}`);
       }
     };
     const enemyTick = (remaining: number) => {
       if (turnRef.current % 2 === 0) {
         setTurnSecondsRemaining(remaining);
-        console.debug(`[Timer][enemy] turn=${turnRef.current} secondsRemaining -> ${remaining}`);
+        logger.debug(`[Timer][enemy] turn=${turnRef.current} secondsRemaining -> ${remaining}`);
       }
     };
 
     const playerEnd = () => {
       if (gameOver.over) return;
-      console.debug(`[Timer][player] timeup on turn=${turnRef.current}, calling endTurn()`);
+      logger.debug(`[Timer][player] timeup on turn=${turnRef.current}, calling endTurn()`);
       setTurn((t) => t + 1);
     };
     const enemyEnd = () => {
       if (gameOver.over) return;
-      console.debug(`[Timer][enemy] timeup on turn=${turnRef.current}, calling endTurn()`);
+      logger.debug(`[Timer][enemy] timeup on turn=${turnRef.current}, calling endTurn()`);
       setTurn((t) => t + 1);
     };
 
@@ -549,6 +551,8 @@ export function useGame(): {
       }
     }, modalDuration);
 
+    const playerTimer = playerTurnTimerRef.current;
+    const enemyTimer = enemyTurnTimerRef.current;
     return () => {
       clearTimeout(modalTimer);
       clearTimeout(startTimerTimeout);
@@ -558,9 +562,8 @@ export function useGame(): {
       if (offPlayerEnd) offPlayerEnd();
       if (offEnemyTick) offEnemyTick();
       if (offEnemyEnd) offEnemyEnd();
-      // 一時停止（両方）
-      playerTurnTimerRef.current?.pause();
-      enemyTurnTimerRef.current?.pause();
+      playerTimer?.pause();
+      enemyTimer?.pause();
     };
   }, [turn, preGame, gameOver.over]);
 
@@ -633,12 +636,18 @@ export function useGame(): {
             setMovingAttack,
             setEnemyAttackAnimation,
             setEnemySpellAnimation,
+            // eslint-disable-next-line @typescript-eslint/no-use-before-define
             attack,
+            // eslint-disable-next-line @typescript-eslint/no-use-before-define
             endTurn,
             stopTimer: () => { enemyTurnTimerRef.current?.stop(); },
+            // eslint-disable-next-line @typescript-eslint/no-use-before-define
             drawPlayerCard,
+            // eslint-disable-next-line @typescript-eslint/no-use-before-define
             drawEnemyCard,
+            // eslint-disable-next-line @typescript-eslint/no-use-before-define
             drawPlayerCards,
+            // eslint-disable-next-line @typescript-eslint/no-use-before-define
             drawEnemyCards,
             addCardToDestroying,
             cancelRef: aiCancelRef,
@@ -714,7 +723,7 @@ export function useGame(): {
     // cancel running AI and prevent new AI start
     aiCancelRef.current = true;
     setAiRunning(false);
-    console.debug("[Game] gameOver -> cleared timers and cancelled AI");
+    logger.debug("[Game] gameOver -> cleared timers and cancelled AI");
   }, [gameOver]);
 
   // 手札0 → 即敗北（王側のみ）
@@ -746,6 +755,11 @@ export function useGame(): {
       setGameOver({ over: true, winner: kingIsPlayer ? "player" : "enemy", reason: "survival" });
     }
   }, [turn, preGame, gameOver.over, coinResult]);
+
+  // ゲームオーバー確定時に乱数生成器をリセットしてセッション間の汚染を防ぐ
+  useEffect(() => {
+    if (gameOver.over) resetRandom();
+  }, [gameOver.over]);
 
   // --- ドロー（refで最新デッキを参照し、setState内のネストを避けてStrictMode二重描画バグを防ぐ） ---
   const drawPlayerCard = () => {
@@ -810,7 +824,7 @@ export function useGame(): {
 
   // --- ターン終了 ---
   const endTurn = () => {
-    console.debug(`[Game] endTurn called (current turn=${turn})`);
+    logger.debug(`[Game] endTurn called (current turn=${turn})`);
     if (preGame || gameOver.over) return;
 
     // end_turn_add_card トリガー: フィールド上の該当カード毎にカードを手札に加える
@@ -979,7 +993,7 @@ export function useGame(): {
     let newDeck = [...deck, ...toReturn.map(c => ({ ...c, uniqueId: uuidv4() }))];
     // ランダムシャッフル
     for (let i = newDeck.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
+      const j = Math.floor(random() * (i + 1));
       [newDeck[i], newDeck[j]] = [newDeck[j], newDeck[i]];
     }
     // 新しい手札を補充して最終手札を set
@@ -996,11 +1010,10 @@ export function useGame(): {
 
   // プリゲームを終了して実際のマッチを始める
   const startMatch = () => {
-    // プリゲームフラグを解除してターン処理を開始する
-    // マナのリセットはターン開始処理（useEffect）に任せる
+    // セッションシードを設定してコイントスやシャッフルを再現可能にする
+    seedRandom(generateSeed());
     setPreGame(false);
     lastRoundIncreasedRef.current = null;
-    // AI 中断フラグをクリア（新しいマッチで AI を許可）
     aiCancelRef.current = false;
   };
 
@@ -1078,6 +1091,7 @@ export function useGame(): {
     setPlayerHandCards((h) => h.filter((c) => c.uniqueId !== card.uniqueId));
 
     setTimeout(() => {
+      if (gameOver.over) return;
       setPlayerFieldCards((list) => list.map((c) => (c.uniqueId === card.uniqueId ? { ...c, isAnimating: false } : c)));
     }, 600);
 
@@ -1166,10 +1180,10 @@ export function useGame(): {
   ) => {
     if (isPlayerAttacker) {
       setPlayerAttackAnimation({ sourceCardId: attackerId, targetId });
-      setTimeout(() => setPlayerAttackAnimation(null), 1000);
+      setTimeout(() => { if (!gameOver.over) setPlayerAttackAnimation(null); }, 1000);
     } else {
       setEnemyAttackAnimation({ sourceCardId: attackerId, targetId });
-      setTimeout(() => setEnemyAttackAnimation(null), 1000);
+      setTimeout(() => { if (!gameOver.over) setEnemyAttackAnimation(null); }, 1000);
     }
 
     executeAttack(attackerId, targetId, {
@@ -1322,6 +1336,7 @@ export function useGame(): {
       pendingPlayerSpellCastIdsRef.current.add(cardUniqueId);
       setPlayerSpellCastCard(card);
       window.setTimeout(() => {
+        if (gameOver.over) return;
         setPlayerSpellCastCard(null);
         if (pendingPlayerSpellCastIdsRef.current.has(cardUniqueId)) {
           resolveSpell();

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { cards } from "../data/cards";
 import { DeckRole, getDefaultDeckIds } from "../data/deck";
 import styles from "../assets/css/Game.Master.module.css";
@@ -123,27 +124,29 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
   };
 
   const save = async () => {
-    const result = saveDeckIdsToStorage(role, deckIds);
-    if (!result.ok) {
-      setMessageType("error");
-      setMessage(result.errors[0] ?? "保存に失敗しました。");
-      return;
-    }
     if (isAuthenticated) {
+      // ログイン済み: サーバーのみに保存（LocalStorage には書かない）
       const serverResult = await saveDeckIdsToServer(role, deckIds);
       if (!serverResult.ok) {
         setMessageType("error");
         setMessage(serverResult.error ?? "サーバー保存に失敗しました。");
         return;
       }
+      setMessageType("success");
+      setMessage(`${roleLabels[role]}デッキを保存しました。（クラウド同期済み）`);
+    } else {
+      // ゲスト: LocalStorage のみに保存
+      const result = saveDeckIdsToStorage(role, deckIds);
+      if (!result.ok) {
+        setMessageType("error");
+        setMessage(result.errors[0] ?? "保存に失敗しました。");
+        return;
+      }
+      setMessageType("success");
+      setMessage(`${roleLabels[role]}デッキを保存しました。（この端末のみ）`);
     }
-    setMessageType("success");
-    setMessage(
-      isAuthenticated
-        ? `${roleLabels[role]}デッキを保存しました。（クラウド同期済み）`
-        : `${roleLabels[role]}デッキを保存しました。（この端末のみ）`
-    );
   };
+
 
   const resetToDefault = () => {
     setDeckIds(getDefaultDeckIds(role));
@@ -297,6 +300,7 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
             minHeight: 0,
             paddingRight: 4,
             alignContent: "start",
+            touchAction: "pan-y", // body の touch-action:none を上書きしてスクロールを許可
           }}
         >
           {roleCards.map((card) => {
@@ -423,7 +427,7 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
           <p style={{ margin: 0, fontSize: 13, opacity: 0.9 }}>
             {deckPreviewCards.length}/{rules.deckLimit}枚（確認専用）
           </p>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", overflowY: "auto", alignContent: "flex-start", paddingRight: 4 }}>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", overflowY: "auto", alignContent: "flex-start", paddingRight: 4, touchAction: "pan-y" }}>
             {deckPreviewCards.map((card, idx) => (
               <div
                 key={`${card.id}-${idx}`}
@@ -450,7 +454,7 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
                   }}
                 >
                   {card.image ? (
-                    <img src={card.image} alt={card.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    <Image src={card.image} alt={card.name} fill unoptimized style={{ objectFit: "cover" }} />
                   ) : null}
                 </div>
                 <div style={{ marginTop: 4, fontSize: 11, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>

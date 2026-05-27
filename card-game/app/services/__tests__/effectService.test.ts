@@ -28,6 +28,8 @@ function makePlayContext(overrides: Partial<PlayContext> = {}): PlayContext {
     setEnemyGraveyard: vi.fn(),
     setPlayerHeroHp: vi.fn(),
     setEnemyHeroHp: vi.fn(),
+    playerHeroMaxHp: 10,
+    enemyHeroMaxHp: 15,
     setGameOver: vi.fn(),
     stopTimer: vi.fn(),
     setAiRunning: vi.fn(),
