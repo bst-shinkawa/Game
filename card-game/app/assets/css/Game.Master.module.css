@@ -120,11 +120,11 @@
   background-repeat: no-repeat;
   background-size: cover;
   background-position: center;
-  background-image: url("/img/field/bg.png");
+  background-image: url("/img/field/bg.webp");
   perspective: 1000px;
 }
 .field.field_local {
-  background-image: url("/img/field/bg.png");
+  background-image: url("/img/field/bg.webp");
 }
 .field_bg {
   position: absolute;

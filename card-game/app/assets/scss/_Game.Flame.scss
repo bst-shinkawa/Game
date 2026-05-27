@@ -130,11 +130,11 @@ $design-canvas-w: 1280;
     background-repeat: no-repeat;
     background-size: cover;
     background-position: center;
-    background-image: url("/img/field/bg.png");
+    background-image: url("/img/field/bg.webp");
     perspective: 1000px;
 
     &.field_local{
-        background-image: url("/img/field/bg.png");
+        background-image: url("/img/field/bg.webp");
     }
     &_bg{
         position: absolute;
