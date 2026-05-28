@@ -446,6 +446,7 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
               >
                 <div
                   style={{
+                    position: "relative", // next/image の fill 用に positioned ancestor を作る（無いと近傍の positioned 要素全域を埋めてしまう）
                     width: "100%",
                     aspectRatio: "3 / 4",
                     borderRadius: 8,
