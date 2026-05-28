@@ -13,7 +13,9 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "Usurper",
     description: "王様と簒奪者が戦うターン制カードゲーム",
     start_url: "/",
-    display: "fullscreen",
+    // iOS Safari は "fullscreen" を未サポート。"standalone" を指定すると
+    // ホーム画面起動時に Safari UI を非表示にしつつ status bar は残る（iOS の最大互換構成）。
+    display: "standalone",
     orientation: "landscape",
     background_color: "#000000",
     theme_color: "#000000",

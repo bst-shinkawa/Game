@@ -19,15 +19,17 @@ export const metadata: Metadata = {
   title: "Usurper's Gambit",
   description: "王様と簒奪者が戦うターン制カードゲーム",
   // iOS でホーム画面に追加 → standalone（全画面）起動を可能にする
+  // Next.js が apple-mobile-web-app-capable と apple-mobile-web-app-title を自動付与する
   appleWebApp: {
     capable: true,
     title: "Usurper",
-    // black-translucent: 上部 status bar 領域に背景色を侵食させる（最大画面活用）
-    statusBarStyle: "black-translucent",
+    // default: status bar を白文字で表示（背景色は theme_color）。
+    // black-translucent は notch 周りでコンテンツが status bar の下に潜る挙動になり
+    // safe-area-inset と組み合わせないとレイアウトが崩れるため安全な default を採用。
+    statusBarStyle: "default",
   },
-  // 旧 iOS 用フォールバック（appleWebApp と重複するが古い iOS Safari 用）
+  // Android Chrome / Edge 用に mobile-web-app-capable も付与
   other: {
-    "apple-mobile-web-app-capable": "yes",
     "mobile-web-app-capable": "yes",
   },
 };

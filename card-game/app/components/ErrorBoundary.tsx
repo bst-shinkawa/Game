@@ -23,11 +23,36 @@ export default class ErrorBoundary extends React.Component<Props, State> {
 
   componentDidMount() {
     this._onError = (event: ErrorEvent) => {
+      // 画像・スクリプト等のリソース読み込み失敗は window の error イベントに来るが、
+      // これはアプリの致命的バグではないので Application Error 画面は出さない。
+      // ErrorEvent の target が window 以外（HTMLElement）か、 event.error が無い場合がそれ。
+      const t = event.target as EventTarget | null;
+      const isResourceError = t && t !== window && (t as HTMLElement)?.tagName !== undefined;
+      if (isResourceError) {
+        // ログだけ残して握りつぶす
+        console.warn("[ErrorBoundary] resource error ignored", (t as HTMLElement).tagName, (event as ErrorEvent & { filename?: string }).filename);
+        return;
+      }
+      // 実 JS 例外がない（message のみ）場合も拾わない（"Script error." 系の CORS マスクなど）
+      if (!event.error && !event.message) return;
+      // "Script error." は CORS で詳細不明のクロスオリジン例外。安全側で無視する。
+      if (event.message === "Script error." || event.message === "Script error") return;
       this.setState({ error: event.error ?? new Error(String(event.message)), errorInfo: null });
     };
     this._onUnhandledRejection = (event: PromiseRejectionEvent) => {
-      this.setState({ error: new Error(String(event.reason ?? "unhandledrejection")), errorInfo: null });
+      const reason = event.reason;
+      // 既知の無害な reject はスルー（DOMException の AbortError, NotAllowedError 等）
+      if (reason && typeof reason === "object") {
+        const name = (reason as { name?: string }).name;
+        if (name === "AbortError" || name === "NotAllowedError" || name === "NotSupportedError") {
+          console.warn("[ErrorBoundary] benign rejection ignored", name);
+          return;
+        }
+      }
+      this.setState({ error: new Error(String(reason ?? "unhandledrejection")), errorInfo: null });
     };
+    // capture: true でないとリソース系 error はバブリングせず捕まらない/逆に拾いすぎるため
+    // ここでは bubble フェーズ（capture: false）で運用しつつ、上で target をチェックして除外する。
     window.addEventListener("error", this._onError);
     window.addEventListener("unhandledrejection", this._onUnhandledRejection);
   }

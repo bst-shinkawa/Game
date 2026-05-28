@@ -55,7 +55,12 @@ export default function ViewportScaler({ children, designWidth = DESIGN_W, desig
       ref={outerRef}
       style={{
         position: "fixed",
-        inset: 0,
+        // notch / home indicator / カメラホールを避ける（PWA standalone 時のみ env が >0 を返す）。
+        // 通常 Safari では env(...) はすべて 0 になるため挙動に影響なし。
+        top: "env(safe-area-inset-top, 0px)",
+        right: "env(safe-area-inset-right, 0px)",
+        bottom: "env(safe-area-inset-bottom, 0px)",
+        left: "env(safe-area-inset-left, 0px)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",

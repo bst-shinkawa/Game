@@ -6,21 +6,45 @@ import { logger } from "../lib/logger";
 
 // iOS Safari かどうか（Chrome on iOS や Edge on iOS も含む WebKit ベース全般を判定）
 function detectIOS(): boolean {
-  if (typeof navigator === "undefined") return false;
-  const ua = navigator.userAgent;
-  // iPad は iOS 13+ で MacIntel を返すため maxTouchPoints で iPad を識別
-  const isIPad = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
-  return /iPhone|iPod|iPad/.test(ua) || isIPad;
+  try {
+    if (typeof navigator === "undefined") return false;
+    const ua = navigator.userAgent || "";
+    // iPad は iOS 13+ で MacIntel を返すため maxTouchPoints で iPad を識別
+    const platform = (navigator.platform as string | undefined) || "";
+    const isIPad = platform === "MacIntel" && (navigator.maxTouchPoints || 0) > 1;
+    return /iPhone|iPod|iPad/.test(ua) || isIPad;
+  } catch {
+    return false;
+  }
+}
+
+// iOS Safari 本体（Chrome on iOS / Edge on iOS は除外）。
+// 「ホーム画面に追加」は実質 Safari でしかできないため、案内表示はこの条件で出す。
+function detectIOSSafari(): boolean {
+  try {
+    if (!detectIOS()) return false;
+    const ua = navigator.userAgent || "";
+    // Chrome on iOS は CriOS、Firefox on iOS は FxiOS、Edge on iOS は EdgiOS
+    return !/CriOS|FxiOS|EdgiOS|OPiOS|YaBrowser/i.test(ua);
+  } catch {
+    return false;
+  }
 }
 
 // PWA standalone モードで起動されているか
 function detectStandalone(): boolean {
-  if (typeof window === "undefined") return false;
-  // iOS Safari は navigator.standalone を持つ独自実装
-  const iosStandalone = (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
-  // 標準（Android Chrome 等）は matchMedia
-  const mqStandalone = window.matchMedia?.("(display-mode: standalone)").matches === true;
-  return iosStandalone || mqStandalone;
+  try {
+    if (typeof window === "undefined") return false;
+    // iOS Safari は navigator.standalone を持つ独自実装
+    const iosStandalone = (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+    // 標準（Android Chrome 等）は matchMedia
+    const mqStandalone =
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(display-mode: standalone)").matches === true;
+    return iosStandalone || mqStandalone;
+  } catch {
+    return false;
+  }
 }
 
 export default function AppViewport({ children }: { children: React.ReactNode }) {
@@ -34,11 +58,10 @@ export default function AppViewport({ children }: { children: React.ReactNode })
     setShowEdgeGuard(detectIOS() && !detectStandalone());
   }, []);
 
-  // iOS Safari かつ standalone でない場合に一度だけインストール案内
+  // iOS Safari 本体かつ standalone でない場合だけインストール案内（Chrome iOS 等では出さない）
   useEffect(() => {
-    if (!detectIOS()) return;
+    if (!detectIOSSafari()) return;
     if (detectStandalone()) return;
-    // localStorage で「閉じた」状態を覚える（毎回出るのは煩わしい）
     try {
       if (window.localStorage.getItem("ug_install_hint_dismissed") === "1") return;
     } catch {}
