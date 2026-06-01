@@ -189,7 +189,7 @@
 .field_enemy_battle {
   padding: 20px;
   position: absolute;
-  bottom: -18%;
+  bottom: -25%;
   right: 50%;
   transform: translate(50%, -50%);
   max-width: 80%;
@@ -586,7 +586,7 @@
   transform: none !important;
 }
 .field_player_hand_area .card {
-  width: calc(90 * var(--design-w, 1280px) / 1280);
+  width: calc(110 * var(--design-w, 1280px) / 1280);
 }
 .field_player_hand_card {
   position: absolute;
@@ -1213,7 +1213,7 @@
   color: #efe7d8;
 }
 .field_slot {
-  width: calc(100 * var(--design-w, 1280px) / 1280);
+  width: calc(110 * var(--design-w, 1280px) / 1280);
   aspect-ratio: 180/250;
   border: 2px dashed #ccc;
   border-radius: 8px;
@@ -1242,7 +1242,7 @@
 }
 
 .card {
-  width: calc(100 * var(--design-w, 1280px) / 1280);
+  width: calc(110 * var(--design-w, 1280px) / 1280);
   aspect-ratio: 180/250;
   position: relative;
   box-sizing: border-box;
@@ -1387,7 +1387,7 @@
   position: absolute;
   right: 6%;
   top: 44%;
-  width: calc(90 * var(--design-w, 1280px) / 1280);
+  width: calc(110 * var(--design-w, 1280px) / 1280);
   aspect-ratio: 180/250;
   transform: translateY(-50%);
   pointer-events: none;
@@ -1416,7 +1416,7 @@
   position: fixed;
   left: 0;
   top: 0;
-  width: calc(100 * var(--design-w, 1280px) / 1280);
+  width: calc(120 * var(--design-w, 1280px) / 1280);
   aspect-ratio: 180/250;
   height: auto;
   z-index: 3200;
