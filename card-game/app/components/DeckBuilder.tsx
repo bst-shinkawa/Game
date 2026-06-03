@@ -322,6 +322,7 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
                 <div
                   onClick={() => setSelectedCardId(card.id)}
                   style={{
+                    position: "relative", // next/image の fill 用
                     cursor: "pointer",
                     width: "100%",
                     aspectRatio: "3 / 4",
@@ -331,12 +332,12 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
                   }}
                 >
                   {card.image ? (
-                    <img
+                    <Image
                       src={card.image}
                       alt={card.name}
+                      fill
+                      unoptimized
                       style={{
-                        width: "100%",
-                        height: "100%",
                         objectFit: "cover",
                         filter: addDisabled ? "grayscale(70%) brightness(0.8)" : "none",
                       }}
