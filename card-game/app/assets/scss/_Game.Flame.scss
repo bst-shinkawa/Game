@@ -1979,27 +1979,27 @@ $design-canvas-w: 1280;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-family: 'Orbitron', sans-serif;
+            font-family: Georgia, "Times New Roman", "Hiragino Mincho ProN", serif;
             font-size: 20px;
             font-weight: 700;
             line-height: 1;
-            letter-spacing: 0.02em;
-            text-shadow: 0 1px 0 rgba(0, 0, 0, 0.9), 0 0 3px rgba(0, 0, 0, 0.85);
+            letter-spacing: 0.04em;
+            text-shadow: 0 1px 0 rgba(0, 0, 0, 0.9), 0 0 4px rgba(0, 0, 0, 0.75);
             pointer-events: none;
-            border: 2px solid rgba(205, 195, 170, 0.72);
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12), 0 3px 8px rgba(0,0,0,0.3);
+            border: 1px solid #5a6478;
+            box-shadow: inset 0 1px 0 rgba(180, 195, 215, 0.1), 0 3px 10px rgba(0, 0, 0, 0.35);
         }
 
         &_mana_badge_enemy {
-            color: #ffd9cb;
-            background: radial-gradient(circle at 32% 28%, rgba(167, 79, 68, 0.95), rgba(62, 24, 22, 0.94));
-            border-color: rgba(190, 128, 112, 0.9);
+            color: #f0c8c0;
+            background: radial-gradient(circle at 32% 28%, rgba(120, 52, 58, 0.92), rgba(28, 16, 22, 0.95));
+            border-color: rgba(140, 80, 88, 0.75);
         }
 
         &_mana_badge_player {
-            color: #e6ecff;
-            background: radial-gradient(circle at 32% 28%, rgba(92, 112, 146, 0.95), rgba(28, 40, 58, 0.94));
-            border-color: rgba(142, 158, 188, 0.9);
+            color: #d0e0f4;
+            background: radial-gradient(circle at 32% 28%, rgba(58, 88, 120, 0.92), rgba(14, 22, 36, 0.95));
+            border-color: rgba(90, 120, 158, 0.75);
         }
 
         &_outline {
@@ -2009,18 +2009,18 @@ $design-canvas-w: 1280;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            filter: drop-shadow(0 0 5px rgba(197, 185, 143, 0.35));
+            filter: drop-shadow(0 0 5px rgba(90, 120, 160, 0.3));
             pointer-events: none;
             z-index: 1;
         }
         &_outline_track {
             fill: none;
-            stroke: rgba(90, 95, 107, 0.4);
+            stroke: rgba(60, 70, 88, 0.45);
             stroke-width: 8;
         }
         &_outline_progress {
             fill: none;
-            stroke: rgba(204, 193, 150, 0.92);
+            stroke: rgba(140, 168, 200, 0.88);
             stroke-width: 8;
             stroke-linecap: round;
             transform: scaleX(-1);
@@ -2029,9 +2029,9 @@ $design-canvas-w: 1280;
         }
 
         &_outline_critical {
-            filter: drop-shadow(0 0 8px rgba(189, 82, 50, 0.56));
+            filter: drop-shadow(0 0 8px rgba(180, 70, 60, 0.5));
             .field_turn_outline_progress {
-                stroke: rgba(222, 133, 97, 0.95);
+                stroke: rgba(210, 110, 95, 0.92);
             }
         }
 
@@ -2040,37 +2040,38 @@ $design-canvas-w: 1280;
             width: 180px;
             height: 60px;
             border-radius: 30px;
-            font-family: serif;
+            font-family: Georgia, "Times New Roman", "Hiragino Mincho ProN", serif;
             font-weight: 700;
             font-size: 19px;
-            letter-spacing: 1px;
+            letter-spacing: 0.06em;
             cursor: pointer;
             
             /* 初期設定（非活性時） */
-            background: linear-gradient(180deg, rgba(56, 48, 40, 0.92), rgba(33, 29, 24, 0.94));
-            border: none;
-            color: #b3a791;
-            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+            background: linear-gradient(180deg, rgba(26, 34, 46, 0.94), rgba(12, 18, 26, 0.96));
+            border: 1px solid #3d4a5c;
+            color: #7a8494;
+            box-shadow: inset 0 1px 0 rgba(180, 195, 215, 0.06);
             transition: all 0.3s ease;
             overflow: hidden;
             z-index: 2;
 
             /* 活性時のスタイル */
             &:not(:disabled) {
-                background: linear-gradient(180deg, rgba(92, 76, 56, 0.95), rgba(48, 39, 30, 0.95));
-                color: #f6e8c7;
-                box-shadow: 0 0 8px rgba(186, 160, 106, 0.3), 0 0 18px rgba(88, 66, 32, 0.3);
+                background: linear-gradient(180deg, rgba(36, 50, 68, 0.96), rgba(18, 26, 38, 0.98));
+                border-color: #6a7a90;
+                color: #d8e4f4;
+                box-shadow: 0 0 10px rgba(70, 100, 140, 0.28), inset 0 1px 0 rgba(200, 215, 235, 0.1);
 
                 &:hover {
-                    background: linear-gradient(180deg, rgba(108, 88, 64, 0.98), rgba(57, 45, 33, 0.98));
-                    border-color: #d2bc8b;
-                    box-shadow: 0 0 10px rgba(210, 188, 139, 0.36), 0 0 22px rgba(118, 93, 49, 0.28);
+                    background: linear-gradient(180deg, rgba(44, 60, 82, 0.98), rgba(22, 32, 46, 0.98));
+                    border-color: #8a9ab0;
+                    box-shadow: 0 0 14px rgba(90, 120, 165, 0.32), inset 0 1px 0 rgba(210, 225, 245, 0.12);
                     transform: scale(1.03);
                 }
 
                 &:active {
                     transform: scale(0.99);
-                    box-shadow: 0 0 5px rgba(163, 144, 90, 0.34);
+                    box-shadow: 0 0 6px rgba(60, 90, 130, 0.3);
                 }
             }
         }
@@ -2082,11 +2083,11 @@ $design-canvas-w: 1280;
             height: 100%;
             pointer-events: none;
             z-index: 1;
-            filter: drop-shadow(0 0 7px rgba(88, 118, 171, 0.28));
+            filter: drop-shadow(0 0 6px rgba(70, 100, 150, 0.25));
         }
         &_ring_track {
             fill: none;
-            stroke: rgba(115, 109, 94, 0.48);
+            stroke: rgba(55, 65, 82, 0.5);
             stroke-width: 6;
         }
         &_ring_progress {
@@ -2110,9 +2111,9 @@ $design-canvas-w: 1280;
         /* --- (オプション) 簡易的なアニメーション --- */
         /* isPlayerTurn の時だけ鼓動するアニメーション */
         @keyframes pulseGlow {
-            0% { box-shadow: 0 0 10px rgba(0, 255, 255, 0.6), 0 0 20px rgba(0, 255, 255, 0.3); }
-            50% { box-shadow: 0 0 15px rgba(0, 255, 255, 0.9), 0 0 30px rgba(0, 255, 255, 0.5); }
-            100% { box-shadow: 0 0 10px rgba(0, 255, 255, 0.6), 0 0 20px rgba(0, 255, 255, 0.3); }
+            0% { box-shadow: 0 0 10px rgba(90, 140, 200, 0.45), 0 0 20px rgba(50, 80, 130, 0.25); }
+            50% { box-shadow: 0 0 15px rgba(120, 170, 220, 0.6), 0 0 30px rgba(70, 110, 170, 0.35); }
+            100% { box-shadow: 0 0 10px rgba(90, 140, 200, 0.45), 0 0 20px rgba(50, 80, 130, 0.25); }
         }
 
         /* --- ターンエンドボタンの緊迫状態 (残り20秒以下) --- */
@@ -2120,30 +2121,30 @@ $design-canvas-w: 1280;
         /* 緊迫時のネオン脈動アニメーションの定義 */
         @keyframes criticalGlow {
         0% { 
-            box-shadow: 0 0 10px rgba(214, 135, 62, 0.55), 0 0 22px rgba(138, 84, 30, 0.32);
+            box-shadow: 0 0 10px rgba(200, 130, 70, 0.5), 0 0 22px rgba(120, 70, 30, 0.28);
             transform: scale(1);
         }
         50% { 
-            box-shadow: 0 0 14px rgba(234, 155, 76, 0.72), 0 0 30px rgba(173, 105, 37, 0.4);
+            box-shadow: 0 0 14px rgba(220, 150, 80, 0.65), 0 0 30px rgba(150, 90, 40, 0.35);
             transform: scale(1.015);
         }
         100% { 
-            box-shadow: 0 0 10px rgba(214, 135, 62, 0.55), 0 0 22px rgba(138, 84, 30, 0.32);
+            box-shadow: 0 0 10px rgba(200, 130, 70, 0.5), 0 0 22px rgba(120, 70, 30, 0.28);
             transform: scale(1);
         }
         }
 
         @keyframes dangerGlow {
         0% {
-            box-shadow: 0 0 12px rgba(212, 67, 49, 0.72), 0 0 24px rgba(121, 34, 25, 0.38);
+            box-shadow: 0 0 12px rgba(200, 60, 50, 0.65), 0 0 24px rgba(110, 30, 25, 0.35);
             transform: scale(1);
         }
         50% {
-            box-shadow: 0 0 16px rgba(233, 79, 59, 0.88), 0 0 34px rgba(152, 44, 32, 0.52);
+            box-shadow: 0 0 16px rgba(220, 70, 58, 0.8), 0 0 34px rgba(140, 40, 32, 0.48);
             transform: scale(1.015);
         }
         100% {
-            box-shadow: 0 0 12px rgba(212, 67, 49, 0.72), 0 0 24px rgba(121, 34, 25, 0.38);
+            box-shadow: 0 0 12px rgba(200, 60, 50, 0.65), 0 0 24px rgba(110, 30, 25, 0.35);
             transform: scale(1);
         }
         }
@@ -2151,23 +2152,23 @@ $design-canvas-w: 1280;
         /* 緊迫状態のクラス */
         &_end{
             &_critical {
-                /* 色を赤系に上書き */
-                background: linear-gradient(180deg, rgba(95, 52, 30, 0.95), rgba(62, 33, 18, 0.95)) !important; 
-                color: #ffead8 !important;
+                background: linear-gradient(180deg, rgba(72, 48, 32, 0.96), rgba(38, 26, 18, 0.96)) !important;
+                border-color: rgba(180, 120, 70, 0.7) !important;
+                color: #f8e8d8 !important;
                 
-                /* 脈動アニメーションを適用 */
                 animation: criticalGlow 1.35s infinite alternate ease-in-out; 
                 animation-fill-mode: both; 
 
                 &:hover{
-                    animation: none; /* 脈動を停止 */
+                    animation: none;
                     transform: scale(1.04) !important;
-                    box-shadow: 0 0 18px rgba(229, 151, 70, 0.72), 0 0 32px rgba(146, 87, 33, 0.5) !important;
+                    box-shadow: 0 0 18px rgba(210, 140, 70, 0.65), 0 0 32px rgba(130, 80, 35, 0.45) !important;
                 }
             }
             &_urgent {
-                background: linear-gradient(180deg, rgba(112, 34, 29, 0.97), rgba(74, 22, 18, 0.97)) !important;
-                color: #ffe8e3 !important;
+                background: linear-gradient(180deg, rgba(88, 32, 30, 0.97), rgba(48, 18, 16, 0.97)) !important;
+                border-color: rgba(200, 80, 70, 0.75) !important;
+                color: #ffe8e4 !important;
                 animation: dangerGlow 1.05s infinite alternate ease-in-out !important;
             }
         }
@@ -2181,27 +2182,28 @@ $design-canvas-w: 1280;
             width: 25%;
             height: auto;
             padding: 1.5em;
-            border-radius: 10px;
-            border: 1px solid rgba(174, 151, 102, 0.76);
+            border-radius: 2px;
+            border: 1px solid #4a5868;
             background:
-              linear-gradient(180deg, rgba(68, 54, 42, 0.96), rgba(31, 25, 20, 0.96)),
-              repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.022) 0 2px, transparent 2px 6px);
-            box-shadow: 0 14px 30px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(84, 69, 46, 0.86);
-            color: #f2e9da;
+              linear-gradient(180deg, rgba(21, 29, 40, 0.97), rgba(10, 14, 20, 0.98)),
+              repeating-linear-gradient(135deg, rgba(180, 195, 215, 0.02) 0 2px, transparent 2px 6px);
+            box-shadow: 0 14px 30px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(180, 195, 215, 0.08);
+            color: #d0dae8;
             overflow: hidden;
+            font-family: Georgia, "Times New Roman", "Hiragino Mincho ProN", serif;
 
             h4{
                 font-size: 25px;
-                color: #e6d8b7;
+                color: #d8e4f4;
                 font-weight: bold;
                 padding-bottom: 10px;
-                letter-spacing: 0.07rem;
-                text-shadow: 0 0 12px rgba(121, 94, 48, 0.35);
+                letter-spacing: 0.06em;
+                text-shadow: 0 0 12px rgba(90, 130, 180, 0.35);
             }
 
             p{
                 line-height: 1.7em;
-                color: #efe7d8;
+                color: #b8c8d8;
             }
         }
     }
@@ -2312,25 +2314,37 @@ $design-canvas-w: 1280;
     display: flex;
     align-items:center;
     justify-content: center;
-    background: radial-gradient(circle at center, rgba(44, 31, 21, 0.2), rgba(7, 5, 3, 0.74));
+    background: radial-gradient(circle at center, rgba(18, 26, 38, 0.35), rgba(5, 8, 14, 0.74));
     backdrop-filter: blur(2px);
 
     &_wrap{
         position: relative;
         background:
-          linear-gradient(180deg, rgba(70, 56, 43, 0.96), rgba(33, 27, 21, 0.96)),
-          repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.025) 0 2px, transparent 2px 6px);
-        color: #f4ecde;
+          linear-gradient(180deg, rgba(21, 29, 40, 0.97), rgba(10, 14, 20, 0.98)),
+          repeating-linear-gradient(135deg, rgba(180, 195, 215, 0.02) 0 2px, transparent 2px 6px);
+        color: #d0dae8;
         padding: 40px 0;
-        border-radius: 10px;
-        border: 1px solid rgba(174, 151, 102, 0.76);
-        box-shadow: 0 14px 34px rgba(0,0,0,0.55), inset 0 0 0 2px rgba(84, 69, 46, 0.9);
+        border-radius: 2px;
+        border: 1px solid #4a5868;
+        box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(180, 195, 215, 0.08);
         text-align: center;
         width: min(92%, 1040px);
         max-width: 1040px;
         margin-left: auto;
         margin-right: auto;
         box-sizing: border-box;
+        font-family: Georgia, "Times New Roman", "Hiragino Mincho ProN", serif;
+        overflow: hidden;
+
+        &::after {
+            content: "";
+            position: absolute;
+            inset: -36% -18%;
+            background: linear-gradient(110deg, transparent 44%, rgba(180, 200, 230, 0.08) 52%, transparent 60%);
+            transform: translateX(-46%) rotate(6deg);
+            animation: panelSheen 4.4s ease-in-out infinite;
+            pointer-events: none;
+        }
     }
 
     &_card{
@@ -2350,19 +2364,23 @@ $design-canvas-w: 1280;
 
     &_trun{
         font-size: 30px;
-        color: #e6d8b7;
-        text-shadow: 0 0 12px rgba(121, 94, 48, 0.4);
+        color: #d8e4f4;
+        text-shadow: 0 0 14px rgba(90, 130, 180, 0.4);
         font-weight: bold;
         padding-bottom: 15px;
+        letter-spacing: 0.06em;
     }
 
     &_text{
         padding-bottom: 15px;
+        color: #aeb8c8;
+        line-height: 1.6;
     }
 
     &_largeText{
         font-size: 20px;
         font-weight: bold;
+        color: #c8d4e4;
     }
 
     &_btn{
@@ -2373,19 +2391,23 @@ $design-canvas-w: 1280;
         padding-top: 20px;
 
         &_item{
-            background: linear-gradient(180deg, rgba(92, 76, 56, 0.95), rgba(48, 39, 30, 0.95));
-            border: 1px solid #baa06a;
-            color: #f6e8c7;
+            background: linear-gradient(180deg, rgba(36, 50, 68, 0.96), rgba(18, 26, 38, 0.98));
+            border: 1px solid #6a7a90;
+            color: #d8e4f4;
             width: 140px;
             padding: 10px 20px;
             border-radius: 50px;
             cursor: pointer;
             font-weight: bold;
+            font-family: inherit;
+            letter-spacing: 0.04em;
+            box-shadow: inset 0 1px 0 rgba(200, 215, 235, 0.1);
+            transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
 
             &:hover{
-                background: linear-gradient(180deg, rgba(108, 88, 64, 0.98), rgba(57, 45, 33, 0.98));
-                border-color: #d2bc8b;
-                box-shadow: 0 0 10px rgba(210, 188, 139, 0.36), 0 0 22px rgba(118, 93, 49, 0.28);
+                background: linear-gradient(180deg, rgba(44, 60, 82, 0.98), rgba(22, 32, 46, 0.98));
+                border-color: #8a9ab0;
+                box-shadow: 0 0 12px rgba(90, 120, 165, 0.28), inset 0 1px 0 rgba(210, 225, 245, 0.12);
             }
         }
     }
@@ -2393,7 +2415,8 @@ $design-canvas-w: 1280;
     &_time{
         font-size: 25px;
         font-weight: bold;
-        color: gold;
+        color: #90b8e0;
+        text-shadow: 0 0 10px rgba(70, 120, 180, 0.35);
     }
 
     &_deck{
@@ -2518,7 +2541,7 @@ $design-canvas-w: 1280;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: radial-gradient(circle at center, rgba(42, 30, 20, 0.24), rgba(8, 6, 4, 0.68));
+    background: radial-gradient(circle at center, rgba(18, 26, 38, 0.35), rgba(5, 8, 14, 0.72));
     backdrop-filter: blur(3px);
 }
 
@@ -2530,13 +2553,13 @@ $design-canvas-w: 1280;
     justify-content: center;
     position: relative;
     background:
-      linear-gradient(180deg, rgba(72, 58, 44, 0.97), rgba(34, 27, 21, 0.97)),
-      repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.03) 0 2px, transparent 2px 6px);
-    color: #f4ecde;
+      linear-gradient(180deg, rgba(21, 29, 40, 0.97), rgba(10, 14, 20, 0.98)),
+      repeating-linear-gradient(135deg, rgba(180, 195, 215, 0.02) 0 2px, transparent 2px 6px);
+    color: #d0dae8;
     padding: 26px 40px;
-    border-radius: 10px;
-    border: 1px solid rgba(176, 152, 101, 0.78);
-    box-shadow: 0 14px 34px rgba(0,0,0,0.55), inset 0 0 0 2px rgba(83, 68, 45, 0.9);
+    border-radius: 2px;
+    border: 1px solid #4a5868;
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(180, 195, 215, 0.08);
     min-width: 380px;
     overflow: hidden;
     animation: coinPopupPop 420ms cubic-bezier(.2,.8,.2,1), panelBreath 5.5s ease-in-out infinite;
@@ -2545,7 +2568,7 @@ $design-canvas-w: 1280;
         content: "";
         position: absolute;
         inset: -40% -20%;
-        background: linear-gradient(115deg, transparent 42%, rgba(255, 235, 190, 0.16) 50%, transparent 58%);
+        background: linear-gradient(115deg, transparent 42%, rgba(180, 200, 230, 0.1) 50%, transparent 58%);
         transform: translateX(-42%) rotate(7deg);
         animation: panelSheen 3.6s ease-in-out infinite;
         pointer-events: none;
@@ -2555,15 +2578,16 @@ $design-canvas-w: 1280;
 .coinPopupTitle {
     font-size: 1.1rem;
     font-weight: 700;
+    color: #aeb8c8;
 }
 
 .coinPopupWinner {
     font-size: 2rem;
     font-weight: 800;
-    color: #e8d2a0;
-    font-family: serif;
+    color: #d8e4f4;
+    font-family: Georgia, "Times New Roman", "Hiragino Mincho ProN", serif;
     letter-spacing: 0.08em;
-    text-shadow: 0 0 10px rgba(188, 152, 78, 0.45), 0 0 24px rgba(122, 95, 42, 0.35);
+    text-shadow: 0 0 12px rgba(90, 130, 180, 0.35), 0 0 24px rgba(50, 80, 130, 0.25);
     animation: titlePulse 2.4s ease-in-out infinite;
 }
 
@@ -2577,19 +2601,19 @@ $design-canvas-w: 1280;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: radial-gradient(circle at center, rgba(40, 28, 18, 0.2), rgba(7, 5, 3, 0.68));
+    background: radial-gradient(circle at center, rgba(18, 26, 38, 0.3), rgba(5, 8, 14, 0.7));
     backdrop-filter: blur(2px);
 }
 
 .overlayModalInner {
     position: relative;
     background:
-      linear-gradient(180deg, rgba(70, 56, 43, 0.96), rgba(33, 27, 21, 0.96)),
-      repeating-linear-gradient(135deg, rgba(255, 255, 255, 0.025) 0 2px, transparent 2px 6px);
-    color: #f4ecde;
-    border-radius: 10px;
-    border: 1px solid rgba(174, 151, 102, 0.76);
-    box-shadow: 0 14px 34px rgba(0,0,0,0.55), inset 0 0 0 2px rgba(84, 69, 46, 0.9);
+      linear-gradient(180deg, rgba(21, 29, 40, 0.97), rgba(10, 14, 20, 0.98)),
+      repeating-linear-gradient(135deg, rgba(180, 195, 215, 0.02) 0 2px, transparent 2px 6px);
+    color: #d0dae8;
+    border-radius: 2px;
+    border: 1px solid #4a5868;
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(180, 195, 215, 0.08);
     overflow: hidden;
     animation: coinPopupPop 420ms cubic-bezier(.2,.8,.2,1), panelBreath 6s ease-in-out infinite;
 
@@ -2597,7 +2621,7 @@ $design-canvas-w: 1280;
         content: "";
         position: absolute;
         inset: -36% -18%;
-        background: linear-gradient(110deg, transparent 44%, rgba(255, 226, 173, 0.12) 52%, transparent 60%);
+        background: linear-gradient(110deg, transparent 44%, rgba(180, 200, 230, 0.1) 52%, transparent 60%);
         transform: translateX(-46%) rotate(6deg);
         animation: panelSheen 4.4s ease-in-out infinite;
         pointer-events: none;
@@ -2615,21 +2639,142 @@ $design-canvas-w: 1280;
 .overlayModalTitleTurn {
     font-size: 45px;
     margin: 0;
-    font-family: serif;
+    font-family: Georgia, "Times New Roman", "Hiragino Mincho ProN", serif;
     letter-spacing: 0.08em;
-    color: #e6d8b7;
-    text-shadow: 0 0 12px rgba(121, 94, 48, 0.4), 0 0 26px rgba(95, 70, 32, 0.28);
+    color: #d8e4f4;
+    text-shadow: 0 0 14px rgba(90, 130, 180, 0.4), 0 0 28px rgba(50, 80, 130, 0.28);
     animation: titlePulse 2.6s ease-in-out infinite;
 }
 
 .overlayModalTitleGameStart {
     font-size: 72px;
     margin: 0;
-    font-family: serif;
+    font-family: Georgia, "Times New Roman", "Hiragino Mincho ProN", serif;
     letter-spacing: 0.1em;
-    color: #eadcb8;
-    text-shadow: 0 0 16px rgba(154, 118, 58, 0.45), 0 0 34px rgba(113, 84, 37, 0.3);
+    color: #e0ecf8;
+    text-shadow: 0 0 18px rgba(100, 150, 210, 0.45), 0 0 36px rgba(60, 100, 160, 0.3);
     animation: titlePulse 2.2s ease-in-out infinite;
+}
+
+// ---------------------------------------------------------------------------
+// ゲーム終了ポップアップ（GameOver）
+// ---------------------------------------------------------------------------
+.gameOver {
+    position: fixed;
+    left: 0;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 2000;
+    background: radial-gradient(circle at center, rgba(18, 26, 38, 0.35), rgba(5, 8, 14, 0.78));
+    backdrop-filter: blur(2px);
+
+    &__panel {
+        position: relative;
+        min-width: 280px;
+        padding: 40px;
+        border-radius: 2px;
+        text-align: center;
+        overflow: hidden;
+        background:
+          linear-gradient(180deg, rgba(21, 29, 40, 0.97), rgba(10, 14, 20, 0.98)),
+          repeating-linear-gradient(135deg, rgba(180, 195, 215, 0.02) 0 2px, transparent 2px 6px);
+        box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(180, 195, 215, 0.08);
+        animation: coinPopupPop 420ms cubic-bezier(.2, .8, .2, 1);
+        font-family: Georgia, "Times New Roman", "Hiragino Mincho ProN", serif;
+
+        &::after {
+            content: "";
+            position: absolute;
+            inset: -36% -18%;
+            background: linear-gradient(110deg, transparent 44%, rgba(180, 200, 230, 0.08) 52%, transparent 60%);
+            transform: translateX(-46%) rotate(6deg);
+            animation: panelSheen 4.4s ease-in-out infinite;
+            pointer-events: none;
+        }
+
+        &--win {
+            border: 1px solid rgba(160, 140, 80, 0.7);
+        }
+
+        &--lose {
+            border: 1px solid rgba(140, 70, 70, 0.7);
+        }
+    }
+
+    &__title {
+        font-size: 48px;
+        margin: 0;
+        letter-spacing: 0.08em;
+        font-weight: 700;
+
+        &--win {
+            color: #e8d890;
+            text-shadow: 0 0 16px rgba(140, 120, 60, 0.4), 0 0 28px rgba(90, 80, 40, 0.25);
+        }
+
+        &--lose {
+            color: #e8a0a0;
+            text-shadow: 0 0 16px rgba(160, 60, 60, 0.4), 0 0 28px rgba(100, 40, 40, 0.25);
+        }
+    }
+
+    &__subtitle {
+        font-size: 20px;
+        color: #c8d4e4;
+        margin: 10px 0 0 0;
+        line-height: 1.5;
+    }
+
+    &__rounds {
+        font-size: 14px;
+        color: #8a96a8;
+        margin: 8px 0 0 0;
+    }
+
+    &__actions {
+        margin-top: 24px;
+        display: flex;
+        gap: 12px;
+        justify-content: center;
+    }
+
+    &__btn {
+        padding: 10px 16px;
+        border-radius: 2px;
+        font-family: inherit;
+        font-weight: 700;
+        font-size: 14px;
+        letter-spacing: 0.04em;
+        cursor: pointer;
+        transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+
+        &--primary {
+            border: 1px solid #6a7a90;
+            background: linear-gradient(180deg, rgba(36, 50, 68, 0.96), rgba(18, 26, 38, 0.98));
+            color: #d8e4f4;
+            box-shadow: inset 0 1px 0 rgba(200, 215, 235, 0.1);
+
+            &:hover {
+                border-color: #8a9ab0;
+                box-shadow: 0 0 12px rgba(90, 120, 165, 0.28), inset 0 1px 0 rgba(210, 225, 245, 0.12);
+            }
+        }
+
+        &--secondary {
+            border: 1px solid #5a6478;
+            background: rgba(21, 29, 40, 0.9);
+            color: #aeb8c8;
+
+            &:hover {
+                border-color: #7a8494;
+                color: #d0dae8;
+            }
+        }
+    }
 }
 
 .player_spell_cast_popup {
@@ -2651,15 +2796,16 @@ $design-canvas-w: 1280;
 }
 
 .player_spell_cast_popup_name {
-    color: #efe7d8;
-    font-family: serif;
+    color: #d8e4f4;
+    font-family: Georgia, "Times New Roman", "Hiragino Mincho ProN", serif;
     font-weight: 700;
     letter-spacing: 0.06em;
-    text-shadow: 0 0 8px rgba(0, 0, 0, 0.7);
-    background: rgba(14, 11, 8, 0.62);
-    border: 1px solid rgba(174, 151, 102, 0.56);
-    border-radius: 8px;
+    text-shadow: 0 0 10px rgba(0, 0, 0, 0.75);
+    background: rgba(10, 14, 20, 0.78);
+    border: 1px solid #4a5868;
+    border-radius: 2px;
     padding: 4px 12px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
 }
 
 /* 簡易フェードクラス */
@@ -2691,8 +2837,8 @@ $design-canvas-w: 1280;
 }
 
 @keyframes panelBreath {
-    0%, 100% { box-shadow: 0 14px 34px rgba(0,0,0,0.55), inset 0 0 0 2px rgba(84, 69, 46, 0.9); }
-    50% { box-shadow: 0 18px 42px rgba(0,0,0,0.62), inset 0 0 0 2px rgba(108, 88, 56, 0.95); }
+    0%, 100% { box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(180, 195, 215, 0.08); }
+    50% { box-shadow: 0 18px 42px rgba(0, 0, 0, 0.62), inset 0 1px 0 rgba(200, 215, 235, 0.12); }
 }
 
 @keyframes titlePulse {
@@ -2880,21 +3026,22 @@ $design-canvas-w: 1280;
 
 .toast_item {
   padding: 10px 24px;
-  border-radius: 8px;
+  border-radius: 2px;
   font-size: 14px;
   font-weight: 600;
-  color: #f5ede0;
+  font-family: Georgia, "Times New Roman", "Hiragino Mincho ProN", serif;
+  color: #d8e4f4;
   pointer-events: auto;
   animation: toastSlideIn 0.3s ease-out, toastFadeOut 0.4s ease-in 2.1s forwards;
-  border: 1px solid rgba(183, 157, 104, 0.6);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.42), inset 0 0 0 1px rgba(85, 68, 42, 0.8);
+  border: 1px solid #4a5868;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(180, 195, 215, 0.08);
   max-width: 400px;
   text-align: center;
 }
 
-.toast_error  { background: linear-gradient(180deg, rgba(124, 37, 31, 0.94), rgba(84, 24, 20, 0.94)); }
-.toast_info   { background: linear-gradient(180deg, rgba(52, 76, 112, 0.94), rgba(30, 44, 66, 0.94)); }
-.toast_success{ background: linear-gradient(180deg, rgba(58, 92, 50, 0.94), rgba(34, 56, 29, 0.94)); }
+.toast_error  { background: linear-gradient(180deg, rgba(88, 32, 32, 0.94), rgba(48, 18, 18, 0.94)); border-color: rgba(160, 80, 80, 0.55); }
+.toast_info   { background: linear-gradient(180deg, rgba(32, 48, 72, 0.94), rgba(18, 28, 44, 0.94)); border-color: rgba(80, 110, 150, 0.55); }
+.toast_success{ background: linear-gradient(180deg, rgba(32, 58, 48, 0.94), rgba(18, 36, 28, 0.94)); border-color: rgba(80, 140, 110, 0.55); }
 
 @keyframes toastSlideIn {
   from { opacity: 0; transform: translateY(-20px); }
@@ -2943,16 +3090,16 @@ $design-canvas-w: 1280;
   align-items: center;
   gap: 8px;
   padding: 8px 16px;
-  background: linear-gradient(180deg, rgba(64, 50, 37, 0.94), rgba(35, 27, 20, 0.94));
-  border-left: 3px solid #c8a567;
-  border-radius: 0 10px 10px 0;
-  color: #f4ecde;
+  background: linear-gradient(180deg, rgba(21, 29, 40, 0.94), rgba(10, 14, 20, 0.94));
+  border-left: 3px solid #6a8aad;
+  border-radius: 0 2px 2px 0;
+  color: #d0dae8;
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0.02em;
   backdrop-filter: blur(6px);
   animation: actionLogSlideIn 0.3s ease-out, actionLogFadeOut 0.4s ease-in 1.8s forwards;
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(92, 72, 45, 0.7);
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(180, 195, 215, 0.06);
   white-space: nowrap;
 }
 
@@ -2987,10 +3134,10 @@ $design-canvas-w: 1280;
   flex-direction: column;
   gap: 6px;
   padding: 10px 10px 8px;
-  border-radius: 10px;
-  border: 1px solid rgba(174, 151, 102, 0.64);
-  background: linear-gradient(180deg, rgba(62, 49, 38, 0.95), rgba(30, 24, 19, 0.95));
-  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.42), inset 0 0 0 1px rgba(87, 71, 46, 0.8);
+  border-radius: 2px;
+  border: 1px solid #4a5868;
+  background: linear-gradient(180deg, rgba(21, 29, 40, 0.96), rgba(10, 14, 20, 0.96));
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(180, 195, 215, 0.06);
   backdrop-filter: blur(8px);
   pointer-events: none;
   pointer-events: auto;
@@ -3003,22 +3150,23 @@ $design-canvas-w: 1280;
   z-index: 1801;
   width: 36px;
   height: 36px;
-  border: 1px solid rgba(174, 151, 102, 0.7);
-  border-radius: 8px;
-  background: linear-gradient(180deg, rgba(62, 49, 38, 0.95), rgba(30, 24, 19, 0.95));
+  border: 1px solid #4a5868;
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(21, 29, 40, 0.96), rgba(10, 14, 20, 0.96));
   display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 4px;
   padding: 8px;
   cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(180, 195, 215, 0.06);
 
   span {
     display: block;
     width: 100%;
     height: 2px;
-    background: #eadcb8;
-    border-radius: 2px;
+    background: #aeb8c8;
+    border-radius: 1px;
     transition: transform 0.18s ease, opacity 0.18s ease;
   }
 }
@@ -3037,7 +3185,7 @@ $design-canvas-w: 1280;
 
 .enemy_spell_history_title {
   margin: 0 0 4px;
-  color: #eadcb8;
+  color: #aeb8c8;
   font-size: 12px;
   letter-spacing: 0.04em;
 }
@@ -3049,33 +3197,34 @@ $design-canvas-w: 1280;
 }
 
 .enemy_spell_history_action_button {
-  border: 1px solid rgba(174, 151, 102, 0.58);
-  border-radius: 6px;
-  background: linear-gradient(180deg, rgba(148, 155, 170, 0.94), rgba(25, 28, 42, 0.94));
-  color: #f3e8cf;
+  border: 1px solid #5a6478;
+  border-radius: 2px;
+  background: linear-gradient(180deg, rgba(36, 50, 68, 0.94), rgba(18, 26, 38, 0.94));
+  color: #d0dae8;
   font-size: 11px;
   font-weight: 700;
   padding: 4px 8px;
   cursor: pointer;
+  font-family: Georgia, "Times New Roman", "Hiragino Mincho ProN", serif;
 }
 
 .enemy_spell_history_action_button_danger {
-  border-color: rgba(201, 91, 78, 0.68);
-  color: #ffe1dc;
-  background: linear-gradient(180deg, rgba(114, 43, 35, 0.96), rgba(73, 27, 22, 0.96));
+  border-color: rgba(160, 80, 75, 0.65);
+  color: #f0d0cc;
+  background: linear-gradient(180deg, rgba(72, 32, 30, 0.96), rgba(40, 18, 16, 0.96));
 }
 
 .enemy_spell_history_item {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  color: #f7f7f7;
+  color: #c8d4e4;
   font-size: 12px;
 }
 
 .enemy_spell_history_turn {
   flex-shrink: 0;
-  color: #dcb87b;
+  color: #8aa8c8;
   font-weight: 700;
 }
 
@@ -3095,23 +3244,25 @@ $design-canvas-w: 1280;
   align-items: center;
   gap: 10px;
   padding: 8px 12px;
-  border-radius: 10px;
-  border: 1px solid rgba(184, 157, 99, 0.72);
-  background: linear-gradient(180deg, rgba(74, 59, 43, 0.95), rgba(36, 29, 21, 0.95));
-  color: #f4ecde;
-  box-shadow: 0 8px 18px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(92, 73, 45, 0.72);
+  border-radius: 2px;
+  border: 1px solid #4a5868;
+  background: linear-gradient(180deg, rgba(21, 29, 40, 0.96), rgba(10, 14, 20, 0.96));
+  color: #d0dae8;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(180, 195, 215, 0.06);
   font-size: 13px;
   font-weight: 700;
+  font-family: Georgia, "Times New Roman", "Hiragino Mincho ProN", serif;
 
   button {
-    border: 1px solid rgba(174, 151, 102, 0.62);
-    border-radius: 6px;
-    background: linear-gradient(180deg, rgba(80, 64, 47, 0.94), rgba(42, 33, 25, 0.94));
-    color: #f3e8cf;
+    border: 1px solid #5a6478;
+    border-radius: 2px;
+    background: linear-gradient(180deg, rgba(36, 50, 68, 0.94), rgba(18, 26, 38, 0.94));
+    color: #d8e4f4;
     padding: 4px 8px;
     cursor: pointer;
     font-size: 12px;
     font-weight: 700;
+    font-family: inherit;
   }
 }
 
@@ -3266,7 +3417,7 @@ $design-canvas-w: 1280;
   margin-top: 0.45em;
   font-size: 0.88em;
   line-height: 1.65;
-  color: #d7cab3;
+  color: #9aa8b8;
 }
 
 .field_card_description_synergy_label_formation,
@@ -3274,22 +3425,25 @@ $design-canvas-w: 1280;
   display: inline-block;
   margin-right: 0.4em;
   padding: 0.12em 0.5em;
-  border-radius: 4px;
+  border-radius: 2px;
   font-size: 0.82em;
   font-weight: 700;
   vertical-align: baseline;
   letter-spacing: 0.04em;
   text-align: left;
+  border: 1px solid transparent;
 }
 
 .field_card_description_synergy_label_formation {
-  background: rgba(113, 129, 162, 0.48);
-  color: #f0f4ff;
+  background: rgba(40, 60, 88, 0.55);
+  border-color: rgba(90, 120, 160, 0.45);
+  color: #d0e4f8;
 }
 
 .field_card_description_synergy_label_dagger {
-  background: rgba(146, 78, 66, 0.52);
-  color: #ffe9df;
+  background: rgba(72, 36, 36, 0.55);
+  border-color: rgba(140, 80, 75, 0.45);
+  color: #f0d0cc;
 }
 
 

@@ -58,26 +58,32 @@ const GameOver: React.FC<Props> = ({ winner, reason, playerRole, turn, onRestart
   const isWin = winner === "player";
 
   return (
-    <div style={{ position: "fixed", left: 0, top: 0, right: 0, bottom: 0, display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000 }}>
-      <div style={{
-        background: "rgba(0,0,0,0.9)",
-        color: "#fff",
-        padding: 40,
-        borderRadius: 12,
-        textAlign: "center",
-        border: `2px solid ${isWin ? "#f0c040" : "#c04040"}`,
-        minWidth: 280,
-      }}>
-        <h2 style={{ fontSize: 48, margin: 0, color: isWin ? "#f0c040" : "#ff6060" }}>{title}</h2>
-        <p style={{ fontSize: 20, color: "#ddd", margin: "10px 0 0 0" }}>{subtitle}</p>
-        {rounds !== undefined && (
-          <p style={{ fontSize: 14, color: "#888", margin: "8px 0 0 0" }}>
-            {rounds} ラウンドで決着
-          </p>
-        )}
-        <div style={{ marginTop: 24, display: "flex", gap: 12, justifyContent: "center" }}>
-          <button onClick={onRestart}>リスタート</button>
-          <button onClick={onMenu}>メニューへ戻る</button>
+    <div className={styles.gameOver}>
+      <div
+        className={`${styles.gameOver__panel} ${isWin ? styles["gameOver__panel--win"] : styles["gameOver__panel--lose"]}`}
+      >
+        <h2
+          className={`${styles.gameOver__title} ${isWin ? styles["gameOver__title--win"] : styles["gameOver__title--lose"]}`}
+        >
+          {title}
+        </h2>
+        <p className={styles.gameOver__subtitle}>{subtitle}</p>
+        {rounds !== undefined && <p className={styles.gameOver__rounds}>{rounds} ラウンドで決着</p>}
+        <div className={styles.gameOver__actions}>
+          <button
+            type="button"
+            onClick={onRestart}
+            className={`${styles.gameOver__btn} ${styles["gameOver__btn--primary"]}`}
+          >
+            リスタート
+          </button>
+          <button
+            type="button"
+            onClick={onMenu}
+            className={`${styles.gameOver__btn} ${styles["gameOver__btn--secondary"]}`}
+          >
+            メニューへ戻る
+          </button>
         </div>
       </div>
     </div>
