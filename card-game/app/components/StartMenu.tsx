@@ -1,5 +1,7 @@
 // StartMenu.tsx
 import React from "react";
+import Image from "next/image";
+import Link from "next/link";
 import styles from "../assets/css/Game.Master.module.css";
 
 type Props = {
@@ -30,151 +32,197 @@ const StartMenu: React.FC<Props> = ({
   const [menuOpen, setMenuOpen] = React.useState(false);
 
   if (!authChecked) {
-    return <div style={{ color: "#fff" }}>認証状態を確認中...</div>;
+    return (
+      <div className={styles.titleScreen}>
+        <p className={styles.titleScreen__loading}>認証状態を確認中...</p>
+      </div>
+    );
   }
 
   if (showEntryChoice) {
     return (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20 }}>
-        <h1 style={{ color: "#fff", fontSize: 48 }}>Usurper&apos;s Gambit</h1>
-        <p style={{ color: "#d0d0d0", maxWidth: 600, textAlign: "center" }}>
-          はじめにプレイ方法を選んでください。<br />
-          Googleログインでクラウド同期、ゲストでこの端末だけ保存できます。
-        </p>
-        <div className={styles.field_turn} style={{ display: "flex", gap: 12, color: "#fff" }}>
-          <button onClick={onGoogleLogin} style={{ cursor: "pointer" }}>
-            Googleでログイン
-          </button>
-          <button onClick={onSelectGuest} style={{ cursor: "pointer" }}>
-            ゲストでプレイ
-          </button>
+      <div className={styles.titleScreen}>
+        <div className={styles.titleScreen__entry}>
+          <Image
+            className={styles.titleScreen__logo}
+            src="/img/front/title_logo.png"
+            alt="Usurper's Gambit"
+            width={460}
+            height={177}
+            priority
+          />
+
+          <p className={styles.titleScreen__entryText}>
+            はじめにプレイ方法を選んでください。
+            <br />
+            Googleログインでクラウド同期、ゲストでこの端末だけ保存できます。
+          </p>
+
+          <div className={styles.titleScreen__actions}>
+            <button
+              type="button"
+              className={`${styles.titleScreen__btn} ${styles["titleScreen__btn--primary"]}`}
+              onClick={onGoogleLogin}
+            >
+              Googleでログイン
+            </button>
+            <button type="button" className={styles.titleScreen__btn} onClick={onSelectGuest}>
+              ゲストでプレイ
+            </button>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20, position: "relative" }}>
+    <div className={styles.titleScreen}>
       <button
         type="button"
+        className={styles.titleScreen__menuBtn}
         onClick={() => setMenuOpen((prev) => !prev)}
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          width: 40,
-          height: 40,
-          borderRadius: 8,
-          border: "1px solid rgba(255,255,255,0.3)",
-          background: "rgba(0,0,0,0.35)",
-          color: "#fff",
-          fontSize: 22,
-          lineHeight: 1,
-          cursor: "pointer",
-        }}
         aria-label="メニュー"
         title="メニュー"
       >
         ☰
       </button>
+
       {menuOpen ? (
-        <div
-          style={{
-            position: "absolute",
-            top: 46,
-            left: 0,
-            zIndex: 10,
-            minWidth: 180,
-            borderRadius: 10,
-            border: "1px solid rgba(255,255,255,0.24)",
-            background: "rgba(10,10,12,0.96)",
-            padding: 8,
-            display: "grid",
-            gap: 6,
-          }}
-        >
+        <div className={styles.titleScreen__dropdown}>
           {isLoggedIn ? (
             <>
               <button
+                type="button"
+                className={styles.titleScreen__dropdownBtn}
                 onClick={() => {
                   setMenuOpen(false);
                   onOpenProfile();
-                }}
-                style={{
-                  cursor: "pointer",
-                  borderRadius: 8,
-                  border: "1px solid rgba(255,255,255,0.25)",
-                  background: "rgba(255,255,255,0.08)",
-                  color: "#fff",
-                  padding: "8px 10px",
-                  textAlign: "left",
                 }}
               >
                 プロフィール設定
               </button>
               <button
+                type="button"
+                className={`${styles.titleScreen__dropdownBtn} ${styles["titleScreen__dropdownBtn--danger"]}`}
                 onClick={() => {
                   setMenuOpen(false);
                   onLogout();
-                }}
-                style={{
-                  cursor: "pointer",
-                  borderRadius: 8,
-                  border: "1px solid rgba(255,170,170,0.35)",
-                  background: "rgba(255,120,120,0.16)",
-                  color: "#ffdede",
-                  padding: "8px 10px",
-                  textAlign: "left",
                 }}
               >
                 サインアウト
               </button>
             </>
           ) : (
-            <p style={{ margin: 0, color: "#d0d0d0", fontSize: 13 }}>ログインするとメニューが有効になります。</p>
+            <p className={styles.titleScreen__dropdownHint}>
+              ログインするとメニューが有効になります。
+            </p>
           )}
         </div>
       ) : null}
-      <h1 style={{ color: "#fff", fontSize: 48 }}>Usurper&apos;s Gambit</h1>
-      {isLoggedIn && !playerName && (
-        <p style={{ margin: 0, color: "#ffcc66", fontWeight: 700, fontSize: 14, textAlign: "center" }}>
-          プレイヤーネームが未設定です。☰メニュー → プロフィール設定から設定してください。
-        </p>
-      )}
-      <div className={styles.field_turn} style={{ display: "flex", gap: 12, color: "#fff", flexDirection: "unset" }}>
-        <button onClick={() => onSelectMode("cpu")} style={{ color: "#d0d0d0", cursor: "pointer" }}>
-          CPU対戦
-        </button>
-        <button disabled title="準備中" style={{ cursor: "not-allowed" }}>
-          ネット対戦
-        </button>
-        <button onClick={onDeck} style={{ cursor: "pointer" }}>
-          デッキ作成
-        </button>
-      </div>
-      <p style={{ color: "#d0d0d0", maxWidth: 600, textAlign: "center" }}>
-        ゲストでもデッキ保存は可能です（この端末のみ）。<br />※編集したデッキは他の端末ではプレイ出来ません。
-      </p>
-      <div style={{ border: "1px solid #fff", padding: 30, borderRadius: 10, marginTop: 20 }}>
-        <p style={{ color: "#fff", fontSize: 24 ,textAlign: "center"}}>ルール説明</p>
-        <p style={{ color: "#fff", paddingTop: 30}}>
-          先攻は、<span style={{ color: "#f0c040"}}>王様デッキ</span><br />
-          後攻は、<span style={{ color: "#f0c040"}}>簒奪者デッキ</span>
-        </p>
-        <p style={{ paddingTop: 30, color: "#fff"}}>
-          <span style={{ color: "#f0c040"}}>勝利条件</span><br />
-          相手プレイヤーの体力を0にする
-          <br />
-          <br />
-          <span style={{ color: "#f0c040"}}>特殊勝利条件</span><br />
-          <span style={{ color: "#f0c040"}}>王様：</span>10ラウンド耐えきる、もしくは自分の場に3体以上を合計5回達成すると勝利<br />
-          <span style={{ color: "#f0c040"}}>簒奪者：</span>10ラウンド以内に倒しきる、もしくは王様の手札を0枚にすると勝利
-        </p>
-        <p style={{ paddingTop: 30, color: "#fff"}}>
-          王側は、場に3枚カード出している状態で特殊ボーナスを発生<br />
-          簒奪者側は、1ターン事に使用する暗器の使用回数によって特殊ボーナスを発生<br />
-        </p>
-      </div>
+
+      {playerName ? (
+        <p className={styles.titleScreen__playerName}>{playerName}</p>
+      ) : null}
+
+      <main className={styles.titleScreen__center}>
+        <div className={styles.titleScreen__leftCol}>
+          <Image
+            className={styles.titleScreen__logo}
+            src="/img/front/title_logo.png"
+            alt="Usurper's Gambit"
+            width={480}
+            height={185}
+            priority
+          />
+
+          <div className={styles.titleScreen__menuCol}>
+            {isLoggedIn && !playerName ? (
+              <p className={styles.titleScreen__alert}>
+                プレイヤーネームが未設定です。☰メニュー → プロフィール設定から設定してください。
+              </p>
+            ) : null}
+
+            <div className={`${styles.titleScreen__actions} ${styles["titleScreen__actions--menu"]}`}>
+              <button
+                type="button"
+                className={`${styles.titleScreen__btn} ${styles["titleScreen__btn--primary"]}`}
+                onClick={() => onSelectMode("cpu")}
+              >
+                CPU対戦
+              </button>
+              <button type="button" className={styles.titleScreen__btn} disabled title="準備中">
+                ネット対戦
+              </button>
+              <button type="button" className={styles.titleScreen__btn} onClick={onDeck}>
+                デッキ作成
+              </button>
+            </div>
+
+            <p className={styles.titleScreen__notice}>
+              ゲストでもデッキ保存は可能です（この端末のみ）。
+              <br />
+              ※編集したデッキは他の端末ではプレイできません。
+            </p>
+
+            {process.env.NODE_ENV === "development" && (
+              <Link href="/dev/screens" className={styles.titleScreen__devLink}>
+                Design Mode 用スクリーン一覧（開発用）
+              </Link>
+            )}
+          </div>
+        </div>
+
+        <div className={styles.titleScreen__rightCol}>
+          <section className={styles.titleScreen__rules} aria-label="ルール説明">
+            <h2 className={styles.titleScreen__rulesTitle}>ルール説明</h2>
+            <div className={styles.titleScreen__rulesBody}>
+              <div className={styles.titleScreen__rulesSection}>
+                <h3 className={styles.titleScreen__rulesHeading}>基本</h3>
+                <p className={styles.titleScreen__rulesText}>
+                  <span className={styles.titleScreen__tagKing}>先攻</span>
+                  王様デッキ　
+                  <span className={styles.titleScreen__tagUsurper}>後攻</span>
+                  簒奪者デッキ
+                </p>
+                <p className={styles.titleScreen__rulesText}>
+                  ターン制の1対1。マナを使ってフォロワーやスペルを場に出し、相手のヒーローHPを削ります。
+                </p>
+              </div>
+
+              <div className={styles.titleScreen__rulesSection}>
+                <h3 className={styles.titleScreen__rulesHeading}>勝利条件（共通）</h3>
+                <p className={styles.titleScreen__rulesText}>
+                  相手プレイヤーの<span className={styles.titleScreen__em}>体力を0</span>にする
+                </p>
+              </div>
+
+              <div className={`${styles.titleScreen__rulesBlock} ${styles["titleScreen__rulesBlock--king"]}`}>
+                <h3 className={styles.titleScreen__rulesBlockTitle}>王様の特殊勝利</h3>
+                <ul className={styles.titleScreen__rulesList}>
+                  <li>10ラウンド終了までに倒されなければ勝利</li>
+                  <li>自分の場にフォロワー3体以上の状態を、試合を通じて合計5回達成</li>
+                </ul>
+                <p className={styles.titleScreen__rulesSubhead}>陣形ボーナス</p>
+                <p className={styles.titleScreen__rulesText}>
+                  場にカードが<span className={styles.titleScreen__em}>3枚</span>出ている状態で、王デッキのカードに特殊ボーナスが付与されます。
+                </p>
+              </div>
+
+              <div className={`${styles.titleScreen__rulesBlock} ${styles["titleScreen__rulesBlock--usurper"]}`}>
+                <h3 className={styles.titleScreen__rulesBlockTitle}>簒奪者の特殊勝利</h3>
+                <ul className={styles.titleScreen__rulesList}>
+                  <li>10ラウンド以内に相手を撃破</li>
+                  <li>王様の手札を0枚にする</li>
+                </ul>
+                <p className={styles.titleScreen__rulesSubhead}>暗器シナジー</p>
+                <p className={styles.titleScreen__rulesText}>
+                  1ターンに使用する<span className={styles.titleScreen__em}>暗器の枚数</span>に応じて、簒奪者デッキのカードに特殊ボーナスが付与されます。
+                </p>
+              </div>
+            </div>
+          </section>
+        </div>
+      </main>
     </div>
   );
 };

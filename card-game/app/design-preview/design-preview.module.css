@@ -1,0 +1,174 @@
+.page {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 28px;
+  box-sizing: border-box;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(80, 60, 120, 0.35), transparent),
+    linear-gradient(180deg, #1a1528 0%, #0d0b14 100%);
+  color: #f5f0e8;
+  overflow: auto;
+}
+
+.guide {
+  flex-shrink: 0;
+  padding: 14px 18px;
+  border-radius: 12px;
+  border: 1px solid rgba(180, 150, 255, 0.35);
+  background: rgba(40, 30, 70, 0.55);
+}
+
+.guideTitle {
+  margin: 0 0 8px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.guideText {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #d8d0e8;
+}
+
+.guideText code {
+  font-family: var(--font-geist-mono), monospace;
+  font-size: 13px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.field {
+  flex: 1;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 12px;
+  min-height: 0;
+}
+
+.enemyRow,
+.playerRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.enemyRow {
+  border-color: rgba(255, 120, 120, 0.2);
+}
+
+.playerRow {
+  border-color: rgba(120, 200, 255, 0.2);
+}
+
+.heroBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  min-width: 140px;
+}
+
+.heroLabel {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
+.centerField {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 16px;
+  border-radius: 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.fieldTitle {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #c9b8ff;
+}
+
+.cardRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+
+.cardSlot {
+  transform: scale(0.72);
+  transform-origin: top center;
+}
+
+.handRow {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.handCard {
+  transform: scale(0.62);
+  transform-origin: bottom center;
+}
+
+.actions {
+  flex-shrink: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+
+.btnPrimary,
+.btnSecondary,
+.btnGhost {
+  padding: 10px 22px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.btnPrimary {
+  color: #1a1028;
+  background: linear-gradient(180deg, #e8d48a 0%, #c9a84a 100%);
+  box-shadow: 0 2px 8px rgba(201, 168, 74, 0.35);
+}
+
+.btnSecondary {
+  color: #f5f0e8;
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.btnGhost {
+  color: #b8a8d8;
+  background: transparent;
+  border-color: rgba(180, 150, 255, 0.35);
+}
+
+.btnPrimary:hover,
+.btnSecondary:hover,
+.btnGhost:hover {
+  transform: translateY(-1px);
+}

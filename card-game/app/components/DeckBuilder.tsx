@@ -125,7 +125,6 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
 
   const save = async () => {
     if (isAuthenticated) {
-      // ログイン済み: サーバーのみに保存（LocalStorage には書かない）
       const serverResult = await saveDeckIdsToServer(role, deckIds);
       if (!serverResult.ok) {
         setMessageType("error");
@@ -135,7 +134,6 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
       setMessageType("success");
       setMessage(`${roleLabels[role]}デッキを保存しました。（クラウド同期済み）`);
     } else {
-      // ゲスト: LocalStorage のみに保存
       const result = saveDeckIdsToStorage(role, deckIds);
       if (!result.ok) {
         setMessageType("error");
@@ -147,28 +145,11 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
     }
   };
 
-
   const resetToDefault = () => {
     setDeckIds(getDefaultDeckIds(role));
     setMessage("");
   };
-  const baseActionButtonStyle: React.CSSProperties = {
-    padding: "10px 16px",
-    borderRadius: 10,
-    border: "1px solid rgba(255,255,255,0.22)",
-    fontWeight: 700,
-    fontSize: 14,
-  };
-  const plusButtonStyle = (disabled: boolean): React.CSSProperties => ({
-    cursor: disabled ? "not-allowed" : "pointer",
-    minWidth: 34,
-    height: 28,
-    borderRadius: 8,
-    border: disabled ? "1px solid rgba(255,255,255,0.12)" : "1px solid rgba(138,255,181,0.35)",
-    background: disabled ? "rgba(140,140,140,0.2)" : "rgba(138,255,181,0.15)",
-    color: disabled ? "rgba(255,255,255,0.35)" : "#d8ffe9",
-    fontWeight: 700,
-  });
+
   const cardPoolAddDisabled = (cardId: number, cost: number) => {
     const count = counts.get(cardId) ?? 0;
     const wouldBeCount = count + 1;
@@ -179,49 +160,21 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
   };
 
   return (
-    <div
-      style={{
-        color: "#fff",
-        width: "100%",
-        maxWidth: 1280,
-        margin: "0 auto",
-        overflow: "hidden",
-        display: "grid",
-        gridTemplateRows: "auto auto auto 1fr auto",
-        gap: 10,
-        boxSizing: "border-box",
-        position: "relative",
-        padding: "8px",
-      }}
-    >
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+    <div className={styles.deckBuilder}>
+      <div className={styles.deckBuilder__header}>
         <div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <div className={styles.deckBuilder__roleGroup}>
             <button
               onClick={() => switchRole("king")}
               disabled={role === "king"}
-              style={{
-                cursor: role === "king" ? "default" : "pointer",
-                padding: "8px 14px",
-                borderRadius: 8,
-                border: role === "king" ? "1px solid #f0c040" : "1px solid #777",
-                background: role === "king" ? "rgba(240, 192, 64, 0.18)" : "rgba(255,255,255,0.05)",
-                color: "#fff",
-              }}
+              className={`${styles.deckBuilder__roleBtn} ${styles["deckBuilder__roleBtn--king"]} ${role === "king" ? styles["deckBuilder__roleBtn--active"] : ""}`}
             >
               王様デッキ
             </button>
             <button
               onClick={() => switchRole("usurper")}
               disabled={role === "usurper"}
-              style={{
-                cursor: role === "usurper" ? "default" : "pointer",
-                padding: "8px 14px",
-                borderRadius: 8,
-                border: role === "usurper" ? "1px solid #f0c040" : "1px solid #777",
-                background: role === "usurper" ? "rgba(240, 192, 64, 0.18)" : "rgba(255,255,255,0.05)",
-                color: "#fff",
-              }}
+              className={`${styles.deckBuilder__roleBtn} ${styles["deckBuilder__roleBtn--usurper"]} ${role === "usurper" ? styles["deckBuilder__roleBtn--active"] : ""}`}
             >
               簒奪者デッキ
             </button>
@@ -229,21 +182,7 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
         </div>
         <button
           onClick={() => setShowDeckDrawer((v) => !v)}
-          style={{
-            cursor: "pointer",
-            minWidth: 96,
-            height: 40,
-            borderRadius: 10,
-            border: "1px solid rgba(255,255,255,0.25)",
-            background: showDeckDrawer ? "rgba(240,192,64,0.22)" : "rgba(255,255,255,0.08)",
-            color: "#fff",
-            display: "grid",
-            placeItems: "center",
-            fontSize: 13,
-            fontWeight: 700,
-            lineHeight: 1,
-            padding: "0 10px",
-          }}
+          className={`${styles.deckBuilder__deckToggle} ${showDeckDrawer ? styles["deckBuilder__deckToggle--open"] : ""}`}
           title="現在のデッキを表示"
           aria-label="現在のデッキを表示"
         >
@@ -251,85 +190,36 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
         </button>
       </div>
 
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <span style={{ padding: "6px 10px", borderRadius: 999, background: "rgba(255,255,255,0.1)" }}>
-          現在: {roleLabels[role]}
-        </span>
+      <div className={styles.deckBuilder__stats}>
+        <span className={styles.deckBuilder__stat}>現在: {roleLabels[role]}</span>
         <span
-          style={{
-            padding: "6px 10px",
-            borderRadius: 999,
-            background: remainingSlots === 0 ? "rgba(138,255,181,0.2)" : "rgba(255,255,255,0.1)",
-          }}
+          className={`${styles.deckBuilder__stat} ${remainingSlots === 0 ? styles["deckBuilder__stat--full"] : ""}`}
         >
           枚数: {deckIds.length}/{rules.deckLimit}
         </span>
         <span
-          style={{
-            padding: "6px 10px",
-            borderRadius: 999,
-            background: highCostDuplicateViolations > 0 ? "rgba(255,120,120,0.2)" : "rgba(255,255,255,0.1)",
-          }}
+          className={`${styles.deckBuilder__stat} ${highCostDuplicateViolations > 0 ? styles["deckBuilder__stat--warn"] : ""}`}
         >
           高コスト同名制限: {highCostDuplicateViolations > 0 ? "違反あり" : "OK"}
         </span>
       </div>
-      <p style={{ margin: 0, opacity: 0.9, fontSize: 13 }}>
+      <p className={styles.deckBuilder__rulesNote}>
         ルール: 保存は{rules.deckLimit}枚ちょうどのみ・同名最大{rules.sameCardLimit}枚・コスト{rules.highCostThreshold}以上の同名は最大{rules.highCostLimit}枚
       </p>
-      <div
-        style={{
-          background: "rgba(0,0,0,0.35)",
-          border: "1px solid rgba(255,255,255,0.18)",
-          borderRadius: 12,
-          padding: 8,
-          display: "grid",
-          gridTemplateRows: "auto 1fr",
-          height: "100dvw",
-          maxHeight: "450px",
-          minHeight: "250px",
-        }}
-      >
-        <h3 style={{ marginTop: 0, marginBottom: 8 }}>カード一覧（クリックで追加）</h3>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
-            gap: 10,
-            overflowY: "auto",
-            minHeight: 0,
-            paddingRight: 4,
-            alignContent: "start",
-            touchAction: "pan-y", // body の touch-action:none を上書きしてスクロールを許可
-          }}
-        >
+      <div className={styles.deckBuilder__pool}>
+        <h3 className={styles.deckBuilder__poolTitle}>カード一覧（クリックで追加）</h3>
+        <div className={styles.deckBuilder__poolGrid}>
           {roleCards.map((card) => {
             const count = counts.get(card.id) ?? 0;
             const addDisabled = cardPoolAddDisabled(card.id, card.cost);
             return (
               <div
                 key={card.id}
-                style={{
-                  borderRadius: 10,
-                  border: "1px solid rgba(255,255,255,0.2)",
-                  background: addDisabled ? "rgba(140,140,140,0.22)" : "rgba(255,255,255,0.06)",
-                  padding: 6,
-                  display: "grid",
-                  gap: 6,
-                  outline: selectedCardId === card.id ? "1px solid rgba(240,192,64,0.75)" : "none",
-                }}
+                className={`${styles.deckBuilder__card} ${addDisabled ? styles["deckBuilder__card--disabled"] : ""} ${selectedCardId === card.id ? styles["deckBuilder__card--selected"] : ""}`}
               >
                 <div
                   onClick={() => setSelectedCardId(card.id)}
-                  style={{
-                    position: "relative", // next/image の fill 用
-                    cursor: "pointer",
-                    width: "100%",
-                    aspectRatio: "3 / 4",
-                    borderRadius: 10,
-                    overflow: "hidden",
-                    background: "rgba(0,0,0,0.4)",
-                  }}
+                  className={`${styles.deckBuilder__cardThumb} ${addDisabled ? styles["deckBuilder__cardThumb--dimmed"] : ""}`}
                 >
                   {card.image ? (
                     <Image
@@ -337,18 +227,17 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
                       alt={card.name}
                       fill
                       unoptimized
-                      style={{
-                        objectFit: "cover",
-                        filter: addDisabled ? "grayscale(70%) brightness(0.8)" : "none",
-                      }}
+                      style={{ objectFit: "cover" }}
                     />
                   ) : null}
                 </div>
-                <div onClick={() => setSelectedCardId(card.id)} style={{ fontSize: 12, minHeight: 34, cursor: "pointer" }}>
-                  <div style={{ color: "#f0c040", fontWeight: 700, opacity: addDisabled ? 0.8 : 1 }}>[{card.cost}] {card.name}</div>
-                  <div style={{ opacity: addDisabled ? 0.65 : 0.9 }}>所持: {count}枚</div>
+                <div onClick={() => setSelectedCardId(card.id)} className={styles.deckBuilder__cardMeta}>
+                  <div className={styles.deckBuilder__cardCost}>
+                    [{card.cost}] {card.name}
+                  </div>
+                  <div className={styles.deckBuilder__cardCount}>所持: {count}枚</div>
                 </div>
-                <div style={{ display: "flex", gap: 6 }}>
+                <div className={styles.deckBuilder__cardActions}>
                   <button
                     type="button"
                     disabled={count === 0}
@@ -358,16 +247,7 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
                       removeCard(card.id);
                     }}
                     onPointerDown={(e) => e.stopPropagation()}
-                    style={{
-                      cursor: count === 0 ? "not-allowed" : "pointer",
-                      minWidth: 34,
-                      height: 28,
-                      borderRadius: 8,
-                      border: count === 0 ? "1px solid rgba(255,255,255,0.12)" : "1px solid rgba(255,170,170,0.35)",
-                      background: count === 0 ? "rgba(140,140,140,0.2)" : "rgba(255,138,138,0.15)",
-                      color: count === 0 ? "rgba(255,255,255,0.35)" : "#ffe0e0",
-                      fontWeight: 700,
-                    }}
+                    className={`${styles.deckBuilder__countBtn} ${styles["deckBuilder__countBtn--minus"]}`}
                   >
                     -1
                   </button>
@@ -380,7 +260,7 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
                     }}
                     disabled={addDisabled}
                     onPointerDown={(e) => e.stopPropagation()}
-                    style={plusButtonStyle(addDisabled)}
+                    className={`${styles.deckBuilder__countBtn} ${styles["deckBuilder__countBtn--plus"]}`}
                     title={addDisabled ? "上限のため追加できません" : "1枚追加"}
                   >
                     +1
@@ -393,93 +273,33 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
       </div>
 
       {showDeckDrawer && (
-        <div
-          style={{
-            position: "absolute",
-            top: 0,
-            right: 0,
-            width: "min(500px, 100vw)",
-            height: "100%",
-            background: "rgba(10,10,12,0.97)",
-            borderLeft: "1px solid rgba(255,255,255,0.2)",
-            padding: 12,
-            display: "grid",
-            gridTemplateRows: "auto auto 1fr",
-            gap: 10,
-            zIndex: 20,
-          }}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <h3 style={{ margin: 0 }}>現在のデッキ</h3>
-            <button
-              onClick={() => setShowDeckDrawer(false)}
-              style={{
-                cursor: "pointer",
-                borderRadius: 8,
-                border: "1px solid rgba(255,255,255,0.25)",
-                background: "rgba(255,255,255,0.08)",
-                color: "#fff",
-                padding: "6px 10px",
-              }}
-            >
+        <div className={styles.deckBuilder__drawer}>
+          <div className={styles.deckBuilder__drawerHeader}>
+            <h3 className={styles.deckBuilder__drawerTitle}>現在のデッキ</h3>
+            <button onClick={() => setShowDeckDrawer(false)} className={styles.deckBuilder__drawerClose}>
               閉じる
             </button>
           </div>
-          <p style={{ margin: 0, fontSize: 13, opacity: 0.9 }}>
+          <p className={styles.deckBuilder__drawerNote}>
             {deckPreviewCards.length}/{rules.deckLimit}枚（確認専用）
           </p>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", overflowY: "auto", alignContent: "flex-start", paddingRight: 4, touchAction: "pan-y" }}>
+          <div className={styles.deckBuilder__drawerGrid}>
             {deckPreviewCards.map((card, idx) => (
               <div
                 key={`${card.id}-${idx}`}
                 onClick={() => setSelectedCardId(card.id)}
-                style={{
-                  cursor: "pointer",
-                  width: 82,
-                  minWidth: 82,
-                  borderRadius: 10,
-                  border: "1px solid rgba(255,255,255,0.22)",
-                  background: "rgba(255,255,255,0.06)",
-                  padding: 6,
-                  color: "#fff",
-                  outline: selectedCardId === card.id ? "1px solid rgba(240,192,64,0.75)" : "none",
-                }}
+                className={`${styles.deckBuilder__deckSlot} ${selectedCardId === card.id ? styles["deckBuilder__deckSlot--selected"] : ""}`}
               >
-                <div
-                  style={{
-                    position: "relative", // next/image の fill 用に positioned ancestor を作る（無いと近傍の positioned 要素全域を埋めてしまう）
-                    width: "100%",
-                    aspectRatio: "3 / 4",
-                    borderRadius: 8,
-                    overflow: "hidden",
-                    background: "rgba(0,0,0,0.4)",
-                  }}
-                >
+                <div className={styles.deckBuilder__deckSlotThumb}>
                   {card.image ? (
                     <Image src={card.image} alt={card.name} fill unoptimized style={{ objectFit: "cover" }} />
                   ) : null}
                 </div>
-                <div style={{ marginTop: 4, fontSize: 11, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-                  {card.name}
-                </div>
+                <div className={styles.deckBuilder__deckSlotName}>{card.name}</div>
               </div>
             ))}
             {Array.from({ length: emptySlots }).map((_, idx) => (
-              <div
-                key={`empty-${idx}`}
-                style={{
-                  width: 82,
-                  minWidth: 82,
-                  borderRadius: 10,
-                  border: "1px dashed rgba(255,255,255,0.22)",
-                  background: "rgba(255,255,255,0.03)",
-                  display: "grid",
-                  placeItems: "center",
-                  color: "rgba(255,255,255,0.45)",
-                  fontSize: 12,
-                  minHeight: 118,
-                }}
-              >
+              <div key={`empty-${idx}`} className={styles.deckBuilder__deckSlotEmpty}>
                 空き
               </div>
             ))}
@@ -488,28 +308,11 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
       )}
 
       {selectedCard && (
-        <div
-          onClick={() => setSelectedCardId(null)}
-          style={{
-            position: "absolute",
-            inset: 0,
-            background: "rgba(0,0,0,0.55)",
-            zIndex: 30,
-            display: "grid",
-            placeItems: "center",
-          }}
-        >
+        <div onClick={() => setSelectedCardId(null)} className={styles.deckBuilder__overlay}>
           <div
-            className={styles.field_card_description}
+            className={`${styles.field_card_description} ${styles.deckBuilder__overlayPanel}`}
             data-card-description="true"
             onClick={(e) => e.stopPropagation()}
-            style={{
-              position: "relative",
-              maxWidth: 520,
-              width: "calc(100% - 40px)",
-              margin: 0,
-              zIndex: 31,
-            }}
           >
             <h4>
               [{selectedCard.cost}] {selectedCard.name}
@@ -517,85 +320,54 @@ const DeckBuilder: React.FC<Props> = ({ onBack }) => {
             <p>{selectedCard.description ?? "説明はありません。"}</p>
             {selectedCard.descriptionFormationBonus ? (
               <p className={styles.field_card_description_synergy}>
-                <span className={styles.field_card_description_synergy_label_formation}>陣形</span><br />
+                <span className={styles.field_card_description_synergy_label_formation}>陣形</span>
+                <br />
                 {selectedCard.descriptionFormationBonus}
               </p>
             ) : null}
             {selectedCard.descriptionDaggerSynergy ? (
               <p className={styles.field_card_description_synergy}>
-                <span className={styles.field_card_description_synergy_label_dagger}>暗器</span><br />
+                <span className={styles.field_card_description_synergy_label_dagger}>暗器</span>
+                <br />
                 {selectedCard.descriptionDaggerSynergy}
               </p>
             ) : null}
-            <button
-              type="button"
-              onClick={() => setSelectedCardId(null)}
-              style={{
-                marginTop: 8,
-                cursor: "pointer",
-                borderRadius: 8,
-                border: "1px solid rgba(255,255,255,0.28)",
-                background: "rgba(255,255,255,0.08)",
-                color: "#fff",
-                padding: "6px 10px",
-              }}
-            >
+            <button type="button" onClick={() => setSelectedCardId(null)} className={styles.deckBuilder__overlayClose}>
               閉じる
             </button>
           </div>
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 8, marginTop: 0, flexWrap: "wrap" }}>
+      <div className={styles.deckBuilder__footer}>
         <button
           onClick={save}
           disabled={!canSave}
-          style={{
-            ...baseActionButtonStyle,
-            cursor: canSave ? "pointer" : "not-allowed",
-            border: canSave ? "1px solid rgba(138,255,181,0.45)" : "1px solid rgba(255,255,255,0.12)",
-            background: canSave ? "linear-gradient(180deg, rgba(138,255,181,0.28), rgba(96,182,133,0.28))" : "rgba(120,120,120,0.25)",
-            color: canSave ? "#eafff3" : "rgba(255,255,255,0.45)",
-            boxShadow: canSave ? "0 6px 14px rgba(70,140,102,0.25)" : "none",
-          }}
+          className={`${styles.deckBuilder__btn} ${styles["deckBuilder__btn--save"]}`}
         >
           保存
         </button>
         <button
           onClick={resetToDefault}
-          style={{
-            ...baseActionButtonStyle,
-            cursor: "pointer",
-            background: "rgba(240,192,64,0.2)",
-            border: "1px solid rgba(240,192,64,0.45)",
-            color: "#ffe8a8",
-          }}
+          className={`${styles.deckBuilder__btn} ${styles["deckBuilder__btn--reset"]}`}
         >
           デフォルトに戻す
         </button>
-        <button
-          onClick={onBack}
-          style={{
-            ...baseActionButtonStyle,
-            cursor: "pointer",
-            background: "rgba(255,255,255,0.1)",
-            border: "1px solid rgba(255,255,255,0.28)",
-            color: "#f4f4f4",
-          }}
-        >
+        <button onClick={onBack} className={`${styles.deckBuilder__btn} ${styles["deckBuilder__btn--back"]}`}>
           戻る
         </button>
       </div>
 
-      <div style={{ minHeight: 20 }}>
-        {errors.length > 0 && (
-          <p style={{ color: "#ff8a8a", margin: 0, fontWeight: 700, fontSize: 14 }}>⚠ {errors[0]}</p>
-        )}
+      <div className={styles.deckBuilder__messages}>
+        {errors.length > 0 && <p className={styles.deckBuilder__error}>⚠ {errors[0]}</p>}
         {message && (
-          <p style={{ color: messageType === "error" ? "#ff8a8a" : "#8affb5", margin: 0, fontWeight: 700, fontSize: 14 }}>{message}</p>
+          <p
+            className={`${styles.deckBuilder__message} ${messageType === "error" ? styles["deckBuilder__message--error"] : styles["deckBuilder__message--success"]}`}
+          >
+            {message}
+          </p>
         )}
       </div>
-
     </div>
   );
 };
