@@ -58,6 +58,10 @@ const StartMenu: React.FC<Props> = ({
             Googleログインでクラウド同期、ゲストでこの端末だけ保存できます。
           </p>
 
+          <Link href="/privacy" className={styles.titleScreen__policyLink}>
+            プライバシーポリシー
+          </Link>
+
           <div className={styles.titleScreen__actions}>
             <button
               type="button"
