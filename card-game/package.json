@@ -14,10 +14,10 @@
     "@vercel/kv": "^3.0.0",
     "clsx": "^2.1.1",
     "framer-motion": "^12.23.25",
-    "next": "^16.2.7",
-    "next-auth": "^4.24.14",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
+    "next": "^16.4.2",
+    "next-auth": "^4.24.15",
+    "react": "^19.2.9",
+    "react-dom": "^19.2.9",
     "three": "^0.183.2",
     "uuid": "^11.1.1"
   },
@@ -35,7 +35,7 @@
     "vitest": "^4.1.2"
   },
   "overrides": {
-    "postcss": "^8.5.10",
+    "postcss": "^8.5.31",
     "uuid": "$uuid"
   }
 }
